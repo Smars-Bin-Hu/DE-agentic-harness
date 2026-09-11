@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [],
+    "deny": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/example-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

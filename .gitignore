@@ -1,0 +1,13 @@
+# Claude Code local overrides / generated files
+.claude/settings.local.json
+.claude/hooks.log
+
+# OS
+.DS_Store
+
+# Logs / env
+*.log
+.env
+
+# Node (if tooling is added later)
+node_modules/
