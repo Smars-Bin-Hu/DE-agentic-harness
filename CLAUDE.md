@@ -37,31 +37,56 @@ The harness is organized around four pillars:
    architecture notes, data contracts, etc.) that agents/skills can be pointed to for
    context. Currently empty; will be populated once the real DE project is integrated.
 
+## Contracts
+
+Every agent and skill has a sidecar `contract.yaml` (inputs, outputs, pre/post
+conditions, allowed/forbidden side effects, failure modes) — see
+`docs/contracts.md` for the schema and where the file lives for each of the two
+(skills nest it in their directory; agents get a `<name>.contract.yaml` sibling of
+`<name>.md`). Any new agent or skill should ship a contract alongside it.
+
+## Eval
+
+`eval/README.md` defines the fixture format (`fixtures/case-NNN/{input.json,
+expected.json}`) and scoring rubric that agent/skill contracts point to via
+`eval.fixtures_dir`. This is conventions-only for now — there is no runnable scorer
+yet, since there's no real content to score. Add fixtures alongside any new
+contract; the runner is future work.
+
 ## Permissions and hooks
 
 `.claude/settings.json` holds the project's permission rules (`permissions.allow` /
-`permissions.deny`) and hook wiring (`hooks`). There is currently one example hook
-(`SessionStart` → `.claude/hooks/example-hook.sh`) that appends a timestamped line to
-`.claude/hooks.log`, demonstrating that the hooks mechanism works end-to-end. Use this
-as the pattern for adding real hooks (e.g. a pre-commit lint gate, a PostToolUse audit
-log) later.
+`permissions.deny`) and hook wiring (`hooks`). Hooks currently wired:
+
+- `SessionStart` → `.claude/hooks/example-hook.sh` (the original "hooks work" demo,
+  logs to `.claude/hooks.log`) and `.claude/hooks/log-event.sh SessionStart`.
+- `PreToolUse` / `PostToolUse` (matcher `*`), `SubagentStop`, `Stop` →
+  `.claude/hooks/log-event.sh <EventName>`.
+
+`log-event.sh` is the observability logger — see below. Use the same
+`.claude/hooks/*.sh` + `settings.json` wiring pattern for future hooks (e.g. a
+pre-commit lint gate).
 
 `.claude/settings.local.json` (gitignored) is where personal/local permission
 overrides should go — never commit machine-specific permissions to
 `.claude/settings.json`.
 
+## Observability
+
+`docs/observability.md` describes the implemented design: `log-event.sh` wraps
+whatever Claude Code sends a hook on stdin as `{ts, event_type, payload}` and
+appends it to `.claude/logs/events.jsonl` (gitignored); logger failures go to
+`.claude/logs/hook-errors.log` instead of blocking the hook. Read that doc before
+changing the log schema or adding new hook-driven events.
+
 ## Roadmap (not yet implemented)
 
-These are known future needs for the eventual Data Engineering harness, called out
-here so they aren't forgotten, but intentionally not scaffolded yet (no point building
-empty structure before the real requirements are known):
+These are known future needs for the eventual Data Engineering harness — design
+notes exist so they aren't forgotten, but nothing is enforced yet:
 
-- **Eval** — a harness for scoring agent/skill outputs against known-good SDLC task
-  outcomes.
-- **Permission management** — beyond the basic allow/deny list in `settings.json`,
-  likely role- or task-scoped permission profiles once real tool access (databases,
-  prod systems) is involved.
-- **Observability** — tracing/logging of agent runs beyond the simple hook log, for
-  debugging and auditing multi-agent task execution.
-- **Guardrails** — input/output validation and safety checks appropriate to a Data
-  Engineering context (e.g. preventing destructive schema/data operations).
+- **Permission management** — `docs/permissions.md`. Beyond the basic allow/deny
+  list in `settings.json`, likely role- or task-scoped permission profiles once real
+  tool access (databases, prod systems) is involved.
+- **Guardrails** — `docs/guardrails.md`. Input/output validation and deny-capable
+  hooks appropriate to a Data Engineering context (e.g. preventing destructive
+  schema/data operations), once real tool integrations exist to design against.

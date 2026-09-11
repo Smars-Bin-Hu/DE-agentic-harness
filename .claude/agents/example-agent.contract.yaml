@@ -1,0 +1,42 @@
+name: example-agent
+version: 0.1.0
+owner: unassigned
+summary: >
+  Template contract for example-agent. Replace with a one-paragraph description
+  of what this subagent is responsible for and when it should be dispatched.
+
+inputs:
+  - name: task
+    type: string
+    required: true
+    description: Placeholder — the task/prompt handed to this subagent.
+
+outputs:
+  type: string
+  description: Placeholder — describe the shape of the final report this agent returns.
+  schema: null
+
+preconditions:
+  - Placeholder — a plain-language assumption that must hold before invocation.
+
+postconditions:
+  - Placeholder — a plain-language guarantee once this completes successfully.
+
+side_effects:
+  allowed:
+    - Placeholder — e.g. "reads files under the repo root"
+  forbidden:
+    - Placeholder — e.g. "no writes, no network calls"
+
+failure_modes:
+  - condition: Placeholder — e.g. "task is out of scope for this agent"
+    behavior: Placeholder — e.g. "report back that it's out of scope, do not guess"
+
+allowed_tools:
+  - Read
+  - Grep
+  - Glob
+
+eval:
+  fixtures_dir: ./example-agent.fixtures
+  rubric_ref: ../../eval/README.md#scoring-rubric

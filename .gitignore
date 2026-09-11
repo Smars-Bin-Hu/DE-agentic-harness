@@ -1,6 +1,10 @@
 # Claude Code local overrides / generated files
 .claude/settings.local.json
 .claude/hooks.log
+.claude/logs/
+
+# Eval run output (not implemented yet, but reserve the path)
+eval/results/
 
 # OS
 .DS_Store
