@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "description": "Task Level controls autonomy and execution effort. It does not grant or revoke runtime permissions.",
+  "levels": {
+    "1": {
+      "name": "Deterministic Task",
+      "planning": "disabled",
+      "exploration": "minimal",
+      "subagents": { "allowed": false },
+      "reasoning": "low",
+      "execution": { "prefer_direct_action": true },
+      "execution_budget": {
+        "repository_searches": 2,
+        "observed_tool_calls": 15,
+        "subagents_created": 0
+      }
+    },
+    "2": {
+      "name": "Standard Engineering Task",
+      "planning": "recommended",
+      "exploration": "limited",
+      "subagents": { "allowed": false },
+      "reasoning": "medium",
+      "execution": { "prefer_direct_action": false },
+      "execution_budget": {
+        "repository_searches": 8,
+        "observed_tool_calls": 40,
+        "subagents_created": 0
+      }
+    },
+    "3": {
+      "name": "Complex / Orchestrated Task",
+      "planning": "required",
+      "exploration": "broad",
+      "subagents": { "allowed": true },
+      "reasoning": "high",
+      "execution": { "orchestration_allowed": true },
+      "execution_budget": {
+        "repository_searches": 25,
+        "observed_tool_calls": 120,
+        "subagents_created": 4
+      }
+    }
+  }
+}
