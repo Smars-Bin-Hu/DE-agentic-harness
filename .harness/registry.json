@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "engine": {
+    "files": [
+      ".harness/engine/hook.py",
+      ".harness/engine/cli.py",
+      ".harness/engine/doctor.py",
+      ".harness/engine/core/",
+      ".harness/engine/adapters/copilot_vscode.py",
+      ".harness/engine/adapters/copilot_cli.py",
+      ".harness/engine/adapters/tool_kinds.json",
+      ".github/hooks/harness.json",
+      ".harness/eval/fixtures/hooks/vscode/"
+    ]
+  },
+  "modules": {
+    "task_level": {
+      "status": "active",
+      "enabled": true,
+      "events": [
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse"
+      ],
+      "enforcement": [
+        "S",
+        "H"
+      ],
+      "surfaces_verified": [],
+      "files": [
+        ".github/skills/harness-task-level/",
+        ".harness/policies/task-levels.json",
+        ".harness/engine/modules/task_level/",
+        ".harness/tests/test_task_level.py"
+      ],
+      "retire_when": "Copilot 原生支持按模式限制探索预算和子 agent"
+    }
+  }
+}

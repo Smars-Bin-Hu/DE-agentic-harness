@@ -12,9 +12,13 @@ applyTo: '.github/skills/**/SKILL.md'
 | 3. Resources | Scripts, examples, docs | Only when Copilot
  
 
-# Generic Skill vs Domain Skill
-- Generic Skill: 命名为`generic-<skill-name>`跨Domain可用的Skill
-- Domain Skill: 命名为 `domain-<domain name>-<skill-name>*` 面向某一个业务领域的Skill
+# Skill 名称前缀
+
+Skill 的目录名和 `name` 字段必须一致，并且用下面三种前缀之一。没有前缀的只有第三方 Skill，保留原名。
+
+- `harness-<module>`：harness 模块的语义面。和 `.harness/engine/modules/<module>/` 一一对应，模块名里的下划线写成连字符（`task_level` → `harness-task-level`）。上游维护。
+- `generic-<skill-name>`：跨领域通用的 Skill。上游维护。
+- `domain-<domain name>-<skill-name>`：面向某一个业务领域的 Skill。企业维护，上游不建。
 
 
 # Unit Type vs Workflow Orchestration Tyle

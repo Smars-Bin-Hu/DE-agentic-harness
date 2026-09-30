@@ -26,10 +26,16 @@ README 是仓库的第一目录。先从这里找到目标文件，再读取需�
 | [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md) | 知识库文件的编写规则。                       |
 | [.github/skills/](.github/skills/)                                                                       | 可重复使用的任务流程和参考资料。             |
 | [.github/agents/](.github/agents/)                                                                       | GitHub Copilot 的自定义智能体定义。          |
+| [.github/skills/harness-task-level/](.github/skills/harness-task-level/)                                 | Task Level 的使用流程和参考。                |
+| [.github/hooks/harness.json](.github/hooks/harness.json)                                                 | 唯一的 hook 配置。所有事件进同一个入口。     |
+| [.harness/registry.json](.harness/registry.json)                                                         | 模块注册表：开关、订阅的事件、文件清单。     |
 | [.harness/policies/task-levels.json](.harness/policies/task-levels.json)                                 | Task Level 1、2、3 的机器可读规则。          |
-| [.harness/task-policy/task_policy.py](.harness/task-policy/task_policy.py)                               | Task Level 状态、计数和钩子判断。            |
-| [.github/hooks/task-level-policy.json](.github/hooks/task-level-policy.json)                             | GitHub Copilot 的 Task Level 钩子配置。      |
-| [.tests/task-policy/](.tests/task-policy/)                                                               | Task Level 的行为和兼容性测试。              |
+| [.harness/engine/hook.py](.harness/engine/hook.py)                                                       | hook 入口：识别运行时，分发给模块，合并结果。 |
+| [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口：`doctor` 检查配置，`level` 管理 Level。 |
+| [.harness/engine/modules/](.harness/engine/modules/)                                                     | 可插拔模块。现在只有 `task_level`。          |
+| [.harness/engine/adapters/](.harness/engine/adapters/)                                                   | 运行时差异：payload 解析、输出格式、工具名表。 |
+| [.harness/eval/fixtures/](.harness/eval/fixtures/)                                                       | 真实 hook 输入的录制样本，用于回放测试。     |
+| [.harness/tests/](.harness/tests/)                                                                       | 全部测试。`python3 -m unittest discover -s .harness/tests` |
 | [knowledge-base/](knowledge-base/)                                                                       | 数据工程领域资料、术语、架构说明和操作手册。 |
 
 ## 本Harness Engineering核心组件

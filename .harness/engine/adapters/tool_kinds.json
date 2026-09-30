@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "description": "Tool name -> tool kind, per surface. Kinds: read, edit, create, terminal, search, subagent, mcp. Unknown tools get kind 'other'.",
+  "surfaces": {
+    "vscode": {
+      "verified": true,
+      "source": "B1 recording, 2026-09-30, VS Code 1.140.0 / Copilot Chat 0.68.0",
+      "tools": {
+        "read_file": "read",
+        "list_dir": "read",
+        "grep_search": "search",
+        "file_search": "search",
+        "semantic_search": "search",
+        "create_file": "create",
+        "replace_string_in_file": "edit",
+        "run_in_terminal": "terminal",
+        "runSubagent": "subagent"
+      },
+      "path_keys": ["filePath", "path"],
+      "command_key": "command",
+      "subagent_target_key": "agentName",
+      "subagent_prompt_key": "prompt"
+    },
+    "cli": {
+      "verified": false,
+      "source": "GitHub Docs only. Not recorded. Re-check in M6-4.",
+      "tools": {
+        "bash": "terminal",
+        "powershell": "terminal",
+        "view": "read",
+        "create": "create",
+        "edit": "edit",
+        "grep": "search",
+        "glob": "search",
+        "task": "subagent"
+      },
+      "path_keys": ["path", "filePath"],
+      "command_key": "command",
+      "subagent_target_key": "agent_type",
+      "subagent_prompt_key": "prompt"
+    }
+  },
+  "terminal_search_commands": ["rg", "grep", "git grep", "find"]
+}
