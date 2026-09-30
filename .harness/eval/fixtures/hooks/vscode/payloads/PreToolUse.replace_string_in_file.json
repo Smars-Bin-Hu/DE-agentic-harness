@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-09-30T21:00:00.190Z",
+  "hook_event_name": "PreToolUse",
+  "session_id": "session-tools-edit-list-search",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-tools-edit-list-search.jsonl",
+  "tool_name": "replace_string_in_file",
+  "tool_input": {
+    "filePath": "/Users/user/Developer/DE-agentic-harness/.workspace/sandbox/probe/p1.txt",
+    "oldString": "hello",
+    "newString": "world"
+  },
+  "tool_use_id": "toolu_018YoJaMGZnWLitPNiMtLZ7X__vscode-1790800728068",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

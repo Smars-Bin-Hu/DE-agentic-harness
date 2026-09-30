@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-09-30T20:42:59.715Z",
+  "hook_event_name": "PostToolUse",
+  "session_id": "session-PreToolUse.runSubagent",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-PreToolUse.runSubagent.jsonl",
+  "tool_name": "runSubagent",
+  "tool_input": {
+    "agentName": "probe-child",
+    "prompt": "请读取文件 /Users/user/Developer/DE-agentic-harness/README.md 的第一行内容，然后把读取到的第一行原文告诉我。只需要返回第一行的内容，不需要任何其他说明或解释。",
+    "description": "读取README第一行"
+  },
+  "tool_response": "# 数据工程智能体框架",
+  "tool_use_id": "toolu_01NT2YTEYA9J9t2yXUgjT4gt__vscode-1790800728046",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

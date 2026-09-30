@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-09-30T20:39:47.741Z",
+  "hook_event_name": "SessionStart",
+  "session_id": "session-SessionStart",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-SessionStart.jsonl",
+  "source": "new",
+  "model": "claude-haiku-4.5",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

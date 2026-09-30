@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-09-30T20:40:21.511Z",
+  "hook_event_name": "PreToolUse",
+  "session_id": "session-tools-basic",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-tools-basic.jsonl",
+  "tool_name": "grep_search",
+  "tool_input": {
+    "defaultMaxResults": 100,
+    "query": "sandbox",
+    "isRegexp": false
+  },
+  "tool_use_id": "toolu_01NaeTAEgPmB7E5orScL7hLr__vscode-1790800728043",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-09-30T20:40:21.510Z",
+  "hook_event_name": "PreToolUse",
+  "session_id": "session-tools-basic",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-tools-basic.jsonl",
+  "tool_name": "read_file",
+  "tool_input": {
+    "filePath": "/Users/user/Developer/DE-agentic-harness/README.md",
+    "startLine": 1,
+    "endLine": 1
+  },
+  "tool_use_id": "toolu_01NV78cUVoyz4AMSCwtvbqYY__vscode-1790800728040",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

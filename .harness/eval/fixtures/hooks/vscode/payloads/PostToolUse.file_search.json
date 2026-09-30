@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-09-30T20:59:53.436Z",
+  "hook_event_name": "PostToolUse",
+  "session_id": "session-tools-edit-list-search",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-tools-edit-list-search.jsonl",
+  "tool_name": "file_search",
+  "tool_input": {
+    "query": "**/README*",
+    "maxResults": 20
+  },
+  "tool_response": "",
+  "tool_use_id": "toolu_01K59xFDkgLxS8YXYzue96XX__vscode-1790800728066",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

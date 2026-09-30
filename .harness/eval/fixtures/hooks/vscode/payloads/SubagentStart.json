@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-09-30T20:42:55.212Z",
+  "hook_event_name": "SubagentStart",
+  "session_id": "session-PreToolUse.runSubagent",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-PreToolUse.runSubagent.jsonl",
+  "agent_id": "toolu_01NT2YTEYA9J9t2yXUgjT4gt",
+  "agent_type": "probe-child",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

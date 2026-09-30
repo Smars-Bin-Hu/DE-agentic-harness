@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-09-30T21:01:55.125Z",
+  "hook_event_name": "Stop",
+  "session_id": "session-stop-block-once",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-stop-block-once.jsonl",
+  "stop_hook_active": true,
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

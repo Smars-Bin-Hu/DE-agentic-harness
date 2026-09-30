@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-09-30T20:59:53.348Z",
+  "hook_event_name": "PreToolUse",
+  "session_id": "session-tools-edit-list-search",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-tools-edit-list-search.jsonl",
+  "tool_name": "semantic_search",
+  "tool_input": {
+    "query": "task level"
+  },
+  "tool_use_id": "toolu_01UeyFWM5sQYa5gNuVa1f3CW__vscode-1790800728067",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

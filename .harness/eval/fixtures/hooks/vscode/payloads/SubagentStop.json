@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-30T20:42:59.672Z",
+  "hook_event_name": "SubagentStop",
+  "session_id": "session-PreToolUse.runSubagent",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-PreToolUse.runSubagent.jsonl",
+  "agent_id": "toolu_01NT2YTEYA9J9t2yXUgjT4gt",
+  "agent_type": "probe-child",
+  "stop_hook_active": false,
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}

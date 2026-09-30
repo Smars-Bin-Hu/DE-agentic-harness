@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-09-30T20:39:47.775Z",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "session-SessionStart",
+  "transcript_path": "<VSCODE_STORAGE>/transcripts/session-SessionStart.jsonl",
+  "prompt": "依次做四件事，每件只做一次，不要多做：\n1. 读取 README.md 的第一行。\n2. 在 .workspace/sandbox/probe/p1.txt 写入一行 hello。\n3. 运行终端命令 git status --short。\n4. 在仓库里搜索单词 sandbox。\n最后只回答 done。",
+  "cwd": "/Users/user/Developer/DE-agentic-harness"
+}
