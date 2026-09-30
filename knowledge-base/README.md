@@ -1,7 +1,5 @@
 # Knowledge Base
 
-Reference and context documents for the eventual Data Engineering project: domain
-glossaries, data contracts, architecture notes, runbooks, etc. Agents and skills can
-be pointed at files here for grounding.
+企业团队接入自己知识库的位置。本仓库不放任何业务内容。
 
-Currently empty — will be populated once the real DE project is integrated.
+当前为空。

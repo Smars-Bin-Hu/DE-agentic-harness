@@ -1,0 +1,6 @@
+{
+  "chat.useHooks": true,
+  "chat.useAgentsMdFile": true,
+  "chat.includeApplyingInstructions": true,
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true
+}
