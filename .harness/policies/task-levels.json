@@ -1,45 +1,47 @@
 {
-  "schema_version": 1,
-  "description": "Task Level controls autonomy and execution effort. It does not grant or revoke runtime permissions.",
+  "schema_version": 2,
+  "description": "Task Level controls how the agent works and how much it explores. It does not grant or revoke runtime permissions.",
+  "switch_markers": {
+    "1": ["/l1", "[L1]"],
+    "2": ["/l2", "[L2]"]
+  },
   "levels": {
     "1": {
       "name": "Deterministic Task",
-      "planning": "disabled",
-      "exploration": "minimal",
-      "subagents": { "allowed": false },
-      "reasoning": "low",
-      "execution": { "prefer_direct_action": true },
-      "execution_budget": {
-        "repository_searches": 2,
-        "observed_tool_calls": 15,
-        "subagents_created": 0
-      }
+      "agent": "default",
+      "planning": "none",
+      "subagents": { "allowed": [] },
+      "budget_per_prompt": {
+        "repository_searches": { "limit": 2, "on_exceed": "deny" },
+        "observed_tool_calls": { "limit": 15, "on_exceed": "warn" }
+      },
+      "verification": { "mode": "self" }
     },
     "2": {
       "name": "Standard Engineering Task",
-      "planning": "recommended",
-      "exploration": "limited",
-      "subagents": { "allowed": false },
-      "reasoning": "medium",
-      "execution": { "prefer_direct_action": false },
-      "execution_budget": {
-        "repository_searches": 8,
-        "observed_tool_calls": 40,
-        "subagents_created": 0
+      "agent": "default",
+      "planning": "short",
+      "subagents": { "allowed": ["verifier"], "max_per_prompt": 2 },
+      "budget_per_prompt": {
+        "repository_searches": { "limit": 8, "on_exceed": "warn" },
+        "observed_tool_calls": { "limit": 40, "on_exceed": "warn" }
+      },
+      "verification": {
+        "mode": "verifier",
+        "require_when": { "edits": true, "min_tool_calls": 10 },
+        "skip_markers": ["[no-verify]"]
       }
     },
     "3": {
       "name": "Complex / Orchestrated Task",
+      "agent": "orchestrator",
       "planning": "required",
-      "exploration": "broad",
-      "subagents": { "allowed": true },
-      "reasoning": "high",
-      "execution": { "orchestration_allowed": true },
-      "execution_budget": {
-        "repository_searches": 25,
-        "observed_tool_calls": 120,
-        "subagents_created": 4
-      }
+      "subagents": { "allowed": ["builder", "reviewer"], "require_dispatch": true },
+      "budget_per_prompt": {
+        "repository_searches": { "limit": 25, "on_exceed": "warn" },
+        "observed_tool_calls": { "limit": 120, "on_exceed": "warn" }
+      },
+      "verification": { "mode": "reviewer" }
     }
   }
 }

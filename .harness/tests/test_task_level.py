@@ -1,7 +1,6 @@
-"""Task Level behavior. Migrated from the first engine tests.
+"""Task Level behavior (B4): user-chosen level, per-prompt budgets, subagent allow list.
 
-The scenarios are the same as before the engine split. What changed: real VS Code tool names
-(runSubagent, grep_search, read_file), the hookSpecificOutput format, and the new state layout.
+Scenarios use real VS Code tool names (runSubagent, grep_search, read_file) and the hookSpecificOutput format.
 """
 
 from __future__ import annotations
@@ -10,8 +9,8 @@ import concurrent.futures
 import json
 import shutil
 import tempfile
-import unittest
 from pathlib import Path
+from typing import Optional
 
 from support import (
     HOOK,
@@ -19,190 +18,391 @@ from support import (
     HarnessTestCase,
     make_root,
     payload,
-    post_tool,
     pre_tool,
 )
 
-SUBAGENT_INPUT = {"agentName": "verifier", "prompt": "check it", "description": "check"}
-GREP_INPUT = {"query": "sandbox", "isRegexp": False}
+VERIFIER = {"agentName": "verifier", "prompt": "check it", "description": "check"}
+GENERIC = {"prompt": "do this", "description": "work"}  # the built-in subagent has no agentName
+GREP = {"query": "sandbox", "isRegexp": False}
+LEVEL_SET = "python3 .harness/engine/cli.py level set --session-id s --level 2"
 
 
 class TaskLevelTests(HarnessTestCase):
     def user_prompt(self, session_id: str, text: str = "start work") -> dict:
         return self.hook(payload("UserPromptSubmit", session_id, prompt=text))
 
-    def pre(self, session_id: str, tool: str = "read_file", tool_input: dict | None = None) -> dict:
+    def pre(self, session_id: str, tool: str = "read_file", tool_input: Optional[dict] = None) -> dict:
         return self.hook(pre_tool(session_id, tool, tool_input))
 
-    def post(self, session_id: str, tool: str = "read_file", tool_input: dict | None = None) -> dict:
-        return self.hook(post_tool(session_id, tool, tool_input))
+    def decision(self, output: dict) -> str:
+        return output.get("hookSpecificOutput", {}).get("permissionDecision", "")
 
-    def test_policy_has_three_valid_levels(self) -> None:
+    def reason(self, output: dict) -> str:
+        return output["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def level(self, session_id: str) -> int:
+        return self.session_state(session_id)["level"]
+
+    def counters(self, session_id: str) -> dict:
+        return self.task_level_state(session_id)["counters"]
+
+    # --- policy -------------------------------------------------------------------------------
+
+    def test_policy_has_markers_and_budgets_for_three_levels(self) -> None:
         policy = json.loads(POLICY.read_text(encoding="utf-8"))
-        self.assertEqual(policy["schema_version"], 1)
-        budgets = [policy["levels"][str(level)]["execution_budget"] for level in (1, 2, 3)]
-        self.assertEqual([b["repository_searches"] for b in budgets], [2, 8, 25])
-        self.assertEqual([b["observed_tool_calls"] for b in budgets], [15, 40, 120])
-        self.assertEqual([b["subagents_created"] for b in budgets], [0, 0, 4])
+        self.assertEqual(policy["schema_version"], 2)
+        self.assertEqual(policy["switch_markers"], {"1": ["/l1", "[L1]"], "2": ["/l2", "[L2]"]})
+        budgets = [policy["levels"][str(level)]["budget_per_prompt"] for level in (1, 2, 3)]
+        self.assertEqual([b["repository_searches"]["limit"] for b in budgets], [2, 8, 25])
+        self.assertEqual([b["observed_tool_calls"]["limit"] for b in budgets], [15, 40, 120])
+        self.assertEqual([b["repository_searches"]["on_exceed"] for b in budgets], ["deny", "warn", "warn"])
+        self.assertEqual([b["observed_tool_calls"]["on_exceed"] for b in budgets], ["warn", "warn", "warn"])
+        subagents = [policy["levels"][str(level)]["subagents"] for level in (1, 2, 3)]
+        self.assertEqual([s["allowed"] for s in subagents], [[], ["verifier"], ["builder", "reviewer"]])
+        self.assertEqual(subagents[1]["max_per_prompt"], 2)
 
-    def test_lifecycle_preserves_follow_up_and_resets_next_task(self) -> None:
-        self.user_prompt("lifecycle")
-        first_task_id = self.task_level_state("lifecycle")["task"]["id"]
-        self.set_level("lifecycle", 2, "Multiple related files need a short plan.")
-        self.pre("lifecycle")
+    # --- switching the level (M2-1) -----------------------------------------------------------
 
-        self.user_prompt("lifecycle")
-        follow_up = self.task_level_state("lifecycle")
-        self.assertEqual(follow_up["task"]["id"], first_task_id)
-        self.assertEqual(follow_up["task"]["level"], 2)
-        self.assertEqual(follow_up["counters"]["observed_tool_calls"], 1)
+    def test_a_new_session_is_level_1(self) -> None:
+        self.user_prompt("fresh")
+        self.assertEqual(self.level("fresh"), 1)
 
-        completed = self.cli_json(
-            "level", "complete", "--session-id", "lifecycle", "--reason", "Validated the requested change."
-        )["modules"]["task_level"]
-        self.assertEqual(completed["task"]["status"], "completed")
-        self.assertEqual(completed["task"]["level"], 1)
+    def test_every_marker_switches_the_level(self) -> None:
+        cases = [
+            ("[L2] do it", 2), ("/l2 do it", 2), ("[l2] do it", 2), ("/L2 do it", 2), ("/l2", 2), ("[L2]do it", 2),
+            ("  \n[L2] do it", 2), ("```\n[L2] do it\n```", 2),
+        ]
+        for index, (text, expected) in enumerate(cases):
+            with self.subTest(text):
+                session = f"marker-{index}"
+                self.user_prompt(session, text)
+                self.assertEqual(self.level(session), expected)
+        for index, text in enumerate(("[L1] again", "/l1 again", "/l1")):
+            with self.subTest(text):
+                session = f"back-{index}"
+                self.user_prompt(session, "[L2] first")
+                self.user_prompt(session, text)
+                self.assertEqual(self.level(session), 1)
 
-        self.user_prompt("lifecycle")
-        next_task = self.task_level_state("lifecycle")
-        self.assertEqual(next_task["task"]["status"], "active")
-        self.assertEqual(next_task["task"]["level"], 1)
-        self.assertNotEqual(next_task["task"]["id"], first_task_id)
-        self.assertEqual(next_task["counters"]["observed_tool_calls"], 0)
-        self.assertEqual(next_task["task_history"][-1]["id"], first_task_id)
-        self.assertEqual(next_task["task_history"][-1]["status"], "completed")
+    def test_text_that_is_not_a_marker_does_not_switch(self) -> None:
+        for index, text in enumerate(("please use [L2] here", "/l2x do it", "[L3] do it", "[L] do it", "l2 do it", "")):
+            with self.subTest(text):
+                session = f"nomarker-{index}"
+                self.user_prompt(session, text)
+                self.assertEqual(self.level(session), 1)
 
-    def test_transition_preserves_counters_and_invalid_level_fails(self) -> None:
-        self.user_prompt("transition")
-        self.pre("transition")
-        upgraded = self.set_level("transition", 3, "Cross-system RCA requires delegation.")["modules"]["task_level"]
-        self.assertEqual(upgraded["counters"]["observed_tool_calls"], 1)
-        self.assertEqual(upgraded["task"]["transitions"][-1]["type"], "upgrade")
+    def test_the_level_stays_until_the_user_switches_again(self) -> None:
+        self.user_prompt("sticky", "[L2] first")
+        self.user_prompt("sticky", "a follow-up without a marker")
+        self.assertEqual(self.level("sticky"), 2)
+        self.user_prompt("sticky", "/l1 now small")
+        self.assertEqual(self.level("sticky"), 1)
 
-        downgraded = self.set_level("transition", 1, "Only a deterministic config edit remains.")["modules"]["task_level"]
-        self.assertEqual(downgraded["counters"]["observed_tool_calls"], 1)
-        self.assertEqual(downgraded["task"]["transitions"][-1]["type"], "downgrade")
+    def test_the_start_of_the_prompt_is_kept_for_diagnosis(self) -> None:
+        self.user_prompt("head", "  /l2 " + "x" * 100)
+        prompt = self.task_level_state("head")["prompt"]
+        self.assertEqual(prompt["marker"], "/l2")
+        self.assertEqual(prompt["head"], "/l2 " + "x" * 36)
 
-        invalid = self.cli("level", "set", "--session-id", "transition", "--level", "9", "--reason", "invalid")
-        self.assertNotEqual(invalid.returncode, 0)
-        self.assertIn("Unknown Task Level", invalid.stderr)
+    def test_the_switch_is_logged_with_its_source(self) -> None:
+        self.user_prompt("log", "[L2] go")
+        self.user_prompt("log", "[L2] again")  # no change, no record
+        change = self.task_level_state("log")["level_changes"]
+        self.assertEqual([(c["from_level"], c["to_level"], c["source"]) for c in change], [(1, 2, "marker")])
 
-    def test_replace_active_task_archives_the_previous_task(self) -> None:
-        self.user_prompt("replace")
-        original_id = self.task_level_state("replace")["task"]["id"]
-        replacement = self.cli_json(
-            "level", "begin", "--session-id", "replace", "--replace", "--reason", "The user changed the requested outcome."
-        )["modules"]["task_level"]
-        self.assertNotEqual(replacement["task"]["id"], original_id)
-        self.assertEqual(replacement["task"]["level"], 1)
-        self.assertEqual(replacement["task_history"][-1]["id"], original_id)
-        self.assertEqual(replacement["task_history"][-1]["completion_reason"], "replaced")
+    def test_a_running_l3_request_ignores_markers(self) -> None:
+        self.user_prompt("request")
+        self.cli_json("level", "status", "--session-id", "request")  # make sure the state file exists
+        path = self.state_file("request")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["active_request"] = "req-1"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        output = self.user_prompt("request", "[L2] try to leave L3")
+        self.assertEqual(self.level("request"), 1)
+        context = output["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("L3", context)
+        self.assertIn("[L2] 已被忽略", context)
 
-    def test_l1_denies_a_subagent_in_the_vscode_format(self) -> None:
-        self.user_prompt("deny")
-        output = self.pre("deny", "runSubagent", SUBAGENT_INPUT)
-        body = output["hookSpecificOutput"]
-        self.assertEqual(body["hookEventName"], "PreToolUse")
-        self.assertEqual(body["permissionDecision"], "deny")
-        self.assertIn("Task Level 1", body["permissionDecisionReason"])
-        self.assertNotIn("permissionDecision", output)  # the top-level format is ignored by VS Code (B1, R4a)
+    def test_a_marker_in_a_subagent_call_message_does_not_switch(self) -> None:
+        """Layer 1 of hard conclusion 5: the UserPromptSubmit text equals the allowed runSubagent prompt."""
+        self.user_prompt("child-msg", "[L2] start")
+        message = "[L1] " + VERIFIER["prompt"]
+        self.assertEqual(self.pre("child-msg", "runSubagent", {**VERIFIER, "prompt": message}), {})
+        self.assertEqual(self.user_prompt("child-msg", message), {})
+        self.assertEqual(self.level("child-msg"), 2)
+        self.assertEqual(self.task_level_state("child-msg")["prompt"]["count"], 1)
 
-    def test_l2_also_denies_a_subagent(self) -> None:
-        self.user_prompt("l2-deny")
-        self.set_level("l2-deny", 2)
-        self.assertEqual(self.pre("l2-deny", "runSubagent", SUBAGENT_INPUT)["hookSpecificOutput"]["permissionDecision"], "deny")
+    def test_a_marker_inside_the_subagent_window_does_not_switch(self) -> None:
+        """Layer 2: anything between SubagentStart and SubagentStop is not the user."""
+        self.user_prompt("window", "[L2] start")
+        self.hook(payload("SubagentStart", "window", agent_id="a1", agent_type="verifier"))
+        self.assertEqual(self.user_prompt("window", "[L1] text the model wrote"), {})
+        self.assertEqual(self.level("window"), 2)
+        self.hook(payload("SubagentStop", "window", agent_id="a1", agent_type="verifier", stop_hook_active=False))
+        self.user_prompt("window", "[L1] now the user speaks")
+        self.assertEqual(self.level("window"), 1)
 
-    def test_l3_limits_subagents_to_four(self) -> None:
-        self.user_prompt("delegation")
-        self.set_level("delegation", 3)
-        for _ in range(4):
-            self.assertEqual(self.pre("delegation", "runSubagent", SUBAGENT_INPUT), {})
-        fifth = self.pre("delegation", "runSubagent", SUBAGENT_INPUT)
-        self.assertEqual(fifth["hookSpecificOutput"]["permissionDecision"], "deny")
-        self.assertEqual(self.task_level_state("delegation")["counters"]["subagents_created"], 4)
+    def test_no_verify_covers_one_prompt(self) -> None:
+        self.user_prompt("skip", "[L2] [no-verify] quick change")
+        self.assertTrue(self.task_level_state("skip")["prompt"]["skip_verify"])
+        self.user_prompt("skip", "next change")
+        self.assertFalse(self.task_level_state("skip")["prompt"]["skip_verify"])
+        self.user_prompt("skip", "change it [No-Verify]")
+        self.assertTrue(self.task_level_state("skip")["prompt"]["skip_verify"])
 
-    def test_search_warning_uses_the_vscode_format(self) -> None:
-        self.user_prompt("warn-format")
-        self.pre("warn-format", "grep_search", GREP_INPUT)
-        self.post("warn-format", "grep_search", GREP_INPUT)
-        self.pre("warn-format", "grep_search", GREP_INPUT)
-        warning = self.post("warn-format", "grep_search", GREP_INPUT)
-        body = warning["hookSpecificOutput"]
-        self.assertEqual(body["hookEventName"], "PostToolUse")
-        self.assertIn("repository_searches", body["additionalContext"])
-        self.assertIn("2/2", body["additionalContext"])
+    # --- the user's prompt gets the rules (M2-3) ----------------------------------------------
 
-    def test_soft_search_warning_is_emitted_once(self) -> None:
-        self.user_prompt("warning")
-        self.pre("warning", "grep_search", GREP_INPUT)
-        self.assertEqual(self.post("warning", "grep_search", GREP_INPUT), {})
-        self.pre("warning", "grep_search", GREP_INPUT)
-        self.assertIn("2/2", self.post("warning", "grep_search", GREP_INPUT)["hookSpecificOutput"]["additionalContext"])
-        self.assertEqual(self.post("warning", "grep_search", GREP_INPUT), {})
+    def test_the_prompt_rules_come_from_the_policy(self) -> None:
+        context = self.user_prompt("rules")["hookSpecificOutput"]["additionalContext"]
+        self.assertEqual(self.user_prompt("rules")["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
+        self.assertIn("L1", context)
+        self.assertIn("搜索最多 2 次，超过会被拒绝", context)
+        self.assertIn("工具调用建议不超过 15 次", context)
+        self.assertIn("子 agent：不允许", context)
+        self.assertIn("/l2", context)
+        self.assertIn("level set", context)
+        level2 = self.user_prompt("rules", "[L2] go")["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("L2", level2)
+        self.assertIn("搜索建议不超过 8 次", level2)
+        self.assertIn("只允许 verifier，每条提示最多 2 次", level2)
 
-    def test_all_search_tools_and_terminal_searches_are_counted(self) -> None:
-        self.user_prompt("search-kinds")
+    def test_changing_the_policy_changes_the_rules_text(self) -> None:
+        path = self.root / ".harness" / "policies" / "task-levels.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["levels"]["1"]["budget_per_prompt"]["repository_searches"]["limit"] = 5
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.assertIn("搜索最多 5 次", self.user_prompt("policy")["hookSpecificOutput"]["additionalContext"])
+
+    def test_session_start_injects_the_rules(self) -> None:
+        output = self.hook(payload("SessionStart", "start", source="new", model="x"))
+        self.assertIn("L1", output["hookSpecificOutput"]["additionalContext"])
+
+    # --- budgets (M2-3) -----------------------------------------------------------------------
+
+    def test_l1_denies_the_third_search_and_says_what_to_do_next(self) -> None:
+        self.user_prompt("l1-search")
+        self.assertEqual(self.pre("l1-search", "grep_search", GREP), {})
+        self.assertEqual(self.pre("l1-search", "file_search", {"query": "a"}), {})
+        third = self.pre("l1-search", "semantic_search", {"query": "b"})
+        self.assertEqual(self.decision(third), "deny")
+        self.assertEqual(third["hookSpecificOutput"]["hookEventName"], "PreToolUse")
+        self.assertIn("L1 探索预算已用完", self.reason(third))
+        self.assertIn("直接完成", self.reason(third))
+        self.assertIn("/l2", self.reason(third))
+        self.assertEqual(self.counters("l1-search")["repository_searches"], 2)  # the denied call did not happen
+        self.assertEqual(self.counters("l1-search")["observed_tool_calls"], 2)
+        # It stays denied, and reads are still fine.
+        self.assertEqual(self.decision(self.pre("l1-search", "grep_search", GREP)), "deny")
+        self.assertEqual(self.pre("l1-search", "read_file", {"filePath": "/a/b.md"}), {})
+
+    def test_a_terminal_search_counts_and_is_denied_like_any_search(self) -> None:
+        self.user_prompt("l1-terminal")
+        self.pre("l1-terminal", "run_in_terminal", {"command": "git grep sandbox", "mode": "sync"})
+        self.pre("l1-terminal", "run_in_terminal", {"command": "echo hi && rg sandbox .", "mode": "sync"})
+        denied = self.pre("l1-terminal", "run_in_terminal", {"command": "find . -name x", "mode": "sync"})
+        self.assertEqual(self.decision(denied), "deny")
+        self.assertEqual(self.pre("l1-terminal", "run_in_terminal", {"command": "git status --short", "mode": "sync"}), {})
+
+    def test_a_new_prompt_gives_a_new_budget(self) -> None:
+        self.user_prompt("window-budget")
+        self.pre("window-budget", "grep_search", GREP)
+        self.pre("window-budget", "grep_search", GREP)
+        self.assertEqual(self.decision(self.pre("window-budget", "grep_search", GREP)), "deny")
+        self.user_prompt("window-budget", "a follow-up fix")
+        self.assertEqual(self.counters("window-budget"), {"observed_tool_calls": 0, "repository_searches": 0, "subagents_created": 0})
+        self.assertEqual(self.pre("window-budget", "grep_search", GREP), {})
+
+    def test_l2_searches_over_the_limit_are_recorded_not_denied(self) -> None:
+        self.user_prompt("l2-search", "[L2] investigate")
+        for _ in range(9):
+            self.assertEqual(self.pre("l2-search", "grep_search", GREP), {})
+        state = self.task_level_state("l2-search")
+        self.assertEqual(state["counters"]["repository_searches"], 9)
+        self.assertEqual(state["exceeded"], ["repository_searches"])
+
+    def test_l1_tool_calls_over_the_limit_are_recorded_not_denied(self) -> None:
+        self.user_prompt("l1-calls")
+        for _ in range(16):
+            self.assertEqual(self.pre("l1-calls", "read_file", {"filePath": "/a/b.md"}), {})
+        self.assertEqual(self.task_level_state("l1-calls")["exceeded"], ["observed_tool_calls"])
+
+    def test_a_tool_call_budget_can_be_set_to_deny(self) -> None:
+        path = self.root / ".harness" / "policies" / "task-levels.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["levels"]["1"]["budget_per_prompt"]["observed_tool_calls"] = {"limit": 2, "on_exceed": "deny"}
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.user_prompt("calls-deny")
+        self.pre("calls-deny")
+        self.pre("calls-deny")
+        denied = self.pre("calls-deny")
+        self.assertEqual(self.decision(denied), "deny")
+        self.assertIn("工具调用预算已用完", self.reason(denied))
+
+    def test_all_search_tools_are_counted_and_other_calls_only_as_calls(self) -> None:
+        self.user_prompt("kinds", "[L2] go")
         for tool in ("grep_search", "file_search", "semantic_search"):
-            self.pre("search-kinds", tool, {"query": "x"})
-        self.pre("search-kinds", "run_in_terminal", {"command": "git grep sandbox", "mode": "sync"})
-        self.pre("search-kinds", "run_in_terminal", {"command": "echo hi && rg sandbox .", "mode": "sync"})
-        self.pre("search-kinds", "run_in_terminal", {"command": "git status --short", "mode": "sync"})
-        self.pre("search-kinds", "read_file", {"filePath": "/a/b.md"})
-        counters = self.task_level_state("search-kinds")["counters"]
-        self.assertEqual(counters["repository_searches"], 5)
-        self.assertEqual(counters["observed_tool_calls"], 7)
+            self.pre("kinds", tool, {"query": "x"})
+        self.pre("kinds", "read_file", {"filePath": "/a/b.md"})
+        self.pre("kinds", "list_dir", {"path": "/a"})
+        self.pre("kinds", "run_in_terminal", {"command": "git status --short", "mode": "sync"})
+        self.assertEqual(self.counters("kinds"), {"observed_tool_calls": 6, "repository_searches": 3, "subagents_created": 0})
 
-    def test_the_level_cli_call_is_not_counted_or_denied(self) -> None:
-        self.user_prompt("control")
-        command = "python3 .harness/engine/cli.py level set --session-id control --level 2 --reason x"
-        self.assertEqual(self.pre("control", "run_in_terminal", {"command": command, "mode": "sync"}), {})
-        self.assertEqual(self.task_level_state("control")["counters"]["observed_tool_calls"], 0)
+    # --- subagents (M2-5 allow list, B4 part) -------------------------------------------------
+
+    def test_l1_denies_every_subagent_in_the_vscode_format(self) -> None:
+        self.user_prompt("l1-sub")
+        for tool_input in (VERIFIER, GENERIC):
+            output = self.pre("l1-sub", "runSubagent", tool_input)
+            body = output["hookSpecificOutput"]
+            self.assertEqual(body["hookEventName"], "PreToolUse")
+            self.assertEqual(body["permissionDecision"], "deny")
+            self.assertIn("L1 不允许子 agent", body["permissionDecisionReason"])
+            self.assertNotIn("permissionDecision", output)  # the top-level format is ignored by VS Code (B1, R4a)
+        self.assertEqual(self.counters("l1-sub")["subagents_created"], 0)
+
+    def test_l2_allows_only_the_verifier_by_agent_name(self) -> None:
+        self.user_prompt("l2-sub", "[L2] go")
+        self.assertEqual(self.pre("l2-sub", "runSubagent", VERIFIER), {})
+        self.assertEqual(self.pre("l2-sub", "runSubagent", {**VERIFIER, "agentName": "Verifier"}), {})  # case does not matter
+        for name in ("builder", "reviewer", "orchestrator", "probe-child"):
+            denied = self.pre("l2-sub", "runSubagent", {**VERIFIER, "agentName": name})
+            self.assertEqual(self.decision(denied), "deny", name)
+            self.assertIn("只允许这些子 agent：verifier", self.reason(denied))
+            self.assertIn(name, self.reason(denied))
+
+    def test_the_generic_subagent_is_denied_at_every_level(self) -> None:
+        """The built-in subagent has no agentName in PreToolUse; SubagentStart calls it `default` (B1)."""
+        self.user_prompt("generic", "[L2] go")
+        for tool_input in (GENERIC, {**GENERIC, "agentName": ""}, {**GENERIC, "agentName": "default"}):
+            denied = self.pre("generic", "runSubagent", tool_input)
+            self.assertEqual(self.decision(denied), "deny")
+            self.assertIn("通用子 agent", self.reason(denied))
+        self.assertEqual(self.counters("generic")["subagents_created"], 0)
+
+    def test_l2_allows_the_verifier_at_most_twice_per_prompt(self) -> None:
+        self.user_prompt("l2-max", "[L2] go")
+        self.assertEqual(self.pre("l2-max", "runSubagent", VERIFIER), {})
+        self.assertEqual(self.pre("l2-max", "runSubagent", VERIFIER), {})
+        third = self.pre("l2-max", "runSubagent", VERIFIER)
+        self.assertEqual(self.decision(third), "deny")
+        self.assertIn("最多调用 2 次", self.reason(third))
+        self.assertEqual(self.counters("l2-max")["subagents_created"], 2)
+        self.user_prompt("l2-max", "next prompt")  # a new window
+        self.assertEqual(self.pre("l2-max", "runSubagent", VERIFIER), {})
+
+    def test_a_running_request_uses_the_l3_allow_list(self) -> None:
+        self.user_prompt("l3-sub")
+        path = self.state_file("l3-sub")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["active_request"] = "req-1"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.assertEqual(self.pre("l3-sub", "runSubagent", {**VERIFIER, "agentName": "builder"}), {})
+        self.assertEqual(self.pre("l3-sub", "runSubagent", {**VERIFIER, "agentName": "reviewer"}), {})
+        self.assertEqual(self.decision(self.pre("l3-sub", "runSubagent", VERIFIER)), "deny")
+
+    # --- the agent cannot switch (M2-1) -------------------------------------------------------
+
+    def test_an_agent_running_level_set_is_denied(self) -> None:
+        self.user_prompt("agent-set")
+        variants = [
+            LEVEL_SET,
+            "cd /x && python .harness/engine/cli.py level set --session-id s --level 2",
+            "python3 .harness/engine/cli.py   level   set --session-id s --level 2",
+            'python3 ".harness/engine/cli.py" "level" "set" --session-id s --level 2',
+            "PYTHONPATH=. python3 .harness/engine/cli.py LEVEL SET --level 2",
+        ]
+        for command in variants:
+            with self.subTest(command):
+                denied = self.pre("agent-set", "run_in_terminal", {"command": command, "mode": "sync"})
+                self.assertEqual(self.decision(denied), "deny")
+                self.assertIn("只有用户能切换 Level", self.reason(denied))
+        self.assertEqual(self.level("agent-set"), 1)
+        self.assertEqual(self.counters("agent-set")["observed_tool_calls"], 0)  # a denied call did not happen
+
+    def test_level_status_and_other_commands_are_not_denied(self) -> None:
+        self.user_prompt("agent-status")
+        for command in (
+            "python3 .harness/engine/cli.py level status --session-id s",
+            "python3 .harness/engine/cli.py doctor",
+            "echo level set",
+            "git log --grep='level set'",
+        ):
+            with self.subTest(command):
+                self.assertNotEqual(self.decision(self.pre("agent-status", "run_in_terminal", {"command": command, "mode": "sync"})), "deny")
+
+    def test_the_user_can_set_the_level_from_the_cli(self) -> None:
+        self.user_prompt("cli-set")
+        state = self.cli_json("level", "set", "--session-id", "cli-set", "--level", "2")
+        self.assertEqual(state["level"], 2)
+        self.assertEqual(self.task_level_state("cli-set")["level_changes"][-1]["source"], "cli")
+        self.assertEqual(self.cli_json("level", "set", "--session-id", "cli-set", "--level", "1")["level"], 1)
+
+    def test_the_cli_cannot_set_level_3_or_an_unknown_level(self) -> None:
+        for level in ("3", "9", "0"):
+            with self.subTest(level):
+                result = self.cli("level", "set", "--session-id", "cli-bad", "--level", level)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Unknown level", result.stderr)
+
+    def test_the_cli_refuses_to_set_a_level_during_an_l3_request(self) -> None:
+        self.user_prompt("cli-request")
+        path = self.state_file("cli-request")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["active_request"] = "req-1"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        result = self.cli("level", "set", "--session-id", "cli-request", "--level", "2")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("L3 request", result.stderr)
+
+    def test_the_old_lifecycle_commands_are_gone(self) -> None:
+        for command in ("begin", "complete"):
+            self.assertNotEqual(self.cli("level", command, "--session-id", "x", "--reason", "y").returncode, 0)
+
+    # --- state --------------------------------------------------------------------------------
 
     def test_session_state_is_isolated_by_session(self) -> None:
-        self.user_prompt("session-a")
-        self.user_prompt("session-b")
-        self.set_level("session-a", 3)
-        self.assertEqual(self.task_level_state("session-a")["task"]["level"], 3)
-        self.assertEqual(self.task_level_state("session-b")["task"]["level"], 1)
+        self.user_prompt("session-a", "[L2] a")
+        self.user_prompt("session-b", "b")
+        self.assertEqual(self.level("session-a"), 2)
+        self.assertEqual(self.level("session-b"), 1)
         self.assertTrue(self.state_file("session-a").exists())
         self.assertTrue(self.state_file("session-b").exists())
 
-    def test_shared_level_mirrors_the_task_level(self) -> None:
-        self.user_prompt("shared")
-        self.set_level("shared", 2)
-        self.assertEqual(self.session_state("shared")["level"], 2)
-        self.cli_json("level", "complete", "--session-id", "shared", "--reason", "done")
-        self.assertEqual(self.session_state("shared")["level"], 1)
+    def test_state_from_the_first_engine_is_replaced_and_the_level_is_kept(self) -> None:
+        self.user_prompt("old")
+        path = self.state_file("old")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["level"] = 2
+        data["modules"]["task_level"] = {
+            "task": {"level": 2, "status": "active"},
+            "counters": {"observed_tool_calls": 3, "repository_searches": 1, "subagents_created": 0},
+            "warnings_emitted": [],
+            "task_history": [],
+        }
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.assertEqual(self.pre("old"), {})
+        state = self.task_level_state("old")
+        self.assertEqual(state["version"], 2)
+        self.assertEqual(self.level("old"), 2)
+        self.assertEqual(state["counters"]["observed_tool_calls"], 1)
+        self.assertEqual(self.log_lines("hook-errors.jsonl"), [])
 
     def test_concurrent_updates_do_not_lose_tool_counts(self) -> None:
-        self.user_prompt("concurrent")
+        self.user_prompt("concurrent", "[L2] go")
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             results = list(executor.map(lambda _: self.pre("concurrent"), range(10)))
         self.assertEqual(results, [{}] * 10)
-        self.assertEqual(self.task_level_state("concurrent")["counters"]["observed_tool_calls"], 10)
+        self.assertEqual(self.counters("concurrent")["observed_tool_calls"], 10)
 
-    def test_a_subagent_call_message_does_not_start_a_task(self) -> None:
-        """Layer 1: the UserPromptSubmit text equals the allowed runSubagent prompt."""
-        self.user_prompt("child-msg")
-        self.set_level("child-msg", 3)
-        self.assertEqual(self.pre("child-msg", "runSubagent", SUBAGENT_INPUT), {})
-        self.cli_json("level", "complete", "--session-id", "child-msg", "--reason", "done")
-        self.assertEqual(self.user_prompt("child-msg", SUBAGENT_INPUT["prompt"]), {})
-        self.assertEqual(self.task_level_state("child-msg")["task"]["status"], "completed")
-        # The same text typed by the user afterwards is a normal prompt again.
-        self.assertIn("hookSpecificOutput", self.user_prompt("child-msg", SUBAGENT_INPUT["prompt"]))
-        self.assertEqual(self.task_level_state("child-msg")["task"]["status"], "active")
+    # --- the policy file ----------------------------------------------------------------------
 
-    def test_a_prompt_inside_the_subagent_window_does_not_start_a_task(self) -> None:
-        """Layer 2: anything that arrives between SubagentStart and SubagentStop is not the user."""
-        self.user_prompt("window")
-        self.cli_json("level", "complete", "--session-id", "window", "--reason", "done")
-        self.hook(payload("SubagentStart", "window", agent_id="a1", agent_type="verifier"))
-        self.assertEqual(self.user_prompt("window", "text the model wrote"), {})
-        self.assertEqual(self.task_level_state("window")["task"]["status"], "completed")
-        self.hook(payload("SubagentStop", "window", agent_id="a1", agent_type="verifier", stop_hook_active=False))
-        self.assertIn("hookSpecificOutput", self.user_prompt("window", "now the user speaks"))
-        self.assertEqual(self.task_level_state("window")["task"]["status"], "active")
+    def test_a_marker_used_for_two_levels_is_rejected(self) -> None:
+        from modules.task_level.policy import validate_policy
+
+        policy = json.loads(POLICY.read_text(encoding="utf-8"))
+        policy["switch_markers"]["2"].append("/L1")
+        with self.assertRaises(ValueError):
+            validate_policy(policy)
 
     # --- fail-open ----------------------------------------------------------------------------
 
@@ -214,6 +414,12 @@ class TaskLevelTests(HarnessTestCase):
         self.assertEqual(self.pre("missing-policy"), {})
         errors = (missing / ".harness" / "runtime" / "logs" / "hook-errors.jsonl").read_text(encoding="utf-8")
         self.assertIn("module:task_level", errors)
+
+    def test_module_fails_open_when_the_policy_is_the_old_schema(self) -> None:
+        path = self.root / ".harness" / "policies" / "task-levels.json"
+        path.write_text(json.dumps({"schema_version": 1, "levels": {}}), encoding="utf-8")
+        self.assertEqual(self.pre("old-policy", "runSubagent", VERIFIER), {})
+        self.assertIn("module:task_level", json.dumps(self.log_lines("hook-errors.jsonl")))
 
     def test_hook_fails_open_when_the_registry_is_missing(self) -> None:
         missing = Path(tempfile.mkdtemp())
@@ -246,4 +452,6 @@ class TaskLevelTests(HarnessTestCase):
 
 
 if __name__ == "__main__":
+    import unittest
+
     unittest.main()

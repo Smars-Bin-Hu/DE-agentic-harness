@@ -9,10 +9,20 @@ from typing import Any, Dict, List
 from support import FIXTURES, HOOK, HarnessTestCase, iter_session, load_payload
 
 import hook
-from core import config, state
-from modules.task_level import lifecycle
+from core import state
 
 SESSIONS = sorted(path.name for path in (FIXTURES / "sessions").glob("*.jsonl"))
+
+
+def rename_agent(data: Dict[str, Any], agent: str) -> Dict[str, Any]:
+    if not agent:
+        return data
+    data = json.loads(json.dumps(data))
+    if "agent_type" in data:
+        data["agent_type"] = agent
+    if data.get("tool_name") == "runSubagent":
+        data["tool_input"]["agentName"] = agent
+    return data
 
 
 def deny_reason(output: Dict[str, Any]) -> str:
@@ -23,21 +33,24 @@ class ReplayTests(HarnessTestCase):
     def feed(self, data: Dict[str, Any]) -> tuple:
         return hook.process(json.dumps(data), self.root)
 
-    def replay(self, name: str, set_level: int = 0, before_event: str = "") -> List[tuple]:
-        """Feed a recorded session in order. Optionally set the task level right after the first prompt."""
+    def replay(self, name: str, set_level: int = 0, before_event: str = "", agent: str = "") -> List[tuple]:
+        """Feed a recorded session in order. Optionally set the level before `before_event`.
+
+        `agent` renames the recorded subagent (`probe-child`), so the replay can pass a level's allow list.
+        """
         results = []
         leveled = False
         for data in iter_session(name):
+            data = rename_agent(data, agent)
             if set_level and not leveled and data["hook_event_name"] == before_event:
-                session_id = data["session_id"]
-                policy = config.load_policy(self.root, "task-levels")
-
+                # Level 3 is entered through a request, so a running request stands in for it.
                 def raise_level(current: dict) -> None:
-                    ms = lifecycle.ensure_module_state(current, "task_level")
-                    lifecycle.set_level(ms, set_level, "test", policy)
-                    lifecycle.sync_shared_level(current, ms)
+                    if set_level == 3:
+                        current["active_request"] = "req-test"
+                    else:
+                        current["level"] = set_level
 
-                state.update_state(self.root, "vscode", session_id, raise_level)
+                state.update_state(self.root, "vscode", data["session_id"], raise_level)
                 leveled = True
             results.append((data, *self.feed(data)))
         return results
@@ -67,37 +80,45 @@ class ReplayTests(HarnessTestCase):
                 data, output = calls[0]
                 self.assertEqual(deny_reason(output), "deny")
                 self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
-                self.assertIn("Task Level 1", output["hookSpecificOutput"]["permissionDecisionReason"])
+                self.assertIn("L1 不允许子 agent", output["hookSpecificOutput"]["permissionDecisionReason"])
 
-    def test_l3_allows_the_subagent_and_flags_its_call_message(self) -> None:
-        results = self.replay("subagent-child.jsonl", set_level=3, before_event="PreToolUse")
-        by_event = [(data["hook_event_name"], data.get("tool_name", ""), output, record) for data, output, record in results]
-        run = next(item for item in by_event if item[0] == "PreToolUse" and item[1] == "runSubagent")
-        self.assertEqual(run[2], {})
-        prompts = [item for item in by_event if item[0] == "UserPromptSubmit"]
-        self.assertEqual([item[3]["from_subagent"] for item in prompts], [False, True])
-        self.assertEqual(prompts[1][2], {})  # no context injected into the subagent, no new task
-        # Tool events inside the subagent are counted like any other, and nothing is left open afterwards.
-        final = state.read_state(state.state_path(self.root, "vscode", "session-subagent-child"), "vscode", "session-subagent-child")
-        self.assertEqual(final["subagents"], {"active": [], "pending_prompts": []})
-        self.assertEqual(final["modules"]["task_level"]["counters"]["subagents_created"], 1)
+    def test_an_allowed_subagent_passes_and_its_call_message_is_flagged(self) -> None:
+        for level, agent in ((2, "verifier"), (3, "builder")):
+            with self.subTest(level=level):
+                self.setUp()
+                results = self.replay("subagent-child.jsonl", set_level=level, before_event="PreToolUse", agent=agent)
+                by_event = [
+                    (data["hook_event_name"], data.get("tool_name", ""), output, record) for data, output, record in results
+                ]
+                run = next(item for item in by_event if item[0] == "PreToolUse" and item[1] == "runSubagent")
+                self.assertEqual(run[2], {})
+                prompts = [item for item in by_event if item[0] == "UserPromptSubmit"]
+                self.assertEqual([item[3]["from_subagent"] for item in prompts], [False, True])
+                self.assertEqual(prompts[1][2], {})  # nothing injected into the subagent, no new budget window
+                # Tool events inside the subagent are counted like any other, and nothing is left open afterwards.
+                sid = "session-subagent-child"
+                final = state.read_state(state.state_path(self.root, "vscode", sid), "vscode", sid)
+                self.assertEqual(final["subagents"], {"active": [], "pending_prompts": []})
+                self.assertEqual(final["modules"]["task_level"]["counters"]["subagents_created"], 1)
+                self.assertEqual(final["modules"]["task_level"]["prompt"]["count"], 1)
+
+    def test_the_recorded_subagent_name_is_not_on_any_allow_list(self) -> None:
+        results = self.replay("subagent-child.jsonl", set_level=2, before_event="PreToolUse")
+        run = next(out for data, out, _ in results if data.get("tool_name") == "runSubagent" and data["hook_event_name"] == "PreToolUse")
+        self.assertEqual(deny_reason(run), "deny")
+        self.assertIn("verifier", run["hookSpecificOutput"]["permissionDecisionReason"])
 
     def test_the_recorded_call_message_is_recognized_by_text_alone(self) -> None:
         """Layer 1 on real data: drop SubagentStart so only the text match can flag the child prompt."""
         results = list(iter_session("subagent-child.jsonl"))
         session_id = results[0]["session_id"]
         flags = []
-        policy = config.load_policy(self.root, "task-levels")
         for data in results:
             if data["hook_event_name"] in ("SubagentStart", "SubagentStop"):
                 continue
+            data = rename_agent(data, "verifier")
             if data["hook_event_name"] == "PreToolUse" and data["tool_name"] == "runSubagent":
-
-                def raise_level(current: dict) -> None:
-                    ms = lifecycle.ensure_module_state(current, "task_level")
-                    lifecycle.set_level(ms, 3, "test", policy)
-
-                state.update_state(self.root, "vscode", session_id, raise_level)
+                state.update_state(self.root, "vscode", session_id, lambda current: current.update(level=2))
             _, record = self.feed(data)
             if data["hook_event_name"] == "UserPromptSubmit":
                 flags.append(record["from_subagent"])
@@ -106,7 +127,7 @@ class ReplayTests(HarnessTestCase):
     def test_tool_counts_match_the_recording(self) -> None:
         for name in ("tools-basic.jsonl", "tools-edit-list-search.jsonl"):
             with self.subTest(name):
-                self.replay(name)
+                self.replay(name, set_level=2, before_event="PreToolUse")  # L1 would deny the third search
                 events = list(iter_session(name))
                 session_id = events[0]["session_id"]
                 pre = [e for e in events if e["hook_event_name"] == "PreToolUse"]
@@ -122,10 +143,13 @@ class ReplayTests(HarnessTestCase):
                     self.assertEqual(output, {})
                     self.assertEqual(record["modules"], [])  # task_level does not subscribe to these yet
 
-    def test_the_marker_session_with_leading_fence_replays(self) -> None:
+    def test_the_recorded_pasted_marker_switches_to_l2(self) -> None:
+        """The recorded prompt starts with a markdown code fence (a paste artifact), then `[L2]`."""
         results = self.replay("prompt-l2-marker.jsonl")
         prompt = next(data["prompt"] for data, _, _ in results if data["hook_event_name"] == "UserPromptSubmit")
-        self.assertIn("[L2]", prompt)
+        self.assertTrue(prompt.startswith("```"))
+        self.assertEqual(self.session_state("session-prompt-l2-marker")["level"], 2)
+        self.assertEqual(self.task_level_state("session-prompt-l2-marker")["level_changes"][-1]["source"], "marker")
 
 
 class ReplayThroughTheRealProcessTests(HarnessTestCase):

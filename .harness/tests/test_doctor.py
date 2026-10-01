@@ -117,7 +117,7 @@ class DoctorTests(unittest.TestCase):
 
     def test_a_broken_policy_is_an_error(self) -> None:
         def change(data: dict) -> None:
-            data["levels"]["1"]["execution_budget"]["repository_searches"] = "two"
+            data["levels"]["1"]["budget_per_prompt"]["repository_searches"]["limit"] = "two"
 
         self.edit_json(".harness/policies/task-levels.json", change)
         result = self.doctor()
@@ -139,12 +139,18 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(self.doctor().returncode, 1)
 
     def test_a_disabled_module_is_not_asked_for_events(self) -> None:
-        def change(data: dict) -> None:
+        def registry(data: dict) -> None:
+            data["modules"]["task_level"]["events"].append("PostToolUse")
             data["modules"]["task_level"]["enabled"] = False
 
-        self.edit_json(".harness/registry.json", change)
+        def hooks(data: dict) -> None:
+            data["hooks"]["PostToolUse"] = data["hooks"]["Stop"]
+
+        self.edit_json(".harness/registry.json", registry)
+        self.edit_json(".github/hooks/harness.json", hooks)
         result = self.doctor()
-        self.assertIn("[WARN]", result.stdout)  # its events are no longer needed by the hook config
+        self.assertIn("[WARN]", result.stdout)  # PostToolUse is no longer needed by the hook config
+        self.assertIn("PostToolUse", result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout)
 
 

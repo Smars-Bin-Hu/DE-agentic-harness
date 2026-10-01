@@ -2,7 +2,7 @@
 """Command line entry for agents and people: python3 .harness/engine/cli.py <command>.
 
   doctor                       check that the harness files and config are consistent
-  level status|begin|set|...   task level state of a session (task_level module)
+  level status|set             level of a session (task_level module)
 """
 
 from __future__ import annotations
