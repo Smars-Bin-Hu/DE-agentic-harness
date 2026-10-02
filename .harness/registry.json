@@ -35,8 +35,8 @@
         ".harness/engine/modules/task_level/",
         ".harness/tests/test_task_level.py",
         ".github/agents/verifier.agent.md",
-        ".github/prompts/l1.prompt.md",
-        ".github/prompts/l2.prompt.md",
+        ".github/skills/l1/",
+        ".github/skills/l2/",
         ".harness/tests/test_review.py"
       ],
       "retire_when": "Copilot 原生支持按模式限制探索预算和子 agent"

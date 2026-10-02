@@ -71,12 +71,26 @@ def review_rule(policy: Dict[str, Any], level: int, choice: str = "") -> str:
     return text
 
 
+PLANNING_TEXT = {
+    "none": "不写计划，只读必要的内容，直接完成。",
+    "short": "先写一份短计划，再动手。只探索相关区域。",
+    "required": "先写计划，再调度。",
+}
+
+
+def planning_rule(body: Dict[str, Any]) -> str:
+    return PLANNING_TEXT.get(body.get("planning", ""), "")
+
+
 def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", choice: str = "") -> str:
     """Injected on every user prompt (UserPromptSubmit) and at session start."""
     body = level_policy(policy, level)
     lines = [f"Task Level：L{level}（{body['name']}）。"]
     if ignored_marker:
         lines.append(f"L3 请求进行中，开头的 {ignored_marker} 已被忽略。")
+    planning = planning_rule(body)
+    if planning:
+        lines.append(planning)
     for name in ("repository_searches", "observed_tool_calls"):  # searches first: they are the rule that denies
         lines.append(budget_rule(name, body["budget_per_prompt"][name]))
     off = "" if verifier_on(policy, level, choice) else verifier_name(policy, level)

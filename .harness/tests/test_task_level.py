@@ -177,6 +177,11 @@ class TaskLevelTests(HarnessTestCase):
         self.assertIn("只允许 verifier，每条提示最多 2 次", verified)
         self.assertIn("调用 verifier 复核一次", verified)
 
+    def test_the_rules_say_how_to_plan_for_the_level(self) -> None:
+        """The prompt-file body never reaches the model on the SDK engine, so the hook says it."""
+        self.assertIn("不写计划", self.user_prompt("plan")["additionalContext"])
+        self.assertIn("先写一份短计划", self.user_prompt("plan", "[L2] go")["additionalContext"])
+
     def test_changing_the_policy_changes_the_rules_text(self) -> None:
         path = self.root / ".harness" / "policies" / "task-levels.json"
         data = json.loads(path.read_text(encoding="utf-8"))

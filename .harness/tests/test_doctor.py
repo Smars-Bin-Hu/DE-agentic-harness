@@ -22,6 +22,9 @@ def copy_repo(destination: Path) -> None:
     shutil.copytree(REPO / ".harness", destination / ".harness", ignore=ignore)
 
 
+# The Level entry skills are an exception to the prefix rule (skills.instructions.md).
+LEVEL_ENTRY_SKILLS = ("l1", "l2", "l3")
+
 class DoctorTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temporary = tempfile.TemporaryDirectory()
@@ -202,7 +205,7 @@ class LayoutTests(unittest.TestCase):
             name = next(line.split(":", 1)[1].strip() for line in text.splitlines() if line.startswith("name:"))
             with self.subTest(skill.parent.name):
                 self.assertEqual(name, skill.parent.name)
-                self.assertTrue(name.startswith(("harness-", "generic-", "domain-")) or name == "typesafe-ai", name)
+                self.assertTrue(name.startswith(("harness-", "generic-", "domain-")) or name in LEVEL_ENTRY_SKILLS or name == "typesafe-ai", name)
 
 
 if __name__ == "__main__":
