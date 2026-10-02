@@ -76,6 +76,7 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     outcome = decision.permission or ("block" if decision.block else ("context" if decision.context else "none"))
     record = {
         "surface": event.surface,
+        "engine": getattr(adapter, "engine", lambda _payload: "")(payload),
         "event": event.event,
         "session_id": event.session_id,
         "tool_name": event.tool_name,
