@@ -11,8 +11,9 @@ from support import ENGINE, REPO, HarnessTestCase, payload, pre_tool
 
 from core import config
 from core.state import update_state
+from core import repo_paths
 from modules.gate import policy as gate_policy
-from modules.gate import repo_paths, terminal
+from modules.gate import terminal
 
 POLICY = config.read_json(REPO / ".harness" / "policies" / "gate.json")
 COMPILED = gate_policy.Compiled(POLICY)
@@ -210,6 +211,7 @@ class TerminalTests(unittest.TestCase):
             "mkfs.ext4 /dev/sda1",
             "dd if=/dev/zero of=/dev/sda",
             "Remove-Item -Recurse -Force C:\\",
+            "python3 .harness/engine/cli.py request approve-promote --request r1",
         ):
             with self.subTest(command):
                 self.assertEqual(self.verdict(command), "deny")
@@ -242,15 +244,15 @@ class TerminalTests(unittest.TestCase):
             "chmod -R 755 src",
             "docker rm c1",
             "kubectl delete pod p",
-            "python3 .harness/engine/cli.py promote --request r1",
         ):
             with self.subTest(command):
                 self.assertEqual(self.verdict(command), "ask")
 
-    def test_git_restore_staged_and_promote_dry_run_are_allowed(self) -> None:
+    def test_git_restore_staged_and_promote_are_allowed(self) -> None:
         for command in (
             "git restore --staged a.py",
             "python3 .harness/engine/cli.py promote --request r1 --dry-run",
+            "python3 .harness/engine/cli.py promote --request r1",  # the person's approval guards it, not a tool-call dialog
             "pip list",
             "npm run test",
             "git commit -m x",
@@ -429,6 +431,39 @@ class GateHookTests(HarnessTestCase):
         output = self.pre("create_file", {"filePath": self.path("README.md"), "content": "x"})
         self.assertEqual(self.decision(output), "deny")
         self.assertIn("不合法", self.reason(output))
+
+    # --- files only the CLI writes --------------------------------------------------------------
+
+    def test_cli_owned_files_cannot_be_written_by_the_agent(self) -> None:
+        request = self.enter_l3()
+        inside = f".workspace/sandbox/requests/{request}"
+        for relative in (f"{inside}/request.json", f"{inside}/handoffs/builder/attempt-001/handoff.json",
+                         f"{inside}/handoffs/orchestrator/attempt-002/to-builder/manifest.json"):
+            with self.subTest(relative):
+                output = self.pre("create_file", {"filePath": self.path(relative), "content": "{}"})
+                self.assertEqual(self.decision(output), "deny")
+                self.assertIn("由 CLI 生成", self.reason(output))
+                self.assertIn("cli.py", self.reason(output))
+        # other files in the request folder stay writable
+        for relative in (f"{inside}/orchestrator/plan.md", f"{inside}/builder/outputs/attempt-001/request.json.md"):
+            with self.subTest(relative):
+                self.assertEqual(self.pre("create_file", {"filePath": self.path(relative), "content": "x"}), {})
+
+    def test_cli_owned_files_are_denied_at_l1_too_and_in_terminal_writes(self) -> None:
+        owned = ".workspace/sandbox/requests/r1/request.json"
+        output = self.pre("replace_string_in_file", {"filePath": self.path(owned), "oldString": "a", "newString": "b"})
+        self.assertIn("由 CLI 生成", self.reason(output))
+        for command in (f"echo '{{}}' > {owned}", f"sed -i 's/a/b/' {owned}", f"rm {owned}",
+                        "tee .workspace/sandbox/requests/r1/handoffs/builder/attempt-001/handoff.json"):
+            with self.subTest(command):
+                output = self.pre("run_in_terminal", {"command": command})
+                self.assertEqual(self.decision(output), "deny")
+                self.assertIn("CLI", self.reason(output))
+        for command in (f"cat {owned}", f"python3 .harness/engine/cli.py handoff submit --request r1 > /tmp/out.txt",
+                        "ls .workspace/sandbox/requests/r1/"):
+            with self.subTest(command):
+                self.assertEqual(self.pre("run_in_terminal", {"command": command}), {})
+
 
     # --- subagents ----------------------------------------------------------------------------
 

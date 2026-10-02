@@ -64,6 +64,7 @@ def make_root(root: Path, with_registry: bool = True, with_policy: bool = True) 
         shutil.copy(REPO / ".harness" / "registry.json", root / ".harness" / "registry.json")
     if with_policy:
         shutil.copytree(REPO / ".harness" / "policies", root / ".harness" / "policies")
+        shutil.copytree(REPO / ".harness" / "contracts", root / ".harness" / "contracts")
 
 
 class HarnessTestCase(unittest.TestCase):

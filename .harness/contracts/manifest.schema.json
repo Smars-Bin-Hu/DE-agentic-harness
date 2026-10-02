@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "required": ["schema_version", "request_id", "attempt", "role", "assignment", "files", "brief", "brief_version", "brief_delta", "dispatched_at"],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "request_id": { "type": "string", "minLength": 1 },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "role": { "type": "string", "enum": ["builder", "reviewer"] },
+    "assignment": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": { "path": { "type": "string", "minLength": 1 }, "sha256": { "type": "string", "minLength": 1 } }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "source", "purpose", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "source": { "type": "string", "minLength": 1 },
+          "purpose": { "type": "string", "enum": ["input", "candidate", "previous-attempt"] },
+          "sha256": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "brief": { "type": ["string", "null"] },
+    "brief_version": { "type": "integer", "minimum": 0 },
+    "brief_delta": { "type": "array", "items": { "type": "string" } },
+    "dispatched_at": { "type": "string" }
+  }
+}

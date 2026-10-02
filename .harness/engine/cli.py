@@ -3,6 +3,7 @@
 
   doctor                       check that the harness files and config are consistent
   level status|set             level of a session (task_level module)
+  request, brief, attempt, dispatch, handoff, check, promote   the L3 request (request module)
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from core.paths import repo_root  # noqa: E402
 import doctor  # noqa: E402
+from modules.request import commands as request_commands  # noqa: E402
 from modules.task_level import commands as task_level_commands  # noqa: E402
 
 
@@ -25,6 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     check = commands.add_parser("doctor", help="check harness files and config")
     check.set_defaults(handler=None)
     task_level_commands.register(commands)
+    request_commands.register(commands)
     return parser
 
 
@@ -34,8 +37,9 @@ def main(argv=None) -> int:
         return doctor.run(repo_root())
     try:
         result = args.handler(args)
+        code = result.pop("exit_code", 0) if isinstance(result, dict) else 0
         print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
-        return 0
+        return code
     except Exception as error:
         print(f"harness: {error}", file=sys.stderr)
         return 1

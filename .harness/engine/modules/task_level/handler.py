@@ -52,11 +52,11 @@ def on_user_prompt(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: D
         levelstate.set_level(ctx.state, ms, switch[0], "marker")
     # `head` is the start of the prompt as the hook saw it. It shows whether `/l2` reaches the hook as typed.
     levelstate.begin_prompt(ms, markers.verify_choice(event.prompt, policy), written, event.prompt.strip()[:40])
-    return Decision(context=rules.prompt_rules(policy, ctx.level, ignored, ms["prompt"]["verify"]))
+    return Decision(context=rules.prompt_rules(policy, ctx.level, ignored, ms["prompt"]["verify"], ctx.state["session_id"]))
 
 
 def on_session_start(ctx: Context, policy: Dict[str, Any]) -> Optional[Decision]:
-    return Decision(context=rules.prompt_rules(policy, ctx.level))
+    return Decision(context=rules.prompt_rules(policy, ctx.level, session_id=ctx.state["session_id"]))
 
 
 def deny_subagent(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Decision]:

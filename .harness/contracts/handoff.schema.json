@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "required": ["schema_version", "request_id", "attempt", "role", "status", "summary", "outputs", "evidence", "blockers", "next", "kb_additions", "submitted_at"],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "request_id": { "type": "string", "minLength": 1 },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "role": { "type": "string", "enum": ["builder", "reviewer"] },
+    "status": { "type": "string", "enum": ["passed", "failed", "blocked"] },
+    "summary": { "type": "string", "minLength": 1 },
+    "outputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "next": { "type": "string" },
+    "kb_additions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "note"],
+        "properties": {
+          "source": { "type": "string", "minLength": 1 },
+          "note": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "submitted_at": { "type": "string" }
+  }
+}

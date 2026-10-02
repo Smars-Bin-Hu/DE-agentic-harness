@@ -174,8 +174,9 @@ class LayoutTests(unittest.TestCase):
     def test_engine_code_uses_only_the_standard_library(self) -> None:
         local = {"core", "adapters", "modules", "doctor", "hook", "cli"}
         stdlib = {
-            "__future__", "argparse", "contextlib", "copy", "dataclasses", "datetime", "hashlib", "importlib",
-            "json", "math", "os", "pathlib", "posixpath", "re", "sys", "tempfile", "time", "traceback", "typing", "urllib", "uuid",
+            "__future__", "argparse", "contextlib", "copy", "dataclasses", "datetime", "difflib", "hashlib", "importlib",
+            "json", "math", "os", "pathlib", "posixpath", "random", "re", "shutil", "stat", "string", "sys", "tempfile", "time",
+            "traceback", "typing", "urllib", "uuid",
         }
         for path in sorted(ENGINE.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))

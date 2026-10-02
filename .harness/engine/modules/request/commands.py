@@ -1,0 +1,155 @@
+"""CLI commands of the request module.
+
+  request new|add-input|set-status|show|list|approve-promote    the request itself (approve-promote: a person at a terminal)
+  brief set                                  hand the knowledge brief to the CLI
+  attempt new                                open the next attempt
+  dispatch                                   build and freeze the input package of one role
+  handoff submit                             write a role's handoff
+  check                                      does the request folder agree with itself
+  promote                                    copy the reviewed result back into the repository (ask in the gate)
+"""
+
+from __future__ import annotations
+
+import argparse
+from typing import Any, Dict
+
+from core.paths import repo_root
+
+from . import check, ops, promote
+
+
+def _request(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--request", required=True, help="request id (from `request new`)")
+
+
+def cmd_new(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.new_request(repo_root(), args.title, args.session_id, args.surface)
+
+
+def cmd_add_input(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.add_input(repo_root(), args.request, args.paths)
+
+
+def cmd_set_status(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.set_status(repo_root(), args.request, args.status, args.reason)
+
+
+def cmd_approve_promote(args: argparse.Namespace) -> Dict[str, Any]:
+    return promote.approve(repo_root(), args.request or "")
+
+
+def cmd_list(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.list_requests(repo_root(), args.status or "")
+
+
+def cmd_show(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.show(repo_root(), args.request)
+
+
+def cmd_brief_set(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.set_brief(repo_root(), args.request, args.file)
+
+
+def cmd_attempt_new(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.new_attempt(repo_root(), args.request, args.human_approved)
+
+
+def cmd_dispatch(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.dispatch(repo_root(), args.request, args.role, args.input)
+
+
+def cmd_handoff_submit(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.submit_handoff(
+        repo_root(), args.request, args.role, args.status, args.summary,
+        outputs=args.output, evidence=args.evidence, blockers=args.blocker, next_step=args.next, kb_additions=args.kb_addition,
+    )
+
+
+def cmd_check(args: argparse.Namespace) -> Dict[str, Any]:
+    result = check.run(repo_root(), args.request, args.require_conclusion)
+    if not result["ok"]:
+        result["exit_code"] = 1
+    return result
+
+
+def cmd_promote(args: argparse.Namespace) -> Dict[str, Any]:
+    return promote.run(repo_root(), args.request, args.dry_run)
+
+
+def register(subparsers: Any) -> None:
+    request = subparsers.add_parser("request", help="the L3 request")
+    commands = request.add_subparsers(dest="request_command", required=True)
+
+    new = commands.add_parser("new", help="create a request and put the session into L3")
+    new.add_argument("--title", required=True)
+    new.add_argument("--session-id", required=True, help="the session id written at the top of the prompt rules")
+    new.add_argument("--surface", default="vscode", choices=["vscode", "cli"])
+    new.set_defaults(handler=cmd_new)
+
+    add = commands.add_parser("add-input", help="copy files into init-inputs/")
+    _request(add)
+    add.add_argument("paths", nargs="+")
+    add.set_defaults(handler=cmd_add_input)
+
+    status = commands.add_parser("set-status", help="end the request: accepted, hitl or abandoned")
+    _request(status)
+    status.add_argument("--status", required=True, choices=["accepted", "hitl", "abandoned"])
+    status.add_argument("--reason", default="")
+    status.set_defaults(handler=cmd_set_status)
+
+    approve = commands.add_parser("approve-promote", help="the person approves the plan of the last promote --dry-run (terminal only)")
+    approve.add_argument("--request", default="", help="request id; left out, the only request waiting for approval is used")
+    approve.set_defaults(handler=cmd_approve_promote)
+
+    list_parser = commands.add_parser("list", help="list requests, newest first (id, title, status, waiting for approval)")
+    list_parser.add_argument("--status", default="", choices=["", "open", "accepted", "hitl", "abandoned"])
+    list_parser.set_defaults(handler=cmd_list)
+
+    show = commands.add_parser("show", help="print request.json")
+    _request(show)
+    show.set_defaults(handler=cmd_show)
+
+    brief = subparsers.add_parser("brief", help="the knowledge brief")
+    brief_commands = brief.add_subparsers(dest="brief_command", required=True)
+    brief_set = brief_commands.add_parser("set", help="validate a brief file and store it as the new version")
+    _request(brief_set)
+    brief_set.add_argument("file")
+    brief_set.set_defaults(handler=cmd_brief_set)
+
+    attempt = subparsers.add_parser("attempt", help="attempts of a request")
+    attempt_commands = attempt.add_subparsers(dest="attempt_command", required=True)
+    attempt_new = attempt_commands.add_parser("new", help="open the next attempt")
+    _request(attempt_new)
+    attempt_new.add_argument("--human-approved", default="", help="needed past the attempt limit: why the person agreed")
+    attempt_new.set_defaults(handler=cmd_attempt_new)
+
+    dispatch = subparsers.add_parser("dispatch", help="build and freeze the input package of one role")
+    _request(dispatch)
+    dispatch.add_argument("--role", required=True, choices=["builder", "reviewer"])
+    dispatch.add_argument("--input", action="append", default=[], help="a repo file or folder to copy into the package (repeatable)")
+    dispatch.set_defaults(handler=cmd_dispatch)
+
+    handoff = subparsers.add_parser("handoff", help="handoffs")
+    handoff_commands = handoff.add_subparsers(dest="handoff_command", required=True)
+    submit = handoff_commands.add_parser("submit", help="write the handoff of this attempt")
+    _request(submit)
+    submit.add_argument("--role", required=True, choices=["builder", "reviewer"])
+    submit.add_argument("--status", required=True, choices=["passed", "failed", "blocked"])
+    submit.add_argument("--summary", required=True)
+    submit.add_argument("--output", action="append", default=[], help="a result file, relative to your outputs folder (repeatable)")
+    submit.add_argument("--evidence", action="append", default=[], help="an evidence file, relative to your outputs folder (repeatable)")
+    submit.add_argument("--blocker", action="append", default=[], help="why it failed or is blocked (repeatable)")
+    submit.add_argument("--next", default="")
+    submit.add_argument("--kb-addition", action="append", default=[], help="`source :: one-sentence finding` (repeatable)")
+    submit.set_defaults(handler=cmd_handoff_submit)
+
+    check_parser = subparsers.add_parser("check", help="does the request folder agree with itself")
+    _request(check_parser)
+    check_parser.add_argument("--require-conclusion", action="store_true", help="also fail when the request has no conclusion yet")
+    check_parser.set_defaults(handler=cmd_check)
+
+    promote_parser = subparsers.add_parser("promote", help="copy the reviewed result into the repository")
+    _request(promote_parser)
+    promote_parser.add_argument("--dry-run", action="store_true")
+    promote_parser.set_defaults(handler=cmd_promote)

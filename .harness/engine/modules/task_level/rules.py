@@ -82,7 +82,7 @@ def planning_rule(body: Dict[str, Any]) -> str:
     return PLANNING_TEXT.get(body.get("planning", ""), "")
 
 
-def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", choice: str = "") -> str:
+def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", choice: str = "", session_id: str = "") -> str:
     """Injected on every user prompt (UserPromptSubmit) and at session start."""
     body = level_policy(policy, level)
     lines = [f"Task Level：L{level}（{body['name']}）。"]
@@ -103,6 +103,8 @@ def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", c
         "你不能自己切换，也不要运行 level set。任务超出当前 Level 时，停下来告诉用户原因并建议切换。"
     )
     lines.append("工具调用被拒绝时，照拒绝理由里的下一步做。")
+    if session_id:
+        lines.append(f"当前会话 id：{session_id}。orchestrator 运行 `request new` 时，--session-id 原样用它。")
     return "\n".join(lines)
 
 

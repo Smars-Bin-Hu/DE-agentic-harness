@@ -1,6 +1,6 @@
 """gate hook handler. PreToolUse only. It guards writes and never blocks a read.
 
-  edit / create tools   a guardrail file is denied at every level; in L3 a path outside the request folder is denied
+  edit / create tools   a guardrail file or a file only the CLI writes is denied; in L3 a path outside the request folder is denied
   terminal              a command that writes a guardrail file or is dangerous is denied; some commands ask a person
 
 A call with no path the gate can read is allowed: the gate only denies what it can see clearly (AGENTS.md).
@@ -11,10 +11,11 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+from core import repo_paths
 from core.context import Context
 from core.events import Decision, HookEvent
 
-from . import repo_paths, rules, terminal
+from . import rules, terminal
 from .policy import POLICY_NAME, Compiled, validate_policy
 
 NAME = "gate"
@@ -36,6 +37,8 @@ def check_write(event: HookEvent, ctx: Context, compiled: Compiled) -> Optional[
             pattern = compiled.guardrail_match(relative)
             if pattern:
                 return Decision(permission="deny", reason=rules.guardrail_file(relative, pattern))
+            if compiled.owned_match(relative):
+                return Decision(permission="deny", reason=rules.cli_owned_file(relative))
         if request_id and outside is None and readings:
             stray = [item for item in readings if item is None or not _within(item, request_root)]
             if stray:
@@ -58,6 +61,9 @@ def check_terminal(event: HookEvent, compiled: Compiled) -> Optional[Decision]:
     why = terminal.guardrail_write(event.command, compiled)
     if why:
         return Decision(permission="deny", reason=rules.guardrail_terminal(why))
+    why = terminal.owned_write(event.command, compiled)
+    if why:
+        return Decision(permission="deny", reason=rules.cli_owned_terminal(why))
     verdict = terminal.check(event.command, compiled)
     if verdict is None:
         return None

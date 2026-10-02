@@ -10,6 +10,13 @@
     ".vscode/settings.json"
   ],
   "extra_guardrail_paths": [],
+  "cli_owned_paths": [
+    ".workspace/sandbox/requests/*/request.json",
+    ".workspace/sandbox/requests/*/handoffs/**/handoff.json",
+    ".workspace/sandbox/requests/*/handoffs/**/manifest.json",
+    ".workspace/sandbox/requests/*/handoffs/orchestrator/init-inputs/knowledge-brief.md",
+    ".workspace/sandbox/requests/*/handoffs/orchestrator/init-inputs/brief-history/**"
+  ],
   "l3_write_root": ".workspace/sandbox/requests/{request_id}",
   "terminal": {
     "guardrail_write": [
@@ -58,6 +65,10 @@
       {
         "why": "格式化磁盘或直接写磁盘设备",
         "pattern": "{cmd}mkfs(?:\\.\\w+)?\\b|{cmd}dd\\b[^\\n]*\\bof=/dev/|>\\s*/dev/(?:sd|nvme|disk)"
+      },
+      {
+        "why": "批准 promote 只能由用户在自己的终端里运行（approve-promote）。告诉用户运行这条命令，不要自己运行",
+        "pattern": "\\bcli\\.py\\s+request\\s+approve-promote\\b"
       }
     ],
     "ask": [
@@ -84,10 +95,6 @@
       {
         "why": "会递归改权限，或删除容器、集群、基础设施",
         "pattern": "\\b(?:chmod|chown)\\s+-R\\b|\\bdocker\\s+(?:rm|rmi|system\\s+prune|volume\\s+rm)\\b|\\bkubectl\\s+delete\\b|\\bterraform\\s+(?:apply|destroy)\\b"
-      },
-      {
-        "why": "回写原仓库（promote）要人确认；先用 --dry-run 看改动",
-        "pattern": "\\bcli\\.py\\s+promote\\b(?!.*--dry-run)"
       }
     ]
   },

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "description": "Limits for an L3 request: how many attempts, how large the knowledge brief and the handoff summary may be.",
+  "max_attempts": 2,
+  "brief": {
+    "max_bytes": 8000,
+    "max_entries": 40
+  },
+  "handoff": {
+    "summary_max_lines": 5
+  },
+  "inputs": {
+    "max_files": 200
+  }
+}

@@ -1,0 +1,218 @@
+{
+  "type": "object",
+  "required": [
+    "schema_version",
+    "request_id",
+    "title",
+    "session_id",
+    "status",
+    "created_at",
+    "updated_at",
+    "attempt",
+    "attempts",
+    "brief",
+    "pending_dispatch",
+    "inputs",
+    "promote"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "maxLength": 80
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "surface": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "accepted",
+        "hitl",
+        "abandoned"
+      ]
+    },
+    "status_reason": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "n",
+          "created_at",
+          "human_approved",
+          "dispatched",
+          "handoffs"
+        ],
+        "properties": {
+          "n": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "human_approved": {
+            "type": "string"
+          },
+          "dispatched": {
+            "type": "object",
+            "properties": {
+              "builder": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "brief_version"
+                ]
+              },
+              "reviewer": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "brief_version"
+                ]
+              }
+            }
+          },
+          "handoffs": {
+            "type": "object",
+            "properties": {
+              "builder": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed",
+                  "blocked"
+                ]
+              },
+              "reviewer": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed",
+                  "blocked"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "brief": {
+      "type": "object",
+      "required": [
+        "version",
+        "sha256",
+        "entries"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "pending_dispatch": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "attempt",
+          "at"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "builder",
+              "reviewer"
+            ]
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256"
+        ]
+      }
+    },
+    "promote": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "none",
+            "dry_run",
+            "done"
+          ]
+        },
+        "plan_sha256": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array"
+        },
+        "approved_plan_sha256": {
+          "type": "string"
+        },
+        "approved_at": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

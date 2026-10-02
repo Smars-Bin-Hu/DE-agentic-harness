@@ -20,7 +20,7 @@ def guardrail_terminal(why: str) -> str:
 def outside_request(relative: str, request_id: str, request_root: str) -> str:
     return (
         f"L3 请求 {request_id} 只能在 {request_root}/ 下写入，你要写的是 `{relative}`。"
-        f"改成在 {request_root}/ 下写；要回写到仓库，用 promote（需要人确认）。"
+        f"改成在 {request_root}/ 下写；要回写到仓库，用 promote（需要用户批准）。"
     )
 
 
@@ -41,3 +41,17 @@ def terminal_denied(why: str) -> str:
 
 def terminal_ask(why: str) -> str:
     return f"这条终端命令{why}，需要用户确认。"
+
+
+def cli_owned_file(relative: str) -> str:
+    return (
+        f"`{relative}` 由 CLI 生成和更新，不能直接写。"
+        "用 `python3 .harness/engine/cli.py` 的命令来改它；没有对应的命令时，停下来告诉用户。"
+    )
+
+
+def cli_owned_terminal(why: str) -> str:
+    return (
+        f"这条终端命令会直接改由 CLI 生成的文件（{why}），例如 request.json、handoff.json、manifest.json。"
+        "用 `python3 .harness/engine/cli.py` 的命令来改；没有对应的命令时，停下来告诉用户。"
+    )

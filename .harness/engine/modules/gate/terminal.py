@@ -50,6 +50,15 @@ def guardrail_write(command: str, compiled: Compiled) -> Optional[str]:
     return None
 
 
+def owned_write(command: str, compiled: Compiled) -> Optional[str]:
+    """Why this command changes a file only the CLI writes, or None."""
+    text = normalize(command)
+    for regex, why in compiled.owned_writes:
+        if regex.search(text):
+            return why
+    return None
+
+
 def check(command: str, compiled: Compiled) -> Optional[Verdict]:
     """`("deny", why)`, `("ask", why)` or None. Deny rules come first."""
     if not command.strip():

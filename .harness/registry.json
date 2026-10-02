@@ -63,6 +63,27 @@
         ".workspace/README.md"
       ],
       "retire_when": "Copilot 原生支持按路径限制写入，并能拒绝危险的终端命令。guardrail 和 L3 写入范围不退役"
+    },
+    "request": {
+      "status": "active",
+      "enabled": true,
+      "events": [],
+      "enforcement": [
+        "C"
+      ],
+      "surfaces_verified": [
+        "vscode"
+      ],
+      "files": [
+        ".harness/policies/orchestration.json",
+        ".harness/engine/modules/request/",
+        ".harness/contracts/request.schema.json",
+        ".harness/contracts/manifest.schema.json",
+        ".harness/contracts/handoff.schema.json",
+        ".harness/contracts/templates/assignment.md",
+        ".harness/tests/test_request.py"
+      ],
+      "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排。请求目录和 promote 不退役"
     }
   }
 }

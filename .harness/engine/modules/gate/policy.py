@@ -5,9 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Pattern, Tuple
 
-from core import schema
-
-from . import repo_paths
+from core import repo_paths, schema
 
 POLICY_NAME = "gate"
 # Without these the gate would not protect the harness itself. An override must keep them (doctor reports it).
@@ -40,6 +38,7 @@ POLICY_SCHEMA = {
         "schema_version": {"type": "integer", "enum": [1]},
         "guardrail_paths": {"type": "array", "items": {"type": "string"}},
         "extra_guardrail_paths": {"type": "array", "items": {"type": "string"}},
+        "cli_owned_paths": {"type": "array", "items": {"type": "string"}},
         "l3_write_root": {"type": "string"},
         "terminal": {
             "type": "object",
@@ -68,7 +67,7 @@ def validate_policy(policy: Dict[str, Any]) -> None:
     for core in CORE_GUARDRAILS:
         if core not in patterns:
             raise ValueError(f"Invalid {POLICY_NAME}.json: guardrail_paths must keep {core!r}")
-    if any(not item.strip() for item in patterns):
+    if any(not item.strip() for item in patterns + list(policy.get("cli_owned_paths", []))):
         raise ValueError(f"Invalid {POLICY_NAME}.json: empty guardrail path")
     if REQUEST_PLACEHOLDER not in policy["l3_write_root"]:
         raise ValueError(f"Invalid {POLICY_NAME}.json: l3_write_root must contain {REQUEST_PLACEHOLDER}")
@@ -93,6 +92,14 @@ class Compiled:
             (re.compile(expand(rule["pattern"], guard), re.IGNORECASE), rule["why"])
             for rule in policy["terminal"]["guardrail_write"]
         ]
+        # Files only the CLI writes (request.json, handoff.json...). Same write patterns as for guardrail files.
+        self.owned = list(policy.get("cli_owned_paths", []))
+        self.owned_regexes: List[Tuple[str, Pattern[str]]] = [(item, repo_paths.glob_regex(item)) for item in self.owned]
+        owned_guard = repo_paths.command_regex(self.owned).pattern if self.owned else ""
+        self.owned_writes = [
+            (re.compile(expand(rule["pattern"], owned_guard), re.IGNORECASE), rule["why"])
+            for rule in policy["terminal"]["guardrail_write"]
+        ] if self.owned else []
         self.deny = [(re.compile(expand(rule["pattern"], ""), re.IGNORECASE), rule["why"]) for rule in policy["terminal"]["deny"]]
         self.ask = [(re.compile(expand(rule["pattern"], ""), re.IGNORECASE), rule["why"]) for rule in policy["terminal"]["ask"]]
         self.l3_write_root = policy["l3_write_root"]
@@ -100,6 +107,13 @@ class Compiled:
     def guardrail_match(self, relative: str) -> str:
         """The guardrail pattern a repo-relative path falls under, or an empty string."""
         for pattern, regex in self.path_regexes:
+            if regex.match(relative):
+                return pattern
+        return ""
+
+    def owned_match(self, relative: str) -> str:
+        """The `cli_owned_paths` pattern a repo-relative path falls under, or an empty string."""
+        for pattern, regex in self.owned_regexes:
             if regex.match(relative):
                 return pattern
         return ""
