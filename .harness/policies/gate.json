@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "description": "The gate only guards writes. It never blocks a read. Guardrail files cannot be changed at any level; in L3 writes stay inside the request folder; dangerous terminal commands are denied or need a person to confirm.",
+  "guardrail_paths": [
+    ".github/hooks/**",
+    ".harness/policies/**",
+    ".harness/engine/**",
+    ".harness/registry.json",
+    ".harness/runtime/**",
+    ".vscode/settings.json"
+  ],
+  "extra_guardrail_paths": [],
+  "l3_write_root": ".workspace/sandbox/requests/{request_id}",
+  "terminal": {
+    "guardrail_write": [
+      {
+        "why": "写入、删除或移动",
+        "pattern": "(?:>>?\\s*|\\btee\\b[^;&|\\n]*\\s)[\"']?(?:[^\\s\"';&|<>]*/)?{guard}"
+      },
+      {
+        "why": "写入、删除或改权限",
+        "pattern": "{cmd}(?:rm|rmdir|unlink|mv|touch|chmod|chown|truncate|ln|mkdir|patch|del|erase|rd|ren|move|remove-item|move-item|rename-item|new-item|set-content|add-content|clear-content|out-file)\\b[^;&|\\n]*{guard}"
+      },
+      {
+        "why": "用 find 删除或改写",
+        "pattern": "\\bfind\\b[^;&|\\n]*{guard}[^;&|\\n]*(?:-delete\\b|-exec\\s+(?:rm|mv|chmod|sed)\\b)"
+      },
+      {
+        "why": "复制到它里面",
+        "pattern": "{cmd}(?:cp|rsync|install|copy|xcopy|copy-item)\\b[^;&|\\n]*{guard}[^\\s\"';&|]*[\"']?\\s*(?:[;&|]|$)"
+      },
+      {
+        "why": "原地修改",
+        "pattern": "{cmd}(?:sed|perl|ruby)\\b[^;&|\\n]*\\s-[a-z]*i[a-z]*\\b[^;&|\\n]*{guard}"
+      },
+      {
+        "why": "用 git 覆盖或改写",
+        "pattern": "{cmd}git\\s+(?:checkout|restore|rm|mv|apply|stash|reset)\\b[^;&|\\n]*{guard}"
+      },
+      {
+        "why": "用内联脚本改写",
+        "pattern": "{cmd}(?:python3?|node|perl|ruby)\\b[^\\n]*\\s-[ce]\\s[^\\n]*{guard}[^\\n]*(?:open|write|unlink|remove|rmtree|rename|replace|truncate)"
+      }
+    ],
+    "deny": [
+      {
+        "why": "递归删除根目录、家目录或当前目录",
+        "pattern": "{cmd}rm\\s+(?:-[a-z]+\\s+)*-[a-z]*(?:r[a-z]*f|f[a-z]*r)[a-z]*\\s+(?:/|~|\\$home|\\*|\\.|\\.\\.)/?\\*?(?:\\s|$|[;&|])"
+      },
+      {
+        "why": "递归强制删除根目录、家目录或所有文件",
+        "pattern": "{cmd}remove-item\\b[^;&|\\n]*-recurse[^;&|\\n]*\\s(?:/|~|\\*|[a-z]:/?)(?:\\s|$|[;&|])"
+      },
+      {
+        "why": "把下载的内容直接交给 shell 或解释器执行",
+        "pattern": "{cmd}(?:curl|wget|iwr|invoke-webrequest|irm|invoke-restmethod)\\b[^\\n]*\\|\\s*(?:sudo\\s+)?(?:sh|bash|zsh|python3?|node|perl|iex|invoke-expression)\\b"
+      },
+      {
+        "why": "格式化磁盘或直接写磁盘设备",
+        "pattern": "{cmd}mkfs(?:\\.\\w+)?\\b|{cmd}dd\\b[^\\n]*\\bof=/dev/|>\\s*/dev/(?:sd|nvme|disk)"
+      }
+    ],
+    "ask": [
+      {
+        "why": "删除文件",
+        "pattern": "{cmd}(?:rm|rmdir|unlink|del|erase|rd|remove-item)\\b|\\bxargs\\s+rm\\b|\\bfind\\b[^;&|\\n]*(?:-delete\\b|-exec\\s+rm\\b)"
+      },
+      {
+        "why": "会改写或丢弃 git 历史、分支或未提交的改动",
+        "pattern": "\\bgit\\s+(?:push|reset\\s+--hard|clean|checkout\\s+(?:-f|--force)|branch\\s+-D|stash\\s+(?:drop|clear)|restore(?!\\s+--staged)|filter-branch|reflog\\s+expire)\\b"
+      },
+      {
+        "why": "会联网",
+        "pattern": "{cmd}(?:curl|wget|nc|ncat|ssh|scp|sftp|rsync|ftp|telnet|invoke-webrequest|iwr|invoke-restmethod|irm)\\b"
+      },
+      {
+        "why": "会安装软件包",
+        "pattern": "\\b(?:pip3?|python3?\\s+-m\\s+pip|npm|pnpm|yarn|brew|apt|apt-get|choco|winget|gem|cargo)\\s+(?:install|add|i)\\b|\\bgo\\s+(?:install|get)\\b|{cmd}npx\\b"
+      },
+      {
+        "why": "会用管理员权限运行",
+        "pattern": "{cmd}(?:sudo|runas)\\b"
+      },
+      {
+        "why": "会递归改权限，或删除容器、集群、基础设施",
+        "pattern": "\\b(?:chmod|chown)\\s+-R\\b|\\bdocker\\s+(?:rm|rmi|system\\s+prune|volume\\s+rm)\\b|\\bkubectl\\s+delete\\b|\\bterraform\\s+(?:apply|destroy)\\b"
+      },
+      {
+        "why": "回写原仓库（promote）要人确认；先用 --dry-run 看改动",
+        "pattern": "\\bcli\\.py\\s+promote\\b(?!.*--dry-run)"
+      }
+    ]
+  },
+  "circuit_breaker": {
+    "repeat_limit": 3
+  }
+}

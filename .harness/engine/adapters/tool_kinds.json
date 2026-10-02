@@ -22,7 +22,11 @@
         "Grep": "search",
         "Glob": "search",
         "Agent": "subagent",
-        "search_code_subagent": "search"
+        "search_code_subagent": "search",
+        "multi_replace_string_in_file": "edit",
+        "insert_edit_into_file": "edit",
+        "apply_patch": "edit",
+        "edit_notebook_file": "edit"
       },
       "path_keys": [
         "filePath",
@@ -33,7 +37,14 @@
       "subagent_target_keys": [
         "agentName",
         "agent_type"
-      ]
+      ],
+      "unrecorded_tools": [
+        "multi_replace_string_in_file",
+        "insert_edit_into_file",
+        "apply_patch",
+        "edit_notebook_file"
+      ],
+      "unrecorded_note": "Edit tools named in VS Code, never recorded here. The gate needs them as 'edit'; their input shapes are read generically (nested filePath, patch headers). Record them when seen."
     },
     "cli": {
       "verified": false,

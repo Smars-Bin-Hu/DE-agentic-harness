@@ -21,7 +21,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Optional
 
-from . import schema
+from . import breaker, schema
 from .events import Decision, HookEvent
 from .paths import state_dir, utc_now
 
@@ -200,6 +200,7 @@ def track_before(state: Dict[str, Any], event: HookEvent) -> None:
     if name == "SessionStart":
         subagents["active"] = []
         subagents["pending_prompts"] = []
+        breaker.reset(state)
     elif name == "SubagentStart":
         if event.agent_id:
             if not any(a["agent_id"] == event.agent_id for a in subagents["active"]):
@@ -239,6 +240,8 @@ def track_before(state: Dict[str, Any], event: HookEvent) -> None:
             event.from_subagent = True
         elif subagents["active"]:
             event.from_subagent = True
+        else:
+            breaker.reset(state)  # a real user prompt opens a new window for counting repeated denies
 
 
 def claim_child(root: Path, surface: str, event: HookEvent) -> Optional[Dict[str, Any]]:

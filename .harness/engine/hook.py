@@ -24,10 +24,12 @@ from typing import Any, Dict, List, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import adapters  # noqa: E402
+from core import breaker  # noqa: E402
 from core import registry as registry_module  # noqa: E402
 from core import state as state_module  # noqa: E402
 from core.context import Context  # noqa: E402
 from core.events import Decision, HookEvent, merge  # noqa: E402
+from core.failopen import call_safely  # noqa: E402
 from core.logs import log_call, log_error  # noqa: E402
 from core.paths import repo_root  # noqa: E402
 
@@ -72,6 +74,7 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         ctx = Context(root, state)
         decisions, ran = run_modules(root, event, ctx, names)
         decision = merge(decisions)
+        denial = call_safely(root, "breaker", breaker.apply, root, state, event, decision, ctx.level)  # a refusal stays a refusal
         state_module.track_after(state, event, decision)
     outcome = decision.permission or ("block" if decision.block else ("context" if decision.context else "none"))
     record = {
@@ -86,6 +89,8 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         "modules": ran,
         "decision": outcome,
     }
+    if denial:
+        record["denial"] = denial
     return adapter.render(event, decision), record
 
 

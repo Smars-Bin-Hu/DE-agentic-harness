@@ -10,7 +10,8 @@
       ".harness/engine/adapters/copilot_cli.py",
       ".harness/engine/adapters/tool_kinds.json",
       ".github/hooks/harness.json",
-      ".harness/eval/fixtures/hooks/vscode/"
+      ".harness/eval/fixtures/hooks/vscode/",
+      ".harness/tests/test_breaker.py"
     ]
   },
   "modules": {
@@ -40,6 +41,28 @@
         ".harness/tests/test_review.py"
       ],
       "retire_when": "Copilot 原生支持按模式限制探索预算和子 agent"
+    },
+    "gate": {
+      "status": "active",
+      "enabled": true,
+      "events": [
+        "PreToolUse"
+      ],
+      "enforcement": [
+        "S",
+        "H"
+      ],
+      "surfaces_verified": [
+        "vscode"
+      ],
+      "files": [
+        ".harness/policies/gate.json",
+        ".harness/engine/modules/gate/",
+        ".harness/tests/test_gate.py",
+        ".github/instructions/workspace.instructions.md",
+        ".workspace/README.md"
+      ],
+      "retire_when": "Copilot 原生支持按路径限制写入，并能拒绝危险的终端命令。guardrail 和 L3 写入范围不退役"
     }
   }
 }

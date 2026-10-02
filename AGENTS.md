@@ -50,3 +50,7 @@
   L1 不用子智能体，L2 只在用户开启复核时用 verifier，只有 L3 做编排。
 - 只有明确违反策略时，钩子才能阻止操作。钩子自身出错时不能误伤正常工作。
 - 删除、覆盖或执行难以恢复的操作前，必须确认目标和范围。
+- guardrail 文件任何 Level 都不能改，hook 会拒绝。清单见
+  [.harness/policies/gate.json](.harness/policies/gate.json)。需要改时，告诉用户。
+- L3 只在当前请求目录 `.workspace/sandbox/requests/<id>/` 下写入。
+  目录约定见 [workspace.instructions.md](.github/instructions/workspace.instructions.md)。

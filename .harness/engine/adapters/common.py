@@ -11,6 +11,9 @@ from core.events import EVENT_NAMES, Decision, HookEvent
 
 _TOOL_KINDS: Optional[Dict[str, Any]] = None
 _SEARCH_PATTERN: Optional[Pattern[str]] = None
+# `apply_patch` sends one text with the paths in its headers: "*** Update File: <path>".
+_PATCH_HEADER = re.compile(r"^\*\*\* (?:Add File|Update File|Delete File|Move to):\s*(.+?)\s*$", re.MULTILINE)
+_NESTED_DEPTH = 4
 
 
 def tool_kinds() -> Dict[str, Any]:
@@ -51,6 +54,36 @@ def as_dict(value: Any) -> Dict[str, Any]:
     return {}
 
 
+def _nested_paths(value: Any, keys: List[str], found: List[str], depth: int = 0) -> None:
+    """Paths under a list of edits, e.g. multi_replace_string_in_file: replacements[].filePath."""
+    if depth > _NESTED_DEPTH:
+        return
+    items = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
+    for key, item in items:
+        if isinstance(item, str):
+            if key in keys and item and item not in found:
+                found.append(item)
+        elif isinstance(item, (dict, list)):
+            _nested_paths(item, keys, found, depth + 1)
+
+
+def tool_paths(arguments: Dict[str, Any], keys: List[str], writes: bool) -> List[str]:
+    """Every path a tool call names: the top-level keys first, then nested ones, then patch headers (write tools)."""
+    paths: List[str] = []
+    for key in keys:
+        value = arguments.get(key)
+        if isinstance(value, str) and value:
+            paths.append(value)
+    for value in arguments.values():
+        if isinstance(value, (dict, list)):
+            _nested_paths(value, keys, paths)
+    if writes:
+        for value in arguments.values():
+            if isinstance(value, str) and "*** " in value:
+                paths.extend(found for found in _PATCH_HEADER.findall(value) if found not in paths)
+    return paths
+
+
 def text(value: Any) -> str:
     if value is None:
         return ""
@@ -78,11 +111,7 @@ def build_event(
     kind = config["tools"].get(name, "other") if name else ""
     command = arguments.get(config["command_key"])
     command = command if isinstance(command, str) else ""
-    paths: List[str] = []
-    for key in config["path_keys"]:
-        value = arguments.get(key)
-        if isinstance(value, str) and value:
-            paths.append(value)
+    paths = tool_paths(arguments, config["path_keys"], kind in ("edit", "create"))
     result = HookEvent(surface=surface, event=event, session_id=session_id, raw=payload)
     result.tool_name = name
     result.tool_kind = kind

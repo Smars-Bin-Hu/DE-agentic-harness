@@ -20,6 +20,8 @@ def copy_repo(destination: Path) -> None:
     ignore = shutil.ignore_patterns("__pycache__", "runtime", "*.pyc")
     shutil.copytree(REPO / ".github", destination / ".github", ignore=ignore)
     shutil.copytree(REPO / ".harness", destination / ".harness", ignore=ignore)
+    (destination / ".workspace").mkdir()
+    shutil.copy(REPO / ".workspace" / "README.md", destination / ".workspace" / "README.md")  # a module lists it
 
 
 # The Level entry skills are an exception to the prefix rule (skills.instructions.md).
@@ -141,6 +143,12 @@ class DoctorTests(unittest.TestCase):
         (self.root / ".harness" / "registry.json").unlink()
         self.assertEqual(self.doctor().returncode, 1)
 
+    def test_a_gate_policy_without_a_core_guardrail_is_an_error(self) -> None:
+        self.edit_json(".harness/policies/gate.json", lambda data: data["guardrail_paths"].remove(".harness/engine/**"))
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("gate.json 有问题", result.stdout)
+
     def test_a_disabled_module_is_not_asked_for_events(self) -> None:
         def registry(data: dict) -> None:
             data["modules"]["task_level"]["events"].append("PostToolUse")
@@ -167,7 +175,7 @@ class LayoutTests(unittest.TestCase):
         local = {"core", "adapters", "modules", "doctor", "hook", "cli"}
         stdlib = {
             "__future__", "argparse", "contextlib", "copy", "dataclasses", "datetime", "hashlib", "importlib",
-            "json", "math", "os", "pathlib", "re", "sys", "tempfile", "time", "traceback", "typing", "uuid",
+            "json", "math", "os", "pathlib", "posixpath", "re", "sys", "tempfile", "time", "traceback", "typing", "urllib", "uuid",
         }
         for path in sorted(ENGINE.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))

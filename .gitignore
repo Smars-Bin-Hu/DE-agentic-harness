@@ -9,11 +9,13 @@ __pycache__/
 *.pyc
 
 # Workspace runtime content (keep only .gitkeep)
-.workspace/sandbox/**
-!.workspace/sandbox/.gitkeep
-.workspace/current_tasks/**
+.workspace/sandbox/*
+!.workspace/sandbox/requests/
+.workspace/sandbox/requests/*
+!.workspace/sandbox/requests/.gitkeep
+.workspace/current_tasks/*
 !.workspace/current_tasks/.gitkeep
-.workspace/reports/**
+.workspace/reports/*
 !.workspace/reports/.gitkeep
 
 # OS
