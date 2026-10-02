@@ -1,0 +1,15 @@
+{
+  "hook_event_name": "PostToolUse",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:28:05.625Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "tool_name": "Grep",
+  "tool_input": {
+    "pattern": "sandbox",
+    "output_mode": "files_with_matches"
+  },
+  "tool_result": {
+    "result_type": "success",
+    "text_result_for_llm": "./.gitignore\n./AGENTS.md\n./README.md\n./.harness/tests/test_task_level.py\n./.harness/eval/fixtures/hooks/vscode/sessions/tools-basic.jsonl\n./.harness/eval/fixtures/hooks/vscode/sessions/tools-edit-list-search.jsonl\n./.harness/eval/fixtures/hooks/vscode/payloads/PreToolUse.create_file.json\n./.harness/eval/fixtures/hooks/vscode/payloads/PostToolUse.replace_string_in_file.json\n./.harness/eval/fixtures/hooks/vscode/payloads/PostToolUse.create_file.json\n./.harness/eval/fixtures/hooks/vscode/payloads/PreToolUse.replace_string_in_file.json\n./.harness/eval/fixtures/hooks/vscode/payloads/PostToolUse.grep_search.json\n./.harness/eval/fixtures/hooks/vscode/payloads/PreToolUse.grep_search.json\n./.harness/eval/fixtures/hooks/vscode/payloads/UserPromptSubmit.json"
+  }
+}

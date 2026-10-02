@@ -28,6 +28,15 @@
         "timeout": 10
       }
     ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "python3 .harness/engine/hook.py",
+        "windows": "python .harness/engine/hook.py",
+        "cwd": ".",
+        "timeout": 10
+      }
+    ],
     "SubagentStart": [
       {
         "type": "command",

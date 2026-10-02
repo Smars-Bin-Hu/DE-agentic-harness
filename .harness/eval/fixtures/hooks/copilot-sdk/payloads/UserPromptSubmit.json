@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:17:02.602Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "prompt": "[L2] [verify] 创建文件 .workspace/sandbox/b5/p.txt，内容一行：hello。然后调用 verifier 复核一次。再运行终端命令：python3 .harness/engine/cli.py level status --session-id test。做完回答 done。\n"
+}

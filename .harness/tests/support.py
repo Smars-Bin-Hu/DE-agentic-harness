@@ -74,6 +74,13 @@ class HarnessTestCase(unittest.TestCase):
         make_root(self.root)
         self.env = {**os.environ, "HARNESS_ROOT": str(self.root)}
 
+    def verifier_default(self, on: bool) -> None:
+        """Set the L2 verifier default in this test's policy copy (the shipped default is off)."""
+        path = self.root / ".harness" / "policies" / "task-levels.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["levels"]["2"]["verification"]["enabled"] = on
+        path.write_text(json.dumps(data), encoding="utf-8")
+
     # --- running the engine -------------------------------------------------------------------
 
     def run_script(self, script: Path, *arguments: str, stdin: Optional[str] = None) -> subprocess.CompletedProcess:

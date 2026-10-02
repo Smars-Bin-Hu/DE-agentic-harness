@@ -20,17 +20,17 @@ def _append(root: Path, filename: str, record: Dict[str, Any]) -> None:
         pass
 
 
-def log_error(root: Path, where: str, error: BaseException) -> None:
-    _append(
-        root,
-        "hook-errors.jsonl",
-        {
-            "at": utc_now(),
-            "where": where,
-            "error": f"{type(error).__name__}: {error}",
-            "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__))[-2000:],
-        },
-    )
+def log_error(root: Path, where: str, error: BaseException, sample: str = "") -> None:
+    """`sample` is the start of the raw hook input. It shows the shape of a payload the engine could not read."""
+    entry = {
+        "at": utc_now(),
+        "where": where,
+        "error": f"{type(error).__name__}: {error}",
+        "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__))[-2000:],
+    }
+    if sample:
+        entry["sample"] = sample[:1500]
+    _append(root, "hook-errors.jsonl", entry)
 
 
 def log_call(root: Path, record: Dict[str, Any]) -> None:

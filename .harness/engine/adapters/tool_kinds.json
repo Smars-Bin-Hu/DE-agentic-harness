@@ -4,7 +4,7 @@
   "surfaces": {
     "vscode": {
       "verified": true,
-      "source": "B1 recording, 2026-09-30, VS Code 1.140.0 / Copilot Chat 0.68.0",
+      "source": "B1 recording 2026-09-30 (VS Code 1.140.0 / Copilot Chat 0.68.0) and the Copilot SDK engine recording 2026-10-01 (VS Code 1.140.0, @github/copilot 1.0.89-7)",
       "tools": {
         "read_file": "read",
         "list_dir": "read",
@@ -14,12 +14,26 @@
         "create_file": "create",
         "replace_string_in_file": "edit",
         "run_in_terminal": "terminal",
-        "runSubagent": "subagent"
+        "runSubagent": "subagent",
+        "Bash": "terminal",
+        "Read": "read",
+        "Write": "create",
+        "Edit": "edit",
+        "Grep": "search",
+        "Glob": "search",
+        "Agent": "subagent",
+        "search_code_subagent": "search"
       },
-      "path_keys": ["filePath", "path"],
+      "path_keys": [
+        "filePath",
+        "path"
+      ],
       "command_key": "command",
-      "subagent_target_key": "agentName",
-      "subagent_prompt_key": "prompt"
+      "subagent_prompt_key": "prompt",
+      "subagent_target_keys": [
+        "agentName",
+        "agent_type"
+      ]
     },
     "cli": {
       "verified": false,
@@ -34,11 +48,19 @@
         "glob": "search",
         "task": "subagent"
       },
-      "path_keys": ["path", "filePath"],
+      "path_keys": [
+        "path",
+        "filePath"
+      ],
       "command_key": "command",
       "subagent_target_key": "agent_type",
       "subagent_prompt_key": "prompt"
     }
   },
-  "terminal_search_commands": ["rg", "grep", "git grep", "find"]
+  "terminal_search_commands": [
+    "rg",
+    "grep",
+    "git grep",
+    "find"
+  ]
 }

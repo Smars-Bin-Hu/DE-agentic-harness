@@ -1,0 +1,15 @@
+{
+  "hook_event_name": "PostToolUse",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:17:09.742Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "tool_name": "Write",
+  "tool_input": {
+    "path": "/Users/user/Developer/DE-agentic-harness/.workspace/sandbox/b5/p.txt",
+    "file_text": "hello"
+  },
+  "tool_result": {
+    "result_type": "success",
+    "text_result_for_llm": "Created file /Users/user/Developer/DE-agentic-harness/.workspace/sandbox/b5/p.txt with 5 characters"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "sessionId": "00000000-0000-0000-0000-000000000000",
+  "timestamp": 1790907432584,
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "transcriptPath": "<COPILOT_HOME>/session-state/events.jsonl",
+  "agentName": "verifier",
+  "agentDescription": "L2 的复核员，用户写 [verify] 时才启用。只核对交付物是否符合用户要求，不改文件。由默认 agent 在交付前调用。"
+}

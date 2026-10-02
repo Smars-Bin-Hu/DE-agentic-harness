@@ -46,6 +46,9 @@ _LEVEL_SCHEMA = {
             "required": ["mode"],
             "properties": {
                 "mode": {"type": "string", "enum": ["self", "verifier", "reviewer"]},
+                "agent": {"type": "string"},
+                "enabled": {"type": "boolean"},
+                "enable_markers": {"type": "array", "items": {"type": "string"}},
                 "require_when": {
                     "type": "object",
                     "properties": {
@@ -90,17 +93,41 @@ def validate_policy(policy: Dict[str, Any]) -> None:
             if marker.lower() in seen:
                 raise ValueError(f"Invalid {POLICY_NAME}.json: marker {marker!r} is used twice")
             seen[marker.lower()] = level
+    for field in ("enable_markers", "skip_markers"):
+        for marker in verify_markers(policy, field):
+            if not marker.strip():
+                raise ValueError(f"Invalid {POLICY_NAME}.json: empty {field} entry")
 
 
 def level_policy(policy: Dict[str, Any], level: int) -> Dict[str, Any]:
     return policy["levels"][str(level)]
 
 
-def skip_markers(policy: Dict[str, Any]) -> List[str]:
-    """Markers that skip the verifier check for one prompt, from every level that defines them."""
+def verification(policy: Dict[str, Any], level: int) -> Dict[str, Any]:
+    return level_policy(policy, level)["verification"]
+
+
+def verify_markers(policy: Dict[str, Any], field: str) -> List[str]:
+    """Markers (`enable_markers` or `skip_markers`) that switch the verifier for one prompt, from every level."""
     found: List[str] = []
     for body in policy["levels"].values():
-        for marker in body["verification"].get("skip_markers", []):
+        for marker in body["verification"].get(field, []):
             if marker not in found:
                 found.append(marker)
     return found
+
+
+def verifier_on(policy: Dict[str, Any], level: int, choice: str) -> bool:
+    """Is the verifier on for this prompt? `choice` is the user's marker (`on`, `off` or empty); empty uses the policy default."""
+    rule = verification(policy, level)
+    if rule["mode"] != "verifier":
+        return False
+    if choice:
+        return choice == "on"
+    return bool(rule.get("enabled", False))
+
+
+def verifier_name(policy: Dict[str, Any], level: int) -> str:
+    """The agent name of the level's verifier, or an empty string if the level has none."""
+    rule = verification(policy, level)
+    return rule.get("agent", "verifier") if rule["mode"] == "verifier" else ""

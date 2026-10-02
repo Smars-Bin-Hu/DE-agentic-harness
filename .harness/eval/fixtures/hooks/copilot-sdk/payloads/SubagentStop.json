@@ -1,0 +1,13 @@
+{
+  "hook_event_name": "SubagentStop",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:28:15.275Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "transcript_path": "<COPILOT_HOME>/session-state/events.jsonl",
+  "agent_id": "toolu_01Xn2uwHgidWAsgBnqzVagkY",
+  "agent_type": "search-subagent",
+  "agent_name": "search-subagent",
+  "agent_display_name": "Search Subagent",
+  "last_assistant_message": "<final_answer>\n.github/skills/harness-task-level/SKILL.md:1-45\n.github/skills/harness-task-level/references/task-level.md:1-73\n.harness/policies/task-levels.json:1-51\n.harness/engine/modules/task_level/__init__.py:1-7\n.harness/engine/modules/task_level/rules.py:60-155\n.github/copilot-instructions.md:5-18\n</final_answer>",
+  "stop_reason": "end_turn"
+}

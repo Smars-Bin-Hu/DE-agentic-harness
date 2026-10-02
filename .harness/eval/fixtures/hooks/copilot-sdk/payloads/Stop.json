@@ -1,0 +1,9 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:17:17.380Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "transcript_path": "<COPILOT_HOME>/session-state/events.jsonl",
+  "stop_reason": "end_turn",
+  "stop_hook_active": false
+}

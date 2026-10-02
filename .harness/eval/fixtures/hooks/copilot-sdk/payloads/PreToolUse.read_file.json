@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "toolu_01Xn2uwHgidWAsgBnqzVagkY",
+  "timestamp": "2026-10-02T02:28:11.524Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "tool_name": "read_file",
+  "tool_input": {
+    "filePath": "AGENTS.md",
+    "startLine": 1,
+    "endLine": 200
+  }
+}

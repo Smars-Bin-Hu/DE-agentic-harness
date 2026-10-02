@@ -61,8 +61,14 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     event = adapter.parse(payload)
     registry = registry_module.load_registry(root)
     names = registry_module.modules_for(registry, event.event)
+    link = None
+    if event.event == "UserPromptSubmit" and not state_module.state_path(root, event.surface, event.session_id).exists():
+        link = state_module.claim_child(root, event.surface, event)
     with state_module.session(root, event.surface, event.session_id) as state:
         state_module.track_before(state, event)
+        if link:
+            state.update(link)  # a subagent session: it inherits the parent's level, and its first prompt is not the user
+            event.from_subagent = True
         ctx = Context(root, state)
         decisions, ran = run_modules(root, event, ctx, names)
         decision = merge(decisions)
@@ -75,6 +81,7 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         "tool_name": event.tool_name,
         "agent_type": event.agent_type,
         "from_subagent": event.from_subagent,
+        "continuation": event.continuation,
         "modules": ran,
         "decision": outcome,
     }
@@ -86,11 +93,12 @@ def main() -> int:
     root = repo_root()
     output: Dict[str, Any] = {}
     record: Dict[str, Any] = {}
+    raw = ""
     try:
         raw = sys.stdin.buffer.read().decode("utf-8-sig", errors="replace")
         output, record = process(raw, root)
     except BaseException as error:  # noqa: BLE001 - fail-open on everything, including SystemExit
-        log_error(root, "hook", error)
+        log_error(root, "hook", error, sample=raw)
         record = {"error": f"{type(error).__name__}: {error}"}
         output = {}
     record["ms"] = round((time.monotonic() - started) * 1000, 1)

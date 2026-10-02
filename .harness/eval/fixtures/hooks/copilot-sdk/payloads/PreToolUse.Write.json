@@ -1,0 +1,11 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:17:09.656Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "tool_name": "Write",
+  "tool_input": {
+    "path": "/Users/user/Developer/DE-agentic-harness/.workspace/sandbox/b5/p.txt",
+    "file_text": "hello"
+  }
+}

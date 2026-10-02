@@ -12,12 +12,13 @@ Task Level 控制自主程度、计划、探索范围、委派和预算。它从
 | --- | --- |
 | `/l1`、`[L1]` | 切到 L1 |
 | `/l2`、`[L2]` | 切到 L2 |
-| `[no-verify]` | 写在提示里任何位置，本条提示不要求 verifier 复核（L2） |
+| `[verify]` | 写在提示里任何位置，本条提示开启 verifier 复核（L2） |
+| `[no-verify]` | 写在提示里任何位置，本条提示关闭 verifier 复核。和 `[verify]` 同时写时，以它为准 |
 
 - 切换后一直有效，直到用户再次切换或新开会话。
 - 子 agent 启动时也会触发提示事件，内容是模型写的调用消息。hook 会排除它，所以你在调用消息里写标记没有用。
 - L3 请求进行中，`/l1`、`/l2` 标记会被忽略。
-- `/l2` 是 prompt file 的入口，只在 VS Code 可用。
+- `/l1`、`/l2` 是 VS Code 里的入口，直接在提示开头打字也一样。
 
 ## 三个 Level
 
@@ -26,7 +27,7 @@ Task Level 控制自主程度、计划、探索范围、委派和预算。它从
 | Level | 适用 | 计划 | 子 agent | 验收 |
 | --- | --- | --- | --- | --- |
 | 1 | 确定、窄、做法清楚 | 不要 | 禁止 | 自查 |
-| 2 | 相关文件间的有边界工程 | 短计划 | 只允许 verifier，每条提示有次数上限 | verifier 复核 |
+| 2 | 相关文件间的有边界工程 | 短计划 | 只允许 verifier（要开启），每条提示有次数上限 | 默认自查；开启后 verifier 复核 |
 | 3 | 跨系统、复杂 RCA、需要独立验证 | 必须 | 只允许 builder、reviewer | reviewer |
 
 ## 预算
@@ -37,6 +38,20 @@ Task Level 控制自主程度、计划、探索范围、委派和预算。它从
 - `warn`：超过后不拒绝，只记在 state 里。平台不会把 PostToolUse 的提示送给模型，所以没有逐次提醒。
 
 读取文件不设上限，只算进工具调用总数。
+
+## L2 的 verifier 复核
+
+- 开关：默认关闭。默认值是 policy 里 L2 `verification.enabled`；用户用 `[verify]`、`[no-verify]` 只改本条提示。
+  团队想默认开，用 override 把 `enabled` 改成 `true`。
+- 关闭时：不放行 verifier 和其他子 agent（拒绝理由里写明怎么开启），Stop 不检查，规则里不要求复核。
+- 开启时 verifier 可以独立搜索和读取知识库，不限制范围。这是第二次独立判断，费用由开启的人接受。
+- 只有用户的提示原文里的标记算数。agent 不能自己开启或关闭。
+- 触发（开启时）：本条提示改了文件（编辑类工具），或工具调用达到阈值。阈值在 policy 的 `require_when`。
+- Stop 时 hook 检查：触发了，但最后一次修改之后没有复核，就 block 一次，要求调用 verifier。
+- 放行的情况：`stop_hook_active` 为真；复核没开（含 `[no-verify]`）；verifier 次数已用完；
+  最近一次复核在最后一次修改之后（包括 FAIL：交给用户，不再拦）。
+- 结论读自 `PostToolUse(runSubagent).tool_response` 的第一行：`VERDICT: PASS` 或 `VERDICT: FAIL`。读不到记为 `unknown`，不再 block。
+- 已知限制：终端命令写文件看不出来，不算修改。子 agent 内部的工具调用也计入工具调用次数。
 
 ## 子 agent
 

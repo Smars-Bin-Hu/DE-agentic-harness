@@ -1,0 +1,10 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "toolu_01Xn2uwHgidWAsgBnqzVagkY",
+  "timestamp": "2026-10-02T02:28:11.524Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "tool_name": "file_search",
+  "tool_input": {
+    "query": "**/task*level*"
+  }
+}

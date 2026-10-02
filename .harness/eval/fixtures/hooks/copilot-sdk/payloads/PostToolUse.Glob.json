@@ -1,0 +1,14 @@
+{
+  "hook_event_name": "PostToolUse",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:28:07.002Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "tool_name": "Glob",
+  "tool_input": {
+    "pattern": ".github/agents/**"
+  },
+  "tool_result": {
+    "result_type": "success",
+    "text_result_for_llm": "./.github/agents/verifier.agent.md\n./.github/agents/.gitkeep"
+  }
+}

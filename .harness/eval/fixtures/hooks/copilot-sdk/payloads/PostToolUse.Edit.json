@@ -1,0 +1,16 @@
+{
+  "hook_event_name": "PostToolUse",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2026-10-02T02:28:04.036Z",
+  "cwd": "/Users/user/Developer/DE-agentic-harness",
+  "tool_name": "Edit",
+  "tool_input": {
+    "path": "/Users/user/Developer/DE-agentic-harness/.workspace/sandbox/b5/p.txt",
+    "old_str": "hello",
+    "new_str": "hello2"
+  },
+  "tool_result": {
+    "result_type": "success",
+    "text_result_for_llm": "File /Users/user/Developer/DE-agentic-harness/.workspace/sandbox/b5/p.txt updated with changes."
+  }
+}

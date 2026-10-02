@@ -19,7 +19,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator
+from typing import Any, Callable, Dict, Iterator, Optional
 
 from . import schema
 from .events import Decision, HookEvent
@@ -33,6 +33,12 @@ LOCK_STALE_SECONDS = 5.0
 SUBAGENT_ACTIVE_TTL_SECONDS = 1800.0
 PENDING_PROMPT_TTL_SECONDS = 300.0
 PENDING_PROMPT_MAX = 8
+# After a Stop block the SDK engine sends the reason back as a new UserPromptSubmit, within moments.
+CONTINUATION_TTL_SECONDS = 120.0
+# A subagent session (Copilot SDK engine) sends its first UserPromptSubmit within moments of its SubagentStart.
+CHILD_CLAIM_SECONDS = 10.0
+CHILD_SCAN_FILES = 30
+CHILD_SCAN_AGE_SECONDS = 600.0
 # Events core needs even when no module subscribes (subagent tracking). The hook config must cover them.
 TRACKED_EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "SubagentStart", "SubagentStop", "Stop")
 
@@ -195,15 +201,38 @@ def track_before(state: Dict[str, Any], event: HookEvent) -> None:
         subagents["active"] = []
         subagents["pending_prompts"] = []
     elif name == "SubagentStart":
-        if not any(a["agent_id"] == event.agent_id for a in subagents["active"]):
-            subagents["active"].append({"agent_id": event.agent_id, "agent_type": event.agent_type, "at": now})
+        if event.agent_id:
+            if not any(a["agent_id"] == event.agent_id for a in subagents["active"]):
+                subagents["active"].append({"agent_id": event.agent_id, "agent_type": event.agent_type, "at": now})
+        else:
+            # Copilot SDK engine: no agent id yet. The subagent runs in a session of its own, which claims this entry.
+            subagents["active"].append(
+                {"agent_id": f"{event.agent_type}@{now:.3f}", "agent_type": event.agent_type, "at": now, "awaiting_child": True}
+            )
     elif name == "SubagentStop":
-        subagents["active"] = [a for a in subagents["active"] if a["agent_id"] != event.agent_id]
+        active = subagents["active"]
+        index = next((i for i, a in enumerate(active) if a["agent_id"] == event.agent_id), None)
+        if index is None:  # the SDK engine reports the child's session id here, not the id we made up
+            index = next((i for i, a in enumerate(active) if a["agent_type"] == event.agent_type), None)
+        if index is not None:
+            del active[index]
     elif name == "Stop":
         # The main agent is finishing, so no subagent can still be running.
         subagents["active"] = []
     elif name == "UserPromptSubmit":
+        if state.get("parent_session_id"):
+            # A subagent session never receives a user prompt. Its later prompts are the engine feeding back a
+            # SubagentStop block reason (recorded 2026-10-01).
+            event.from_subagent = True
+            return
         text = event.prompt.strip()
+        waiting = state.get("continuation")
+        if waiting and now - waiting["at"] <= CONTINUATION_TTL_SECONDS:
+            reason = waiting["prompt"].strip()
+            if text and reason and (text in reason or reason in text):
+                state["continuation"] = None
+                event.continuation = True
+                return
         matched = next((p for p in subagents["pending_prompts"] if p["prompt"].strip() == text), None)
         if matched is not None:
             subagents["pending_prompts"].remove(matched)
@@ -212,8 +241,65 @@ def track_before(state: Dict[str, Any], event: HookEvent) -> None:
             event.from_subagent = True
 
 
+def claim_child(root: Path, surface: str, event: HookEvent) -> Optional[Dict[str, Any]]:
+    """Copilot SDK engine: a subagent runs in its own session. Is this new session one?
+
+    Called for the first UserPromptSubmit of a session that has no state yet. A parent that just reported a
+    SubagentStart is waiting for its child. Match by the call message first, then by time. On a match the parent's
+    entry is marked as claimed, and its level and request are returned for the child to inherit.
+    """
+    directory = state_dir(root, surface)
+    if not directory.is_dir():
+        return None
+    now = time.time()
+    own = safe_session_id(event.session_id)
+    files = sorted(
+        (p for p in directory.glob("*.json") if p.stem != own),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )[:CHILD_SCAN_FILES]
+    text = event.prompt.strip()
+    best = None  # (score, parent path, parent session id)
+    for path in files:
+        try:
+            if now - path.stat().st_mtime > CHILD_SCAN_AGE_SECONDS:
+                continue
+            with path.open(encoding="utf-8") as handle:
+                parent = json.load(handle)
+            waiting = [a for a in parent["subagents"]["active"] if a.get("awaiting_child") and now - a["at"] <= CHILD_CLAIM_SECONDS]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if not waiting:
+            continue
+        by_message = any(p["prompt"].strip() == text for p in parent["subagents"]["pending_prompts"])
+        score = (2 if by_message else 1, max(a["at"] for a in waiting))
+        if best is None or score > best[0]:
+            best = (score, path, parent["session_id"])
+    if best is None:
+        return None
+    _, path, parent_id = best
+    claimed: Dict[str, Any] = {}
+
+    def mark(parent: Dict[str, Any]) -> None:
+        for entry in parent["subagents"]["active"]:
+            if entry.get("awaiting_child"):
+                entry["awaiting_child"] = False
+                entry["child_session_id"] = event.session_id
+                break
+        claimed.update(parent_session_id=parent["session_id"], level=parent["level"], active_request=parent["active_request"])
+
+    with state_lock(path):
+        parent_state = read_state(path, surface, parent_id)
+        mark(parent_state)
+        atomic_write(path, parent_state)
+    return claimed
+
+
 def track_after(state: Dict[str, Any], event: HookEvent, decision: Decision) -> None:
-    """Remember the call message of an allowed subagent call, so its UserPromptSubmit can be recognized."""
+    """Remember what core must recognize later: the call message of an allowed subagent call, and a Stop block reason."""
+    if event.event == "Stop" and decision.block and decision.reason:
+        state["continuation"] = {"prompt": decision.reason, "at": time.time()}
+        return
     if event.event != "PreToolUse" or event.tool_kind != "subagent" or decision.permission == "deny":
         return
     if not event.subagent_prompt:

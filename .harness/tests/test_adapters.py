@@ -131,7 +131,10 @@ class VsCodeRenderTests(unittest.TestCase):
         for name, event in (("UserPromptSubmit.json", "UserPromptSubmit"), ("SessionStart.json", "SessionStart"), ("SubagentStart.json", "SubagentStart")):
             with self.subTest(name):
                 output = self.render(name, Decision(context="rules"))
-                self.assertEqual(output, {"hookSpecificOutput": {"hookEventName": event, "additionalContext": "rules"}})
+                if event == "SubagentStart":  # the legacy engine reads the nested format
+                    self.assertEqual(output, {"hookSpecificOutput": {"hookEventName": event, "additionalContext": "rules"}})
+                else:  # the top-level key reaches the model on both engines
+                    self.assertEqual(output, {"additionalContext": "rules"})
 
     def test_empty_decision_is_an_empty_object(self) -> None:
         self.assertEqual(self.render("PreToolUse.read_file.json", Decision()), {})

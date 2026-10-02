@@ -90,7 +90,8 @@ def build_event(
     result.paths = paths
     result.is_search = kind == "search" or (kind == "terminal" and is_terminal_search(command))
     if kind == "subagent":
-        target = arguments.get(config["subagent_target_key"])
+        keys = config.get("subagent_target_keys") or [config["subagent_target_key"]]
+        target = next((arguments[key] for key in keys if isinstance(arguments.get(key), str) and arguments[key]), "")
         prompt = arguments.get(config["subagent_prompt_key"])
         result.subagent_target = target if isinstance(target, str) else ""
         result.subagent_prompt = prompt if isinstance(prompt, str) else ""
@@ -112,3 +113,20 @@ def render_nested(event: HookEvent, decision: Optional[Decision]) -> Dict[str, A
     if decision.context and event.event not in ("Stop", "SubagentStop"):
         body["additionalContext"] = decision.context
     return {"hookSpecificOutput": body} if len(body) > 1 else {}
+
+
+def render_top_level(event: HookEvent, decision: Optional[Decision]) -> Dict[str, Any]:
+    """Copilot SDK engine output format: plain top-level keys (recorded 2026-10-01; the nested format is ignored there)."""
+    if decision is None or decision.is_empty():
+        return {}
+    output: Dict[str, Any] = {}
+    if event.event == "PreToolUse" and decision.permission:
+        output["permissionDecision"] = decision.permission
+        if decision.reason:
+            output["permissionDecisionReason"] = decision.reason
+    if event.event in ("Stop", "SubagentStop") and decision.block:
+        output["decision"] = "block"
+        output["reason"] = decision.reason
+    if decision.context and event.event not in ("Stop", "SubagentStop"):
+        output["additionalContext"] = decision.context
+    return output

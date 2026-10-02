@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from .policy import SWITCHABLE_LEVELS, skip_markers
+from .policy import SWITCHABLE_LEVELS, verify_markers
 
 # A pasted prompt can start with whitespace or a markdown code fence line (seen in the B1 recording).
 _LEADING = r"\s*(?:```[^\n]*\n\s*)?"
@@ -39,7 +39,14 @@ def parse_switch(prompt: str, policy: Dict[str, Any]) -> Optional[Tuple[int, str
     return None
 
 
-def wants_skip_verify(prompt: str, policy: Dict[str, Any]) -> bool:
-    """A skip marker anywhere in the user's prompt. It only covers that one prompt."""
+def verify_choice(prompt: str, policy: Dict[str, Any]) -> str:
+    """What the user said about the verifier in this prompt: `off`, `on`, or `` (nothing, use the default).
+
+    A marker counts anywhere in the prompt and only covers that one prompt. `off` wins when both are present.
+    """
     lowered = prompt.lower()
-    return any(marker.lower() in lowered for marker in skip_markers(policy))
+    if any(marker.lower() in lowered for marker in verify_markers(policy, "skip_markers")):
+        return "off"
+    if any(marker.lower() in lowered for marker in verify_markers(policy, "enable_markers")):
+        return "on"
+    return ""

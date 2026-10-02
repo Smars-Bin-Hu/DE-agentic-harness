@@ -20,7 +20,9 @@
       "events": [
         "SessionStart",
         "UserPromptSubmit",
-        "PreToolUse"
+        "PreToolUse",
+        "PostToolUse",
+        "Stop"
       ],
       "enforcement": [
         "S",
@@ -31,7 +33,11 @@
         ".github/skills/harness-task-level/",
         ".harness/policies/task-levels.json",
         ".harness/engine/modules/task_level/",
-        ".harness/tests/test_task_level.py"
+        ".harness/tests/test_task_level.py",
+        ".github/agents/verifier.agent.md",
+        ".github/prompts/l1.prompt.md",
+        ".github/prompts/l2.prompt.md",
+        ".harness/tests/test_review.py"
       ],
       "retire_when": "Copilot 原生支持按模式限制探索预算和子 agent"
     }

@@ -2,6 +2,8 @@
 
   SessionStart / UserPromptSubmit  parse the user's level marker, open a new budget window, inject the rules
   PreToolUse                       count; deny a `level set` call, a subagent that is not allowed, an exhausted budget
+  PostToolUse                      note edits and the verifier's verdict (the model never sees anything from here)
+  Stop                             L2: block once if the prompt needs a verifier review and has none after the last edit
 
 Hook failures are fail-open: hook.py rolls back this module's state changes and carries on.
 """
@@ -14,8 +16,8 @@ from typing import Any, Dict, List, Optional
 from core.context import Context
 from core.events import Decision, HookEvent
 
-from . import levelstate, markers, rules
-from .policy import POLICY_NAME, level_policy, validate_policy
+from . import levelstate, markers, review, rules
+from .policy import POLICY_NAME, level_policy, validate_policy, verifier_name, verifier_on
 
 NAME = "task_level"
 # SubagentStart reports the built-in subagent as `default`. It has no agentName in PreToolUse. Both are "generic".
@@ -37,8 +39,9 @@ def is_generic_agent(name: str) -> bool:
 
 
 def on_user_prompt(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Decision]:
-    if event.from_subagent:
-        # A subagent call message, not the user (00 section 2, hard conclusion 5).
+    if event.from_subagent or event.continuation:
+        # A subagent call message, or the reason of a Stop block fed back by the engine. Not the user.
+        # The budget window, the edits and the verifier choice of this prompt stay as they are.
         return None
     switch = markers.parse_switch(event.prompt, policy)
     ignored = ""
@@ -48,8 +51,8 @@ def on_user_prompt(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: D
     if switch:
         levelstate.set_level(ctx.state, ms, switch[0], "marker")
     # `head` is the start of the prompt as the hook saw it. It shows whether `/l2` reaches the hook as typed.
-    levelstate.begin_prompt(ms, markers.wants_skip_verify(event.prompt, policy), written, event.prompt.strip()[:40])
-    return Decision(context=rules.prompt_rules(policy, ctx.level, ignored))
+    levelstate.begin_prompt(ms, markers.verify_choice(event.prompt, policy), written, event.prompt.strip()[:40])
+    return Decision(context=rules.prompt_rules(policy, ctx.level, ignored, ms["prompt"]["verify"]))
 
 
 def on_session_start(ctx: Context, policy: Dict[str, Any]) -> Optional[Decision]:
@@ -61,9 +64,17 @@ def deny_subagent(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Di
     subagents = level_policy(policy, level)["subagents"]
     target = event.subagent_target
     generic = is_generic_agent(target)
-    allowed = [name.lower() for name in subagents["allowed"]]
-    if generic or target.strip().lower() not in allowed:
-        return Decision(permission="deny", reason=rules.subagent_denied(policy, level, target, generic))
+    allowed = list(subagents["allowed"])
+    verifier = verifier_name(policy, level)
+    if verifier and not verifier_on(policy, level, ms["prompt"]["verify"]):
+        # The verifier is off for this prompt (the default, unless the user wrote the enable marker).
+        remaining = [name for name in allowed if name.lower() != verifier.lower()]
+        if len(remaining) < len(allowed):
+            allowed = remaining
+            if not allowed:
+                return Decision(permission="deny", reason=rules.verifier_off(policy, level, target, generic))
+    if generic or target.strip().lower() not in [name.lower() for name in allowed]:
+        return Decision(permission="deny", reason=rules.subagent_denied(policy, level, target, generic, allowed))
     # `require_dispatch` (L3) is checked by the request module (M4-4). No L3 request exists before B7.
     maximum = subagents.get("max_per_prompt")
     if maximum is not None and ms["counters"]["subagents_created"] >= maximum:
@@ -99,9 +110,18 @@ def count_call(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict[
             ms["exceeded"].append(name)  # on_exceed=warn: PostToolUse cannot reach the model, so the record is the warning
 
 
+def is_subagent_session(ctx: Context) -> bool:
+    """Copilot SDK engine: the subagent runs in a session of its own, linked to its parent by core."""
+    return bool(ctx.state.get("parent_session_id"))
+
+
 def on_pre_tool_use(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Decision]:
     if is_level_set_call(event):
         return Decision(permission="deny", reason=rules.level_set_denied(policy))
+    if is_subagent_session(ctx):
+        # A subagent has its own count and no budget: the budgets belong to what the user asked the main agent to do.
+        count_call(event, ctx, ms, policy)
+        return None
     if event.tool_kind == "subagent":
         denied = deny_subagent(event, ctx, ms, policy)
         if denied:
@@ -111,6 +131,19 @@ def on_pre_tool_use(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: 
         return denied
     count_call(event, ctx, ms, policy)
     return None
+
+
+def on_post_tool_use(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Decision]:
+    if is_subagent_session(ctx):
+        return None
+    review.record_post_tool(event, ms, policy)
+    return None
+
+
+def on_stop(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Decision]:
+    if is_subagent_session(ctx):
+        return None  # the subagent finishing is not the main agent finishing
+    return review.on_stop(event, ms, policy, ctx.level)
 
 
 def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
@@ -123,4 +156,8 @@ def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
         return on_user_prompt(event, ctx, ms, policy)
     if event.event == "PreToolUse":
         return on_pre_tool_use(event, ctx, ms, policy)
+    if event.event == "PostToolUse":
+        return on_post_tool_use(event, ctx, ms, policy)
+    if event.event == "Stop":
+        return on_stop(event, ctx, ms, policy)
     return None

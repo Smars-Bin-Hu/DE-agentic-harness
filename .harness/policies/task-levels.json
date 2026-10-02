@@ -28,6 +28,9 @@
       },
       "verification": {
         "mode": "verifier",
+        "agent": "verifier",
+        "enabled": false,
+        "enable_markers": ["[verify]"],
         "require_when": { "edits": true, "min_tool_calls": 10 },
         "skip_markers": ["[no-verify]"]
       }

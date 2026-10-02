@@ -119,12 +119,13 @@ class TaskLevelTests(HarnessTestCase):
         path.write_text(json.dumps(data), encoding="utf-8")
         output = self.user_prompt("request", "[L2] try to leave L3")
         self.assertEqual(self.level("request"), 1)
-        context = output["hookSpecificOutput"]["additionalContext"]
+        context = output["additionalContext"]
         self.assertIn("L3", context)
         self.assertIn("[L2] 已被忽略", context)
 
     def test_a_marker_in_a_subagent_call_message_does_not_switch(self) -> None:
         """Layer 1 of hard conclusion 5: the UserPromptSubmit text equals the allowed runSubagent prompt."""
+        self.verifier_default(True)
         self.user_prompt("child-msg", "[L2] start")
         message = "[L1] " + VERIFIER["prompt"]
         self.assertEqual(self.pre("child-msg", "runSubagent", {**VERIFIER, "prompt": message}), {})
@@ -142,40 +143,50 @@ class TaskLevelTests(HarnessTestCase):
         self.user_prompt("window", "[L1] now the user speaks")
         self.assertEqual(self.level("window"), 1)
 
-    def test_no_verify_covers_one_prompt(self) -> None:
-        self.user_prompt("skip", "[L2] [no-verify] quick change")
-        self.assertTrue(self.task_level_state("skip")["prompt"]["skip_verify"])
-        self.user_prompt("skip", "next change")
-        self.assertFalse(self.task_level_state("skip")["prompt"]["skip_verify"])
-        self.user_prompt("skip", "change it [No-Verify]")
-        self.assertTrue(self.task_level_state("skip")["prompt"]["skip_verify"])
+    def test_verify_markers_cover_one_prompt(self) -> None:
+        choices = [
+            ("[L2] [no-verify] quick change", "off"),
+            ("next change", ""),
+            ("change it [No-Verify]", "off"),
+            ("[L2] [verify] check it", "on"),
+            ("[Verify] anywhere in the prompt", "on"),
+            ("[verify] [no-verify] both", "off"),  # off wins
+        ]
+        for text, expected in choices:
+            with self.subTest(text):
+                self.user_prompt("verify", text)
+                self.assertEqual(self.task_level_state("verify")["prompt"]["verify"], expected)
 
     # --- the user's prompt gets the rules (M2-3) ----------------------------------------------
 
     def test_the_prompt_rules_come_from_the_policy(self) -> None:
-        context = self.user_prompt("rules")["hookSpecificOutput"]["additionalContext"]
-        self.assertEqual(self.user_prompt("rules")["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
+        context = self.user_prompt("rules")["additionalContext"]
         self.assertIn("L1", context)
         self.assertIn("搜索最多 2 次，超过会被拒绝", context)
         self.assertIn("工具调用建议不超过 15 次", context)
         self.assertIn("子 agent：不允许", context)
         self.assertIn("/l2", context)
         self.assertIn("level set", context)
-        level2 = self.user_prompt("rules", "[L2] go")["hookSpecificOutput"]["additionalContext"]
+        level2 = self.user_prompt("rules", "[L2] go")["additionalContext"]
         self.assertIn("L2", level2)
         self.assertIn("搜索建议不超过 8 次", level2)
-        self.assertIn("只允许 verifier，每条提示最多 2 次", level2)
+        self.assertIn("子 agent：不允许", level2)  # the verifier is off by default
+        self.assertIn("没有开启 verifier 复核", level2)
+        self.assertIn("[verify]", level2)
+        verified = self.user_prompt("rules", "[L2] [verify] go")["additionalContext"]
+        self.assertIn("只允许 verifier，每条提示最多 2 次", verified)
+        self.assertIn("调用 verifier 复核一次", verified)
 
     def test_changing_the_policy_changes_the_rules_text(self) -> None:
         path = self.root / ".harness" / "policies" / "task-levels.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         data["levels"]["1"]["budget_per_prompt"]["repository_searches"]["limit"] = 5
         path.write_text(json.dumps(data), encoding="utf-8")
-        self.assertIn("搜索最多 5 次", self.user_prompt("policy")["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("搜索最多 5 次", self.user_prompt("policy")["additionalContext"])
 
     def test_session_start_injects_the_rules(self) -> None:
         output = self.hook(payload("SessionStart", "start", source="new", model="x"))
-        self.assertIn("L1", output["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("L1", output["additionalContext"])
 
     # --- budgets (M2-3) -----------------------------------------------------------------------
 
@@ -261,6 +272,7 @@ class TaskLevelTests(HarnessTestCase):
         self.assertEqual(self.counters("l1-sub")["subagents_created"], 0)
 
     def test_l2_allows_only_the_verifier_by_agent_name(self) -> None:
+        self.verifier_default(True)
         self.user_prompt("l2-sub", "[L2] go")
         self.assertEqual(self.pre("l2-sub", "runSubagent", VERIFIER), {})
         self.assertEqual(self.pre("l2-sub", "runSubagent", {**VERIFIER, "agentName": "Verifier"}), {})  # case does not matter
@@ -280,6 +292,7 @@ class TaskLevelTests(HarnessTestCase):
         self.assertEqual(self.counters("generic")["subagents_created"], 0)
 
     def test_l2_allows_the_verifier_at_most_twice_per_prompt(self) -> None:
+        self.verifier_default(True)
         self.user_prompt("l2-max", "[L2] go")
         self.assertEqual(self.pre("l2-max", "runSubagent", VERIFIER), {})
         self.assertEqual(self.pre("l2-max", "runSubagent", VERIFIER), {})
@@ -382,7 +395,7 @@ class TaskLevelTests(HarnessTestCase):
         path.write_text(json.dumps(data), encoding="utf-8")
         self.assertEqual(self.pre("old"), {})
         state = self.task_level_state("old")
-        self.assertEqual(state["version"], 2)
+        self.assertEqual(state["version"], 4)
         self.assertEqual(self.level("old"), 2)
         self.assertEqual(state["counters"]["observed_tool_calls"], 1)
         self.assertEqual(self.log_lines("hook-errors.jsonl"), [])

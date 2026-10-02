@@ -86,6 +86,7 @@ class ReplayTests(HarnessTestCase):
         for level, agent in ((2, "verifier"), (3, "builder")):
             with self.subTest(level=level):
                 self.setUp()
+                self.verifier_default(True)
                 results = self.replay("subagent-child.jsonl", set_level=level, before_event="PreToolUse", agent=agent)
                 by_event = [
                     (data["hook_event_name"], data.get("tool_name", ""), output, record) for data, output, record in results
@@ -110,6 +111,7 @@ class ReplayTests(HarnessTestCase):
 
     def test_the_recorded_call_message_is_recognized_by_text_alone(self) -> None:
         """Layer 1 on real data: drop SubagentStart so only the text match can flag the child prompt."""
+        self.verifier_default(True)
         results = list(iter_session("subagent-child.jsonl"))
         session_id = results[0]["session_id"]
         flags = []
@@ -140,8 +142,9 @@ class ReplayTests(HarnessTestCase):
         for name in ("stop-block-once.jsonl", "subagent-child.jsonl"):
             for data, output, record in self.replay(name):
                 if data["hook_event_name"] in ("Stop", "SubagentStart", "SubagentStop"):
-                    self.assertEqual(output, {})
-                    self.assertEqual(record["modules"], [])  # task_level does not subscribe to these yet
+                    self.assertEqual(output, {})  # L1: nothing to review
+                    # task_level handles Stop (L2 review check) but not the subagent events.
+                    self.assertEqual(record["modules"], ["task_level"] if data["hook_event_name"] == "Stop" else [])
 
     def test_the_recorded_pasted_marker_switches_to_l2(self) -> None:
         """The recorded prompt starts with a markdown code fence (a paste artifact), then `[L2]`."""
@@ -175,7 +178,7 @@ class ReplayThroughTheRealProcessTests(HarnessTestCase):
     def test_the_output_of_a_recorded_payload_is_valid_json_with_ascii_only(self) -> None:
         completed = self.run_script(HOOK, stdin=json.dumps(load_payload("UserPromptSubmit.json")))
         completed.stdout.encode("ascii")  # Chinese text is escaped, so any console encoding can carry it
-        self.assertIn("hookSpecificOutput", json.loads(completed.stdout))
+        self.assertIn("additionalContext", json.loads(completed.stdout))
 
 
 if __name__ == "__main__":

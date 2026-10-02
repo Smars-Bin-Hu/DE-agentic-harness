@@ -41,6 +41,8 @@ class HookEvent:
     stop_hook_active: bool = False
     # Set by core, not by the adapter: this UserPromptSubmit is a subagent call message, not the user.
     from_subagent: bool = False
+    # Set by core: this UserPromptSubmit is the engine feeding back the reason of a Stop block, not the user (SDK engine).
+    continuation: bool = False
     raw: Dict[str, Any] = field(default_factory=dict)
 
 
