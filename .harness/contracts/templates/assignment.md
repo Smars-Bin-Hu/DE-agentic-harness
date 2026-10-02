@@ -18,6 +18,6 @@
 
 ## 怎么交
 
-- 成果和证据放在 `{outputs_dir}` 下，路径按仓库相对路径写。目录先用终端 `mkdir -p` 建好。
+- 成果和证据放在 `{outputs_dir}` 下，文件在它下面的位置，按它们将来在仓库里的相对路径放（例如 `{outputs_dir}/src/a.py`）。`handoff submit` 的 `--output`、`--evidence` 写相对于这个目录的路径（例如 `src/a.py`），不要写完整路径。目录先用终端 `mkdir -p` 建好。
 - 完成后运行 `python3 .harness/engine/cli.py handoff submit --request {request_id} --role {role} --status <passed|failed|blocked> --summary "<不超过几行>" ...`。
 - 同一个工具调用被拒绝两次，就不再试，提交 `--status blocked` 并写明缺什么。

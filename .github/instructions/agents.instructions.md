@@ -35,4 +35,18 @@ applyTo: '.github/agents/**/*.agent.md'
 
 | agent | 用途 | 谁能调用 |
 | --- | --- | --- |
+| orchestrator | L3 的编排员：建请求、派发、判断、验收。用户在下拉列表里选 | 用户 |
+| builder | L3 的执行者：按 assignment 产出成果并自测 | orchestrator（hook 要求先 dispatch） |
+| reviewer | L3 的独立评审员：按验收标准验证候选成果 | orchestrator（hook 要求先 dispatch） |
 | verifier | L2 交付前复核，不改文件。默认关闭，用户写 `[verify]` 才开 | 默认 agent（hook 只在开启时放行） |
+
+## 模型
+
+- orchestrator 和 reviewer 要推理和判断，用强模型。builder 按 assignment 执行，有验收标准和 reviewer 把关，用普通模型。
+- **builder 和 reviewer 必须是不同系列**，减少同类错误。`model` 的回退列表只能在同一系列里回退。
+  系列的划分在 `.harness/policies/agents.json`，`python3 .harness/engine/cli.py doctor` 会检查。
+- 模型名以本机 Copilot 下拉列表里的显示名为准。不同的会话类型能选的模型不一样（例如有的会话没有 Opus），换环境后重新确认。
+
+## Builder 的不同形态
+
+开发、RCA、学习知识这些形态，用 assignment 和 Skill 区分，不新增 agent。

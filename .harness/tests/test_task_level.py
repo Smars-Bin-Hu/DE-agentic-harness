@@ -193,6 +193,14 @@ class TaskLevelTests(HarnessTestCase):
         output = self.hook(payload("SessionStart", "start", source="new", model="x"))
         self.assertIn("L1", output["additionalContext"])
 
+    def test_l1_and_l2_rules_tell_the_orchestrator_not_to_stop(self) -> None:
+        # S2 (B8): an orchestrator read "L1, no subagents" and stopped before `request new`.
+        for text in ("start work", "[L2] start work"):
+            context = self.user_prompt("orch-" + text[:2], text)["additionalContext"]
+            self.assertIn("你是 orchestrator", context)
+            self.assertIn("request new", context)
+            self.assertIn("不要因为这里写着 L1 或 L2 而停下", context)
+
     # --- budgets (M2-3) -----------------------------------------------------------------------
 
     def test_l1_denies_the_third_search_and_says_what_to_do_next(self) -> None:

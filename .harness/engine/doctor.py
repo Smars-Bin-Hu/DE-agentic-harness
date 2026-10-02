@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import ast
 import importlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Set
@@ -125,6 +127,67 @@ def check_tool_kinds(report: Report) -> None:
         report.ok("tool_kinds.json 正常")
 
 
+def agent_models(path: Path) -> Any:
+    """The `model` line of an .agent.md front matter: a list of names, a single name, or None when there is none."""
+    text = path.read_text(encoding="utf-8")
+    front = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+    if not front:
+        return None
+    for line in front.group(1).splitlines():
+        if line.startswith("model:"):
+            value = line.split(":", 1)[1].strip()
+            if not value:
+                return None
+            try:
+                parsed = ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                return [value.strip("'\"")]
+            return parsed if isinstance(parsed, list) else [str(parsed)]
+    return None
+
+
+def series_of(name: str, series: Dict[str, List[str]]) -> str:
+    lowered = name.lower()
+    for label, words in series.items():
+        if any(word.lower() in lowered for word in words):
+            return label
+    return ""
+
+
+def check_agents(report: Report, root: Path) -> None:
+    """Each agent's model list stays in one series; roles listed in `different_series` do not share one."""
+    directory = root / ".github" / "agents"
+    if not directory.is_dir() or not (root / ".harness" / "policies" / "agents.json").exists():
+        return
+    try:
+        policy = config.load_policy(root, "agents")
+    except Exception as error:
+        report.error(f"策略 agents.json 不能读取：{error}")
+        return
+    chosen: Dict[str, str] = {}
+    for path in sorted(directory.glob("*.agent.md")):
+        agent = path.name[: -len(".agent.md")]
+        names = agent_models(path)
+        if not names:
+            continue
+        labels = {series_of(name, policy["series"]) for name in names}
+        if "" in labels:
+            report.warn(f"agent {agent} 的 model 里有不认识的模型名：{', '.join(n for n in names if not series_of(n, policy['series']))}。在 agents.json 里加系列关键词，或检查拼写")
+            labels.discard("")
+        if len(labels) > 1:
+            report.error(f"agent {agent} 的 model 回退列表跨了系列（{', '.join(sorted(labels))}）。回退只能在同一系列里")
+        elif labels:
+            chosen[agent] = next(iter(labels))
+    for group in policy.get("different_series", []):
+        present = [name for name in group if name in chosen]
+        seen: Dict[str, str] = {}
+        for name in present:
+            if chosen[name] in seen:
+                report.error(f"agent {seen[chosen[name]]} 和 {name} 用了同一系列（{chosen[name]}），必须不同系列")
+            seen[chosen[name]] = name
+    report.ok(f"agent 的模型系列检查完成（{len(chosen)} 个 agent）")
+
+
 def run(root: Path) -> int:
     report = Report()
     check_python(report)
@@ -138,6 +201,7 @@ def run(root: Path) -> int:
     check_files(report, root, "engine", registry["engine"]["files"])
     check_tool_kinds(report)
     check_hook_config(report, root, registry)
+    check_agents(report, root)
     for name, entry in registry["modules"].items():
         check_module(report, root, name, entry)
     print("\n".join(report.lines))

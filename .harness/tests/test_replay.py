@@ -143,8 +143,9 @@ class ReplayTests(HarnessTestCase):
             for data, output, record in self.replay(name):
                 if data["hook_event_name"] in ("Stop", "SubagentStart", "SubagentStop"):
                     self.assertEqual(output, {})  # L1: nothing to review
-                    # task_level handles Stop (L2 review check) but not the subagent events.
-                    self.assertEqual(record["modules"], ["task_level"] if data["hook_event_name"] == "Stop" else [])
+                    # task_level handles Stop (L2 review check). The request module listens to SubagentStart (it has nothing to say at L1).
+                    expected = {"Stop": ["task_level"], "SubagentStart": ["request"], "SubagentStop": []}
+                    self.assertEqual(record["modules"], expected[data["hook_event_name"]])
 
     def test_the_recorded_pasted_marker_switches_to_l2(self) -> None:
         """The recorded prompt starts with a markdown code fence (a paste artifact), then `[L2]`."""

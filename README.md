@@ -26,13 +26,15 @@ README 是仓库的第一目录。先从这里找到目标文件，再读取需�
 | [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md) | 知识库文件的编写规则。                       |
 | [.github/instructions/workspace.instructions.md](.github/instructions/workspace.instructions.md)         | 在 `.workspace/` 里读写的规则。              |
 | [.github/skills/](.github/skills/)                                                                       | 可重复使用的任务流程和参考资料。             |
-| [.github/agents/](.github/agents/)                                                                       | GitHub Copilot 的自定义智能体定义。          |
+| [.github/agents/](.github/agents/)                                                                       | 自定义智能体：orchestrator（用户可选）、builder、reviewer、verifier。 |
 | [.github/skills/harness-task-level/](.github/skills/harness-task-level/)                                 | Task Level 的使用流程和参考。                |
+| [.github/skills/harness-orchestration/](.github/skills/harness-orchestration/)                           | L3 请求的完整流程：orchestrator 每一步用哪条命令。 |
 | [.github/hooks/harness.json](.github/hooks/harness.json)                                                 | 唯一的 hook 配置。所有事件进同一个入口。     |
 | [.harness/registry.json](.harness/registry.json)                                                         | 模块注册表：开关、订阅的事件、文件清单。     |
 | [.harness/policies/task-levels.json](.harness/policies/task-levels.json)                                 | Task Level 1、2、3 的机器可读规则。          |
 | [.harness/policies/gate.json](.harness/policies/gate.json)                                               | 闸门规则：guardrail 文件、L3 写入范围、危险命令、熔断。 |
 | [.harness/policies/orchestration.json](.harness/policies/orchestration.json)                               | L3 请求的上限：轮数、brief 大小、handoff 摘要行数。 |
+| [.harness/policies/agents.json](.harness/policies/agents.json)                                           | 模型系列：回退只能在同一系列，builder 和 reviewer 不同系列。 |
 | [.harness/contracts/](.harness/contracts/)                                                               | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板。 |
 | [.harness/engine/hook.py](.harness/engine/hook.py)                                                       | hook 入口：识别运行时，分发给模块，合并结果。 |
 | [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口：`doctor` 检查配置，`level` 管理 Level，`request` 等管理 L3 请求。 |

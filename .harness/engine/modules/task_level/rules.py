@@ -105,6 +105,12 @@ def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", c
     lines.append("工具调用被拒绝时，照拒绝理由里的下一步做。")
     if session_id:
         lines.append(f"当前会话 id：{session_id}。orchestrator 运行 `request new` 时，--session-id 原样用它。")
+    if level < 3:
+        # The prompt starts at L1 or L2 for every agent. Without this line an orchestrator reads the rules above and stops.
+        lines.append(
+            "你是 orchestrator（用户在 agent 下拉里选的）时，上面的 Level 限制不适用于你：你的第一步是运行 `request new`，"
+            "会话由此进入 L3。这不算自己切换 Level，不要因为这里写着 L1 或 L2 而停下。其他 agent 不要运行它。"
+        )
     return "\n".join(lines)
 
 

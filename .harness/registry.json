@@ -67,7 +67,10 @@
     "request": {
       "status": "active",
       "enabled": true,
-      "events": [],
+      "events": [
+        "PreToolUse",
+        "SubagentStart"
+      ],
       "enforcement": [
         "C"
       ],
@@ -81,7 +84,13 @@
         ".harness/contracts/manifest.schema.json",
         ".harness/contracts/handoff.schema.json",
         ".harness/contracts/templates/assignment.md",
-        ".harness/tests/test_request.py"
+        ".harness/tests/test_request.py",
+        ".harness/policies/agents.json",
+        ".github/agents/orchestrator.agent.md",
+        ".github/agents/builder.agent.md",
+        ".github/agents/reviewer.agent.md",
+        ".github/skills/harness-orchestration/",
+        ".harness/tests/test_orchestration.py"
       ],
       "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排。请求目录和 promote 不退役"
     }

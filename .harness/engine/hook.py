@@ -91,6 +91,11 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     }
     if denial:
         record["denial"] = denial
+    if event.event in ("SessionStart", "SubagentStart", "SubagentStop"):
+        # Where to look up which model ran: the transcript, and the model name when the engine reports one.
+        record["transcript"] = event.raw.get("transcript_path") or event.raw.get("transcriptPath") or ""
+        if event.raw.get("model"):
+            record["model"] = event.raw["model"]
     return adapter.render(event, decision), record
 
 
