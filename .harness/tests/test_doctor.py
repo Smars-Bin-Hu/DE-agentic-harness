@@ -135,6 +135,118 @@ class DoctorTests(unittest.TestCase):
         )
         self.assertEqual(self.doctor().returncode, 1)
 
+    # --- override ---------------------------------------------------------------------------
+
+    def override(self, name: str, data: dict) -> None:
+        (self.root / ".harness" / "policies" / f"{name}.override.json").write_text(json.dumps(data), encoding="utf-8")
+
+    def test_no_override_file_is_said_in_one_line(self) -> None:
+        self.assertIn("没有 override 文件", self.doctor().stdout)
+
+    def test_an_override_lists_what_it_changed_and_where_each_value_comes_from(self) -> None:
+        self.override("gate", {"guardrail_paths+": ["secrets/**"], "circuit_breaker": {"repeat_limit": 5}})
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("gate.override.json：改了 2 处", result.stdout)
+        self.assertIn("来自 override：guardrail_paths（追加）", result.stdout)
+        self.assertIn("来自 override：circuit_breaker.repeat_limit（替换）", result.stdout)
+
+    def test_replacing_a_whole_array_is_a_warning_that_names_the_plus_form(self) -> None:
+        self.override("gate", {"cli_owned_paths": ["x/**"]})
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("整体替换了默认的数组", result.stdout)
+        self.assertIn('"cli_owned_paths+"', result.stdout)
+
+    def test_an_override_that_drops_a_core_guardrail_is_an_error(self) -> None:
+        self.override("gate", {"guardrail_paths": ["docs/**"]})
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("core guardrails cannot be removed", result.stdout)
+
+    def test_an_override_with_no_policy_to_override_is_an_error(self) -> None:
+        self.override("nothing", {"a": 1})
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("找不到它要覆盖的 nothing.json", result.stdout)
+
+    def test_an_override_of_an_override_is_an_error(self) -> None:
+        self.override("gate", {"circuit_breaker": {"repeat_limit": 5}})
+        (self.root / ".harness" / "policies" / "gate.override.override.json").write_text("{}", encoding="utf-8")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("只有一层", result.stdout)
+
+    def test_a_plus_key_on_a_non_array_is_an_error(self) -> None:
+        self.override("gate", {"l3_write_root+": ["x"]})
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("needs an array", result.stdout)
+
+    # --- knowledge base ---------------------------------------------------------------------
+
+    def kb(self, files: dict) -> None:
+        for name, text in files.items():
+            path = self.root / "knowledge-base" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+
+    def kb_instructions(self, text: str) -> None:
+        path = self.root / ".github" / "instructions" / "knowledgebase.instructions.md"
+        path.write_text(text, encoding="utf-8")
+
+    def test_an_empty_knowledge_base_is_fine(self) -> None:
+        self.kb({"README.md": "# KB\n"})
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("还没有内容", result.stdout)
+
+    def test_a_knowledge_base_without_instructions_is_a_warning(self) -> None:
+        self.kb({"README.md": "# KB\n- [a](a/x.md)\n", "a/x.md": "text\n"})
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("没有讲知识库的指令文件", result.stdout)
+
+    def test_instructions_with_a_broad_apply_to_are_loaded(self) -> None:
+        self.kb({"README.md": "# KB\n- [a](a/x.md)\n", "a/x.md": "text\n"})
+        self.kb_instructions("---\napplyTo: '**'\n---\n按 knowledge-base/README.md 的索引读。\n")
+        result = self.doctor()
+        self.assertIn("会被加载（applyTo 是 **）", result.stdout)
+        self.assertNotIn("[WARN]", result.stdout)
+
+    def test_instructions_linked_from_agents_md_are_loaded(self) -> None:
+        self.kb({"README.md": "# KB\n", "a.md": "text\n"})
+        self.kb_instructions("---\napplyTo: 'knowledge-base/**'\n---\n按知识库索引读。\n")
+        (self.root / "AGENTS.md").write_text("读知识库先看 [规则](.github/instructions/knowledgebase.instructions.md)。\n", encoding="utf-8")
+        self.assertIn("AGENTS.md 里有链接", self.doctor().stdout)
+
+    def test_instructions_that_only_apply_inside_the_knowledge_base_are_a_warning(self) -> None:
+        self.kb({"README.md": "# KB\n", "a.md": "text\n"})
+        self.kb_instructions("---\napplyTo: 'knowledge-base/**'\n---\n按知识库索引读。\n")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("没有让 Copilot 加载它的条件", result.stdout)
+
+    def test_empty_instructions_do_not_count(self) -> None:
+        self.kb({"README.md": "# KB\n", "a.md": "text\n"})
+        self.kb_instructions("---\napplyTo: '**'\n---\n")
+        self.assertIn("没有讲知识库的指令文件", self.doctor().stdout)
+
+    def test_a_knowledge_base_without_a_readme_is_a_warning(self) -> None:
+        self.kb({"a.md": "text\n"})
+        self.assertIn("没有 README.md", self.doctor().stdout)
+
+    def test_broken_links_in_the_index_are_a_warning(self) -> None:
+        self.kb({"README.md": "# KB\n- [ok](a.md)\n- [gone](b/c.md)\n- [web](https://example.com/x)\n- [top](#top)\n", "a.md": "x\n"})
+        result = self.doctor()
+        self.assertIn("指向不存在文件的链接：b/c.md", result.stdout)
+        self.assertNotIn("a.md,", result.stdout)
+
+    def test_a_git_ignored_knowledge_base_is_a_warning(self) -> None:
+        self.kb({"README.md": "# KB\n", "a.md": "text\n"})
+        (self.root / ".gitignore").write_text("node_modules/\n/knowledge-base/\n", encoding="utf-8")
+        self.assertIn(".gitignore 忽略了 knowledge-base/", self.doctor().stdout)
+
     def test_many_session_logs_are_a_warning_that_names_the_prune_command(self) -> None:
         self.edit_json(".harness/policies/observe.json", lambda data: data.update(warn_session_files=2))
         folder = self.root / ".harness" / "runtime" / "logs" / "vscode"

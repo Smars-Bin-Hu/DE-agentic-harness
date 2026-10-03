@@ -19,7 +19,7 @@ specificTo: harness-orchestration
 1. **建请求**：`request new --title "<短标题>" --session-id <提示开头规则里的会话 id>`。记下 `request_id`，之后每条命令都带 `--request`。
 2. **准备输入**：`request add-input <文件或目录>...` 把需求和必要文件复制进 `init-inputs/`。第一次 dispatch 之后就不能再加。
 3. **知识简报（可选）**：知识库里有相关内容时，把结论蒸馏成一份文件，每条一行：`- 结论 [来源: 文件路径#章节]`。
-   写在请求目录里（例如 `orchestrator/brief-draft.md`），用 `brief set <文件>` 交给 CLI。没有来源的条目会被拒绝。没有相关内容就不写。
+   写在请求目录里（例如 `orchestrator/brief-draft.md`），用 `brief set <文件>` 交给 CLI。没有来源的条目会被拒绝。没有相关内容就不写。按知识库自己的索引和 instructions 选文件，不要整篇复制。返工的轮次只补缺的条目，不重写旧的。
 4. **计划**：写 `orchestrator/plan.md`。哪个角色明显不适用，就在这里写理由。
 5. **开一轮**：`attempt new`。它建好两个角色的输入包，里面各有一份 `assignment.md` 模板。
 6. **填 builder 的 assignment**：目标和验收标准必填，去掉所有“（待填）”。验收标准要具体到 reviewer 能照着验证。
@@ -30,7 +30,7 @@ specificTo: harness-orchestration
 9. **填 reviewer 的 assignment，派发 reviewer**：`dispatch --role reviewer`。CLI 把 builder 列出的成果复制到 `candidate/`。然后调用 reviewer 子 agent。
 10. **读 reviewer 的 handoff**：
     - `passed`：去第 12 步。
-    - `failed`：问题明确、能修，就读 `kb_additions`，需要的话更新 brief（再 `brief set`），`attempt new`，回到第 6 步。
+    - `failed`：问题明确、能修，就读 `kb_additions`，需要的话在 brief 里补增量（再 `brief set`），`attempt new`，回到第 6 步。
     - `blocked`：缺什么就补什么；补不了就进 HITL。
 11. **上限**：`attempt new` 到了上限会被拒绝。先 `request wait --request <id> --reason "等用户决定要不要继续"`，再问用户要不要继续。用户同意，才加 `--human-approved "<原因>"`。用户不同意，或要改需求，就进 HITL。
 12. **回写**：

@@ -53,6 +53,32 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.deep_merge(base, override), {"a": {"x": 1, "y": 9}, "b": [7], "c": 3, "d": 4})
         self.assertEqual(base["a"]["y"], 2)  # the base is not changed
 
+    def test_a_plus_key_appends_to_the_default_array(self) -> None:
+        base = {"a": {"rules": [1, 2]}, "b": [1]}
+        merged = config.deep_merge(base, {"a": {"rules+": [3]}, "b+": [2, 3]})
+        self.assertEqual(merged, {"a": {"rules": [1, 2, 3]}, "b": [1, 2, 3]})
+        self.assertEqual(base["b"], [1])
+
+    def test_a_plus_key_with_no_default_array_starts_one(self) -> None:
+        self.assertEqual(config.deep_merge({"a": 1}, {"new+": [1]}), {"a": 1, "new": [1]})
+        self.assertEqual(config.deep_merge({"a": 1}, {"sub": {"new+": [1]}}), {"a": 1, "sub": {"new": [1]}})
+
+    def test_replace_and_append_of_the_same_key_replace_first(self) -> None:
+        self.assertEqual(config.deep_merge({"b": [1, 2]}, {"b+": [9], "b": [5]}), {"b": [5, 9]})
+
+    def test_a_plus_key_on_something_that_is_not_an_array_is_an_error(self) -> None:
+        for base, override in (({"a": 1}, {"a+": [1]}), ({"a": [1]}, {"a+": 2}), ({"a": {"x": 1}}, {"a+": [1]})):
+            with self.assertRaises(config.OverrideError):
+                config.deep_merge(base, override)
+
+    def test_changes_say_how_each_value_came_from_the_override(self) -> None:
+        base = {"a": {"x": 1, "rules": [1, 2]}, "b": [1], "c": 3}
+        override = {"a": {"x": 5, "rules+": [3]}, "b": [7, 8], "d": 1}
+        self.assertEqual(
+            config.changes(base, override),
+            [("a.x", "replaced", 0), ("a.rules", "appended", 1), ("b", "replaced", 1), ("d", "added", 0)],
+        )
+
     def test_load_policy_applies_the_override_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             policies = Path(directory) / ".harness" / "policies"

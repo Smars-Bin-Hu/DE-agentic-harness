@@ -82,6 +82,13 @@ class GuardrailPolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gate_policy.validate_policy(broken)
 
+    def test_the_gate_adds_back_a_core_guardrail_a_policy_dropped(self) -> None:
+        broken = dict(POLICY, guardrail_paths=["docs/**"])
+        gate_policy.validate_policy(broken, floor=False)
+        compiled = gate_policy.Compiled(broken)
+        for core in gate_policy.CORE_GUARDRAILS:
+            self.assertTrue(compiled.guardrail_match(core.replace("**", "x")), core)
+
     def test_extra_guardrails_are_added(self) -> None:
         extended = dict(POLICY, extra_guardrail_paths=["secrets/**"])
         gate_policy.validate_policy(extended)
@@ -535,6 +542,26 @@ class GateHookTests(HarnessTestCase):
         output = self.pre("create_file", {"filePath": self.path("secrets/key.pem"), "content": ""})
         self.assertEqual(self.decision(output), "deny")
         self.assertEqual(self.decision(self.pre("create_file", {"filePath": self.path(GUARD), "content": ""})), "deny")
+
+    def test_an_override_cannot_remove_a_core_guardrail_the_gate_still_guards_it(self) -> None:
+        override = self.root / ".harness" / "policies" / "gate.override.json"
+        override.write_text(json.dumps({"guardrail_paths": ["docs/**"]}), encoding="utf-8")
+        for path in (GUARD, ".harness/registry.json", ".vscode/settings.json"):
+            self.assertEqual(self.decision(self.pre("create_file", {"filePath": self.path(path), "content": ""})), "deny", path)
+        self.assertEqual(self.decision(self.pre("create_file", {"filePath": self.path("docs/a.md"), "content": ""})), "deny")
+        self.assertEqual(self.log_lines("hook-errors.jsonl"), [])
+
+    def test_guardrail_paths_plus_adds_to_the_defaults(self) -> None:
+        override = self.root / ".harness" / "policies" / "gate.override.json"
+        override.write_text(json.dumps({"guardrail_paths+": ["secrets/**"]}), encoding="utf-8")
+        self.assertEqual(self.decision(self.pre("create_file", {"filePath": self.path("secrets/k"), "content": ""})), "deny")
+        self.assertEqual(self.decision(self.pre("create_file", {"filePath": self.path(GUARD), "content": ""})), "deny")
+
+    def test_an_ask_rule_added_by_override_asks(self) -> None:
+        override = self.root / ".harness" / "policies" / "gate.override.json"
+        override.write_text(json.dumps({"terminal": {"ask+": [{"pattern": "{cmd}terraform\\s+apply\\b", "why": "改线上资源"}]}}), encoding="utf-8")
+        self.assertEqual(self.decision(self.pre("run_in_terminal", {"command": "terraform apply -auto-approve"})), "ask")
+        self.assertEqual(self.decision(self.pre("run_in_terminal", {"command": "rm -rf build"})), "ask")  # the defaults are still there
 
     def test_a_disabled_module_is_not_called(self) -> None:
         registry = self.root / ".harness" / "registry.json"

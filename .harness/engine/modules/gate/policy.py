@@ -6,17 +6,9 @@ import re
 from typing import Any, Dict, List, Pattern, Tuple
 
 from core import repo_paths, schema
+from core.guardrails import CORE_GUARDRAILS, guardrail_paths, missing_core
 
 POLICY_NAME = "gate"
-# Without these the gate would not protect the harness itself. An override must keep them (doctor reports it).
-CORE_GUARDRAILS = (
-    ".github/hooks/**",
-    ".harness/policies/**",
-    ".harness/engine/**",
-    ".harness/registry.json",
-    ".harness/runtime/**",
-    ".vscode/settings.json",  # it holds chat.useHooks: an agent that turns it off turns every hook off
-)
 REQUEST_PLACEHOLDER = "{request_id}"
 GUARD_PLACEHOLDER = "{guard}"
 # Where a command can start: the beginning, or after `;`, `&`, `|`, `(`, a new line. An optional `sudo` may lead.
@@ -57,16 +49,14 @@ def expand(pattern: str, guard: str) -> str:
     return pattern.replace(COMMAND_PLACEHOLDER, COMMAND_START).replace(GUARD_PLACEHOLDER, guard)
 
 
-def guardrail_paths(policy: Dict[str, Any]) -> List[str]:
-    return list(policy["guardrail_paths"]) + list(policy.get("extra_guardrail_paths", []))
-
-
-def validate_policy(policy: Dict[str, Any]) -> None:
+def validate_policy(policy: Dict[str, Any], floor: bool = True) -> None:
+    """`floor=False` is for the gate at run time: a missing core guardrail is not fatal there, the gate adds it back."""
     schema.check(policy, POLICY_SCHEMA, POLICY_NAME + ".json")
     patterns = guardrail_paths(policy)
-    for core in CORE_GUARDRAILS:
-        if core not in patterns:
-            raise ValueError(f"Invalid {POLICY_NAME}.json: guardrail_paths must keep {core!r}")
+    for core in missing_core(policy) if floor else ():
+        raise ValueError(
+            f"Invalid {POLICY_NAME}.json: guardrail_paths must keep {core!r} (core guardrails cannot be removed, also not by an override; use 'guardrail_paths+' to add more)"
+        )
     if any(not item.strip() for item in patterns + list(policy.get("cli_owned_paths", []))):
         raise ValueError(f"Invalid {POLICY_NAME}.json: empty guardrail path")
     if REQUEST_PLACEHOLDER not in policy["l3_write_root"]:

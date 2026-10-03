@@ -76,7 +76,7 @@ def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
     if event.event != "PreToolUse" or event.tool_kind not in WRITE_KINDS + ("terminal",):
         return None
     policy = ctx.policy(POLICY_NAME)
-    validate_policy(policy)
+    validate_policy(policy, floor=False)
     compiled = Compiled(policy)
     if event.tool_kind == "terminal":
         return check_terminal(event, compiled)

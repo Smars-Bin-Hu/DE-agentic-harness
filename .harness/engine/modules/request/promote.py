@@ -18,6 +18,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from core import config, repo_paths
 from core.paths import utc_now
 
+from core.guardrails import guardrail_paths
+
 from . import layout, ops, store
 from .layout import CommandError
 
@@ -29,7 +31,7 @@ def refused_patterns(root: Path) -> List[Tuple[str, Any]]:
     """Targets promote must never write: the gate's guardrail and CLI-owned files, plus `.git` and `.workspace`."""
     try:
         gate = config.load_policy(root, "gate")
-        names = list(gate["guardrail_paths"]) + list(gate.get("extra_guardrail_paths", [])) + list(gate.get("cli_owned_paths", []))
+        names = guardrail_paths(gate) + list(gate.get("cli_owned_paths", []))
     except Exception as error:
         raise CommandError(f"读不了 gate.json（{error}），promote 不能确认哪些文件不能写，所以拒绝执行。先修好 gate.json。") from error
     return [(name, repo_paths.glob_regex(name)) for name in list(ALWAYS_REFUSED) + names]

@@ -754,6 +754,18 @@ class PromoteTests(RequestCase):
                 self.assertIn("不能回写", self.refused("promote", "--request", request_id, "--dry-run"))
                 self.run_cli("request", "set-status", "--request", request_id, "--status", "abandoned", "--reason", "test")
 
+    def test_an_override_that_drops_the_core_guardrails_does_not_open_promote(self) -> None:
+        (self.root / ".harness" / "policies" / "gate.override.json").write_text(json.dumps({"guardrail_paths": ["docs/**"]}), encoding="utf-8")
+        target = ".harness/policies/gate.json"
+        request_id = self.new_request()
+        self.attempt(request_id)
+        self.fill_assignment(request_id, 1, "builder")
+        self.dispatch(request_id, "builder")
+        self.output(request_id, 1, "builder", target, "x\n")
+        self.submit(request_id, "builder", "passed", "--output", target)
+        self.reviewer_round(request_id, 1)
+        self.assertIn("不能回写", self.refused("promote", "--request", request_id, "--dry-run"))
+
     def test_a_candidate_changed_after_review_is_refused(self) -> None:
         request_id = self.passed_request()
         candidate = self.rd(request_id) / "handoffs" / "orchestrator" / "attempt-001" / "to-reviewer" / "candidate" / "src" / "slug.py"

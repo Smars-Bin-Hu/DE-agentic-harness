@@ -36,6 +36,7 @@ README 是仓库的第一目录。先从这里找到目标文件，再读取需�
 | [.harness/policies/orchestration.json](.harness/policies/orchestration.json)                               | L3 请求的上限：轮数、brief 大小、handoff 摘要行数。 |
 | [.harness/policies/observe.json](.harness/policies/observe.json)                                         | 日志：每个会话一个文件，记录多长的文字，capture 开关。 |
 | [.harness/policies/agents.json](.harness/policies/agents.json)                                           | 模型系列：回退只能在同一系列，builder 和 reviewer 不同系列。 |
+| `.harness/policies/<名>.override.json`                                                                     | 企业覆盖：只写要改的项。对象逐项合并，数组整体替换，`"<键>+": [...]` 表示追加。`doctor` 列出改了哪些项，核心 guardrail 删不掉。 |
 | [.harness/contracts/](.harness/contracts/)                                                               | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板。 |
 | [.harness/engine/hook.py](.harness/engine/hook.py)                                                       | hook 入口：识别运行时，分发给模块，合并结果。 |
 | [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口：`doctor` 检查配置，`level` 管理 Level，`request`、`report` 等管理 L3 请求，`stats`、`logs prune` 看和清理日志，`eval check` 判一个跑完的场景。 |

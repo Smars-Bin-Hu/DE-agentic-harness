@@ -11,11 +11,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Set
 
 from core import config
+from core.paths import policies_dir
 from core.registry import load_registry
 from core.state import TRACKED_EVENTS
 
 HOOK_ENTRY = ".harness/engine/hook.py"
 COMMAND_KEYS = ("command", "windows", "linux", "osx", "bash", "powershell")
+KB_DIR = "knowledge-base"
+KB_IGNORED = {"README.md", ".gitkeep", ".gitignore", ".DS_Store"}
+BROAD_APPLY_TO = {"**", "**/*", "*", "**/**"}
+MARKDOWN_LINK = re.compile(r"\]\(([^)\s]+)\)")
+SHOWN_BROKEN_LINKS = 5
 TOOL_KINDS = {"read", "edit", "create", "terminal", "search", "subagent", "mcp"}
 
 
@@ -132,6 +138,123 @@ def check_logs(report: Report, root: Path, registry: Dict[str, Any]) -> None:
         report.warn("还有旧的 .harness/runtime/logs/hook-calls.jsonl。现在每个会话一个文件，这个旧文件不再写入，可以删除")
 
 
+def check_overrides(report: Report, root: Path) -> None:
+    """Each `<name>.override.json`: one layer, merges onto an existing policy, and says what it changed."""
+    directory = policies_dir(root)
+    found = sorted(directory.glob("*" + config.OVERRIDE_SUFFIX)) if directory.is_dir() else []
+    if not found:
+        report.ok("没有 override 文件，所有策略都用默认值")
+        return
+    for path in found:
+        name = path.name[: -len(config.OVERRIDE_SUFFIX)]
+        if config.OVERRIDE_SUFFIX[:-5] in name or not (directory / f"{name}.json").exists():
+            report.error(f"{path.name}：找不到它要覆盖的 {name}.json（override 只有一层，名字必须是 <策略名>.override.json）")
+            continue
+        try:
+            base = config.read_json(directory / f"{name}.json")
+            override = config.read_json(path)
+            config.deep_merge(base, override)
+        except Exception as error:
+            report.error(f"{path.name}：不能合并到 {name}.json：{error}")
+            continue
+        touched = config.changes(base, override)
+        report.ok(f"{path.name}：改了 {len(touched)} 处，其余都来自 {name}.json（default）")
+        for where, how, size in touched:
+            if how == "replaced" and size:
+                report.warn(f"{path.name}：{where} 整体替换了默认的数组（{size} 项）。要保留默认项，改用 \"{where.split('.')[-1]}+\" 追加")
+            else:
+                report.ok(f"  来自 override：{where}（{ {'replaced': '替换', 'appended': '追加', 'added': '新增'}[how] }）")
+
+
+def front_matter(text: str) -> Dict[str, str]:
+    front = re.match(r"^---\s*\n(.*?)\n---\s*\n?", text, re.DOTALL)
+    if not front:
+        return {}
+    pairs = (line.split(":", 1) for line in front.group(1).splitlines() if ":" in line)
+    return {key.strip(): value.strip().strip("'\"") for key, value in pairs}
+
+
+def body_of(text: str) -> str:
+    return re.sub(r"^---\s*\n.*?\n---\s*\n?", "", text, count=1, flags=re.DOTALL).strip()
+
+
+def kb_instruction_files(root: Path) -> List[Path]:
+    """Instruction files that have text and are about the knowledge base: named after it, or naming its folder."""
+    directory = root / ".github" / "instructions"
+    found = []
+    for path in sorted(directory.glob("*.instructions.md")) if directory.is_dir() else []:
+        text = path.read_text(encoding="utf-8")
+        if body_of(text) and ("knowledge" in path.name.lower() or KB_DIR in text.lower()):
+            found.append(path)
+    return found
+
+
+def kb_instruction_loads(root: Path, path: Path) -> str:
+    """Why Copilot would load the file on its own, or an empty string when nothing makes it."""
+    apply_to = front_matter(path.read_text(encoding="utf-8")).get("applyTo", "")
+    if any(part.strip() in BROAD_APPLY_TO for part in apply_to.split(",")):
+        return f"applyTo 是 {apply_to}"
+    for name in ("AGENTS.md", ".github/copilot-instructions.md"):
+        entry = root / name
+        if entry.is_file() and path.name in entry.read_text(encoding="utf-8"):
+            return f"{name} 里有链接"
+    return ""
+
+
+def kb_broken_links(kb: Path) -> List[str]:
+    readme = kb / "README.md"
+    broken = []
+    for target in MARKDOWN_LINK.findall(readme.read_text(encoding="utf-8")):
+        target = target.split("#", 1)[0]
+        if not target or re.match(r"^[a-z][a-z0-9+.-]*:", target, re.IGNORECASE) or target.startswith("/"):
+            continue
+        if not (kb / target).exists():
+            broken.append(target)
+    return broken
+
+
+def kb_git_ignored(root: Path) -> bool:
+    ignore = root / ".gitignore"
+    if not ignore.is_file():
+        return False
+    names = {KB_DIR, f"/{KB_DIR}", f"{KB_DIR}/", f"/{KB_DIR}/", f"{KB_DIR}/*", f"/{KB_DIR}/*", f"{KB_DIR}/**", f"/{KB_DIR}/**"}
+    return any(line.strip() in names for line in ignore.read_text(encoding="utf-8").splitlines())
+
+
+def check_knowledge_base(report: Report, root: Path) -> None:
+    """Can an agent reach the knowledge base? Looks at the folder, its README index and the instructions. Warns only."""
+    kb = root / KB_DIR
+    content = [item for item in sorted(kb.iterdir()) if item.name not in KB_IGNORED and not item.name.startswith(".")] if kb.is_dir() else []
+    if not content:
+        report.ok(f"{KB_DIR}/ 里还没有内容（没有接入知识库）")
+        return
+    report.ok(f"{KB_DIR}/ 有内容：{len(content)} 项（README 以外）")
+    if not (kb / "README.md").is_file():
+        report.warn(f"{KB_DIR}/ 没有 README.md。agent 按索引渐进读取时，没有入口可读")
+    else:
+        broken = kb_broken_links(kb)
+        shown = ", ".join(broken[:SHOWN_BROKEN_LINKS]) + (f" 等 {len(broken)} 个" if len(broken) > SHOWN_BROKEN_LINKS else "")
+        if broken:
+            report.warn(f"{KB_DIR}/README.md 里有指向不存在文件的链接：{shown}")
+        else:
+            report.ok(f"{KB_DIR}/README.md 的相对链接都能找到文件")
+    if kb_git_ignored(root):
+        report.warn(f".gitignore 忽略了 {KB_DIR}/。Copilot 的搜索会跳过被忽略的文件，agent 可能搜不到它（按路径直接读一般不受影响）")
+    files = kb_instruction_files(root)
+    if not files:
+        report.warn("没有讲知识库的指令文件。把知识库自带的 instructions 放到 .github/instructions/（例如 knowledgebase.instructions.md），agent 才知道怎么按索引读")
+        return
+    for path in files:
+        reason = kb_instruction_loads(root, path)
+        if reason:
+            report.ok(f"{path.name} 讲知识库，而且会被加载（{reason}）")
+        else:
+            report.warn(
+                f"{path.name} 讲知识库，但没有让 Copilot 加载它的条件。给它写 applyTo: '**'，或在 AGENTS.md 里放一个指向它的链接；"
+                "只写 applyTo: 'knowledge-base/**' 不够：agent 读到知识库文件之前，它不会生效"
+            )
+
+
 def check_tool_kinds(report: Report) -> None:
     path = Path(__file__).resolve().parent / "adapters" / "tool_kinds.json"
     try:
@@ -227,6 +350,8 @@ def run(root: Path) -> int:
     check_hook_config(report, root, registry)
     check_agents(report, root)
     check_logs(report, root, registry)
+    check_overrides(report, root)
+    check_knowledge_base(report, root)
     for name, entry in registry["modules"].items():
         check_module(report, root, name, entry)
     print("\n".join(report.lines))
