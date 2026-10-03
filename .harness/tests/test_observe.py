@@ -212,6 +212,28 @@ class StatsTests(ObserveCase):
         self.assertEqual(result["asked_by_module"], {"gate": 1})
         self.assertEqual(result["tool_calls_by_level"], {"L1": 4, "L2": 2})
 
+    def write_rows(self, rows: list) -> None:
+        folder = self.logs() / "vscode"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "dup.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    def row(self, second: str, pid: int, tool: str = "read_file") -> Dict[str, Any]:
+        return {"at": f"2026-10-03T10:00:{second}+00:00", "pid": pid, "event": "PreToolUse", "tool_name": tool, "tool_kind": "read",
+                "decision": "allow", "from_subagent": False, "level": 1}
+
+    def test_the_same_call_from_two_processes_at_once_is_a_possible_double_run(self) -> None:
+        self.write_rows([self.row("01.000000", 11), self.row("01.050000", 12)])
+        self.assertEqual(self.stats()["possible_double_runs"], 1)
+
+    def test_other_pairs_are_not_double_runs(self) -> None:
+        for rows in (
+            [self.row("01.000000", 11), self.row("01.050000", 11)],                     # one process
+            [self.row("01.000000", 11), self.row("01.050000", 12, "grep_search")],      # another tool
+            [self.row("01.000000", 11), self.row("03.000000", 12)],                     # two seconds apart
+        ):
+            self.write_rows(rows)
+            self.assertEqual(self.stats()["possible_double_runs"], 0)
+
     def test_hook_time_is_counted_per_event(self) -> None:
         self.build()
         result = self.stats()

@@ -68,6 +68,22 @@ def check_files(report: Report, root: Path, owner: str, files: List[str]) -> Non
         report.ok(f"{owner}：{len(files)} 个登记文件都存在")
 
 
+def interpreter_problems(entry: Dict[str, Any]) -> List[str]:
+    """Each runtime reads its own keys: VS Code `command`/`windows`, the Copilot CLI engine `bash`/`powershell`.
+
+    An engine that finds no key for its system runs the wrong one, and the CLI engine treats a hook that fails as a deny:
+    every tool call is refused. Windows has `python` and often no `python3`.
+    """
+    problems = []
+    for key, interpreter in (("command", "python3"), ("bash", "python3"), ("windows", "python"), ("powershell", "python")):
+        value = entry.get(key)
+        if not isinstance(value, str):
+            problems.append(f"缺少 `{key}`（{'Windows' if interpreter == 'python' else 'macOS/Linux'} 上的 {'VS Code' if key in ('command', 'windows') else 'Copilot CLI 引擎'} 读它）")
+        elif value.split()[0] != interpreter:
+            problems.append(f"`{key}` 应该用 `{interpreter}`，现在是 `{value.split()[0]}`")
+    return problems
+
+
 def check_hook_config(report: Report, root: Path, registry: Dict[str, Any]) -> None:
     directory = root / ".github" / "hooks"
     configs = sorted(directory.glob("*.json")) if directory.is_dir() else []
@@ -91,6 +107,8 @@ def check_hook_config(report: Report, root: Path, registry: Dict[str, Any]) -> N
                 commands = [entry[key] for key in COMMAND_KEYS if isinstance(entry.get(key), str)]
                 if not commands or any(HOOK_ENTRY not in command for command in commands):
                     report.error(f"{path.name} 的 {event} 没有指向 {HOOK_ENTRY}")
+                for problem in interpreter_problems(entry):
+                    report.error(f"{path.name} 的 {event}：{problem}")
     needed: Set[str] = set(TRACKED_EVENTS)
     for name, entry in registry["modules"].items():
         if entry["enabled"] and entry["status"] != "retired":

@@ -33,19 +33,47 @@ def bump(table: Dict[str, int], key: str) -> None:
     table[key] = table.get(key, 0) + 1
 
 
+DOUBLE_RUN_SECONDS = 0.15
+SAME_CALL_FIELDS = ("event", "tool_name", "tool_kind", "decision", "from_subagent")
+
+
+def seconds_between(first: str, second: str) -> float:
+    try:
+        return abs((datetime.fromisoformat(second) - datetime.fromisoformat(first)).total_seconds())
+    except (TypeError, ValueError):
+        return 1e9
+
+
+def same_call_twice(previous: Dict[str, Any], row: Dict[str, Any]) -> bool:
+    """Two rows of one session for the same event and tool within a moment, from two processes: the hook may be configured twice.
+
+    Two real tool calls of the same kind at the same moment look the same, so this is a hint, not proof.
+    """
+    if not previous or previous.get("pid") == row.get("pid"):
+        return False
+    if any(previous.get(field) != row.get(field) for field in SAME_CALL_FIELDS):
+        return False
+    return seconds_between(previous.get("at", ""), row.get("at", "")) < DOUBLE_RUN_SECONDS
+
+
 def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[int] = None) -> Dict[str, Any]:
     """Numbers over the matching sessions. `days` keeps only the calls of the last N days."""
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat() if days is not None else ""
     rows: List[Dict[str, Any]] = []
     sessions = set()
+    doubles = 0
     for found_surface, path in session_files(root):
         if surface and found_surface != surface:
             continue
         if session_id and path.stem != session_id:
             continue
+        previous: Dict[str, Any] = {}
         for row in read_lines(path):
             if since and row.get("at", "") < since:
                 continue
+            if same_call_twice(previous, row):
+                doubles += 1
+            previous = row
             rows.append(row)
             sessions.add((found_surface, path.stem))
 
@@ -110,6 +138,7 @@ def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[
         "subagents_started": subagents,
         "hook_time": timing(every),
         "hook_time_by_event": {name: timing(values) for name, values in sorted(by_event.items())},
+        "possible_double_runs": doubles,
         "recent_sessions": recent,
         "hook_errors": len(errors),
         "as_of": utc_now(),
