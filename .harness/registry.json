@@ -59,6 +59,7 @@
         ".harness/policies/gate.json",
         ".harness/engine/modules/gate/",
         ".harness/tests/test_gate.py",
+        ".harness/tests/test_gate_git.py",
         ".github/instructions/workspace.instructions.md",
         ".workspace/README.md"
       ],
@@ -83,6 +84,7 @@
       ],
       "files": [
         ".harness/policies/orchestration.json",
+        ".harness/policies/target.json",
         ".harness/engine/modules/request/",
         ".harness/contracts/request.schema.json",
         ".harness/contracts/manifest.schema.json",
@@ -96,7 +98,10 @@
         ".github/skills/harness-orchestration/",
         ".harness/tests/test_orchestration.py",
         ".harness/tests/test_report.py",
-        ".harness/tests/test_verify.py"
+        ".harness/tests/test_verify.py",
+        ".harness/tests/test_targets.py",
+        ".harness/tests/test_target_inputs.py",
+        ".harness/tests/test_promote_target.py"
       ],
       "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排。请求目录和 promote 不退役"
     },

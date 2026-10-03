@@ -194,7 +194,8 @@
           "enum": [
             "none",
             "dry_run",
-            "done"
+            "done",
+            "partial"
           ]
         },
         "plan_sha256": {
@@ -210,6 +211,42 @@
           "type": "string"
         },
         "approved_at": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "repos": {
+          "type": "object"
+        },
+        "repos_done": {
+          "type": "array"
+        },
+        "repo_failed": {
+          "type": "string"
+        },
+        "repos_untouched": {
+          "type": "array"
+        },
+        "error": {
+          "type": "string"
+        },
+        "recovery": {
+          "type": "array"
+        },
+        "dev": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "string"
+        },
+        "recovery_steps": {
+          "type": "array"
+        },
+        "recovered_at": {
+          "type": "string"
+        },
+        "request_id": {
           "type": "string"
         }
       }
@@ -228,6 +265,36 @@
         "at": {
           "type": "string"
         }
+      }
+    },
+    "task": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "target_mode": {
+      "type": "boolean"
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "path",
+          "base_ref",
+          "base_commit"
+        ]
+      }
+    },
+    "target_files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "blob",
+          "base_commit"
+        ]
       }
     }
   }

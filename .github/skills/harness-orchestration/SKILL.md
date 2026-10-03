@@ -16,14 +16,15 @@ specificTo: harness-orchestration
 
 ## 步骤
 
-1. **建请求**：`request new --title "<短标题>" --session-id <提示开头规则里的会话 id>`。记下 `request_id`，之后每条命令都带 `--request`。
+1. **建请求**：`request new --title "<短标题>" --session-id <提示开头规则里的会话 id>`。记下 `request_id`，之后每条命令都带 `--request`。用户给了任务目录就加 `--task .workspace/current_tasks/<任务名>`。
 2. **准备输入**：`request add-input <文件或目录>...` 把需求和必要文件复制进 `init-inputs/`。第一次 dispatch 之后就不能再加。
+   配置了目标仓库时，输出里有 `target_repos`。要改仓库里的文件，用 `--from-target <仓库名>/<路径>`（文件或目录，可重复）取它们 main 上的版本，不要自己复制。builder 的成果路径第一段也是仓库名。分支名用户说了就 `request set-branch --request <id> --branch feature/<名字>`（字母、数字、下划线），promote 之前必须设好。
 3. **知识简报（可选）**：知识库里有相关内容时，把结论蒸馏成一份文件，每条一行：`- 结论 [来源: 文件路径#章节]`。
    写在请求目录里（例如 `orchestrator/brief-draft.md`），用 `brief set <文件>` 交给 CLI。没有来源的条目会被拒绝。没有相关内容就不写。按知识库自己的索引和 instructions 选文件，不要整篇复制。返工的轮次只补缺的条目，不重写旧的。
 4. **计划**：写 `orchestrator/plan.md`。哪个角色明显不适用，就在这里写理由。
 5. **开一轮**：`attempt new`。它建好两个角色的输入包，里面各有一份 `assignment.md` 模板。
 6. **填 builder 的 assignment**：目标和验收标准必填，去掉所有“（待填）”。验收标准要具体到 reviewer 能照着验证。
-7. **派发 builder**：`dispatch --role builder [--input <文件>]...`。包随即变成只读。然后调用 builder 子 agent。没有 dispatch 就调用会被拒绝。
+7. **派发 builder**：`dispatch --role builder [--input <文件>]... [--from-target <仓库名>/<路径>]...`。包随即变成只读。然后调用 builder 子 agent。没有 dispatch 就调用会被拒绝。
 8. **读 builder 的 handoff**：在 `handoffs/builder/attempt-NNN/handoff.json`。
    - `passed`：继续。
    - `failed` 或 `blocked`：看 `blockers`。能修就 `attempt new` 返工；缺的东西要用户给，就进 HITL。
@@ -37,7 +38,9 @@ specificTo: harness-orchestration
     1. `promote --request <id> --dry-run`，列出要写的文件和差异。
     2. 先 `request wait --request <id> --reason "等用户批准 promote"`。把计划给用户看，原样给出这条命令，请用户**在自己的终端**运行：`request approve-promote --request <id>`，看计划，输入确认码。你不能自己运行它。
     3. 用户说批准了，再 `promote --request <id>`。
-13. **结束**：`request set-status --request <id> --status accepted`（reviewer 通过并已回写）。然后 `check --request <id> --require-conclusion`。会话回到 L1。
+    4. 请求有目标仓库时，`promote` 在每个仓库里从 main 新建请求的分支，把成果写进去，**不提交**。先检查所有仓库（工作区干净、分支名没被占、main 上的文件没变），任何一个不通过，什么都不写，信息里列出所有问题；照着做，或告诉用户，再 `promote --dry-run`。成果和补丁备份在任务目录的 `DEV/`。提交由用户自己做。
+    5. promote 中途出错（`promote.state` 是 `partial`）：不要重试，不要 `set-status`。把错误里的“已写好、出错、没动”和恢复方法原样给用户：请用户**在自己的终端**运行 `request recover --request <id>`（你不能自己运行它）；恢复后再 `promote --dry-run`，请用户重新批准。
+13. **结束**：`request set-status --request <id> --status accepted`（reviewer 通过并已回写）。成果还没 promote 时，CLI 拒绝 accepted。然后 `check --request <id> --require-conclusion`。会话回到 L1。
     `set-status` 会自动写报告，输出里的 `report` 是路径。把它告诉用户。`report --request <id>` 可以随时重写。
 
 ## 等用户
@@ -60,6 +63,7 @@ specificTo: harness-orchestration
 ## 成本
 
 - 每次调用 builder 或 reviewer 都消耗一次 dispatch。调用次数由 attempt 上限自然限制。
+- 调用子 agent 前，把工具的必填参数填全。子 agent 没有真正启动（比如工具说缺参数）时，补齐参数直接再调用一次，不用重新 dispatch。子 agent 一旦启动，同一次 dispatch 不能再调用。
 - 输入包里只放当前角色用得上的内容。同一个请求里，所有轮次和两个角色共用同一份 brief。
 - 触发成本警告后，先判断是收窄范围、进入 HITL 还是停止。
 

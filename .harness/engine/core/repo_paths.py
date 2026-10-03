@@ -28,6 +28,9 @@ def _normal(raw: str) -> str:
     return drive + posixpath.normpath(text or ".")
 
 
+normal = _normal  # for callers outside this module
+
+
 def _is_absolute(path: str) -> bool:
     return path.startswith("/") or bool(_DRIVE.match(path))
 
@@ -42,12 +45,10 @@ def _inside(path: str, root: str) -> Optional[str]:
     return None
 
 
-def repo_relative(raw: str, root: Path, cwd: str = "") -> List[Optional[str]]:
-    """Where a tool path points, as repo-relative paths. One entry per way to read it; None means outside the repo.
+def resolve(raw: str, root: Path, cwd: str = "") -> List[str]:
+    """Where a tool path points, as absolute paths (normal form). One entry per way to read it.
 
-    A relative path may be meant against the repo root or the payload's `cwd` (when that is inside the repo), and a
-    symlink may hide the real path.
-    The gate treats a path as guarded when any reading hits a guardrail, and as inside a folder only when all do.
+    A relative path may be meant against the repo root or the payload's `cwd`, and a symlink may hide the real path.
     """
     if not raw or not raw.strip():
         return []
@@ -63,7 +64,6 @@ def repo_relative(raw: str, root: Path, cwd: str = "") -> List[Optional[str]]:
         here = _normal(cwd) if cwd else ""
         if here and _is_absolute(here) and any(_inside(here, name) is not None for name in roots):
             bases.append(posixpath.normpath(here + "/" + path))  # a cwd outside the repo says nothing about this path
-    found: List[Optional[str]] = []
     for base in list(bases):
         try:
             real = _normal(os.path.realpath(base))
@@ -71,11 +71,51 @@ def repo_relative(raw: str, root: Path, cwd: str = "") -> List[Optional[str]]:
             real = base
         if real != base:
             bases.append(real)
-    for base in bases:
+    return bases
+
+
+def repo_relative(raw: str, root: Path, cwd: str = "") -> List[Optional[str]]:
+    """Where a tool path points, as repo-relative paths. One entry per way to read it; None means outside the repo.
+
+    The gate treats a path as guarded when any reading hits a guardrail, and as inside a folder only when all do.
+    """
+    roots = {_normal(str(root))}
+    try:
+        roots.add(_normal(os.path.realpath(str(root))))
+    except OSError:
+        pass
+    found: List[Optional[str]] = []
+    for base in resolve(raw, root, cwd):
         relative = next((hit for hit in (_inside(base, root_text) for root_text in sorted(roots)) if hit is not None), None)
         if relative not in found:
             found.append(relative)
     return found
+
+
+def inside(path: str, folder: Path) -> List[str]:
+    """`path` (normal, absolute) relative to `folder`, once for the folder as written and once for its real path."""
+    names = {_normal(str(folder))}
+    try:
+        names.add(_normal(os.path.realpath(str(folder))))
+    except OSError:
+        pass
+    return [hit for hit in (_inside(path, name) for name in sorted(names)) if hit is not None]
+
+
+# Windows reads these as the same folder as `.git`: `.git.`, `.git ` (trailing dots and spaces are dropped), the short name
+# `GIT~1`, and an NTFS stream suffix (`.git::$INDEX_ALLOCATION`).
+_GIT_NAMES = re.compile(r"^(?:\.git|git~\d+)$", re.IGNORECASE)
+
+
+def windows_name(segment: str) -> str:
+    """One path segment the way Windows spells it: no stream suffix, no trailing dots or spaces."""
+    text = segment.split(":", 1)[0] if ":" in segment and not _DRIVE.match(segment + "/") else segment
+    return text if text in ("", ".", "..") else text.rstrip(". ")
+
+
+def has_git_folder(path: str) -> bool:
+    """Whether a path has a `.git` segment, in any spelling Windows treats as the same."""
+    return any(_GIT_NAMES.match(windows_name(part)) for part in path.replace("\\", "/").split("/"))
 
 
 def glob_regex(pattern: str) -> Pattern[str]:

@@ -19,6 +19,27 @@ def guardrail_terminal(why: str) -> str:
     )
 
 
+def git_folder(shown: str) -> str:
+    return (
+        f"`{shown}` 在 `.git` 文件夹里。任何 Level 都不能直接改 `.git`，改它会弄坏仓库的历史和配置。"
+        "不要改它，也不要用终端命令绕过。需要提交或切分支时，停下来告诉用户。"
+    )
+
+
+def git_folder_terminal(why: str) -> str:
+    return (
+        f"这条终端命令会直接改 `.git` 文件夹或目标仓库不许写的路径（{why}）。"
+        "不要换个命令重试。需要时，停下来告诉用户要做什么，由用户自己做。"
+    )
+
+
+def target_refused_file(repo: str, relative: str, pattern: str) -> str:
+    return (
+        f"`{repo}/{relative}` 属于目标仓库 {repo} 不许写的路径（{pattern}，见 target.json 的 refused_paths）。"
+        "任何 Level 都不能改它。需要改它时，停下来告诉用户，由用户自己改。"
+    )
+
+
 def outside_request(relative: str, request_id: str, request_root: str) -> str:
     return (
         f"L3 请求 {request_id} 只能在 {request_root}/ 下写入，你要写的是 `{relative}`。"

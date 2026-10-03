@@ -20,7 +20,7 @@ manifest 里的 `brief` 是知识简报，`brief_delta` 是这一轮新增或改
 
 1. 先用 assignment、manifest 里的文件和 brief。不够再查 skills、指令和知识库（读取不受限制）。
    在 brief 之外查到的结论，交接时写进 `--kb-addition "来源 :: 一句话结论"`。
-2. 成果和证据写在你的 `outputs/attempt-NNN/` 目录下，文件放在它下面，位置按将来在仓库里的相对路径（例如 `outputs/attempt-NNN/src/a.py`）。`--output`、`--evidence` 写相对于该目录的路径（例如 `src/a.py`）。
+2. 成果和证据写在你的 `outputs/attempt-NNN/` 目录下，文件放在它下面，位置按将来在仓库里的相对路径（例如 `outputs/attempt-NNN/src/a.py`；改目标仓库里的文件时，第一段是仓库名，assignment 里会写）。`--output`、`--evidence` 写相对于该目录的路径（例如 `src/a.py`）。
    编辑工具不会建父目录：先用终端建好（macOS/Linux 用 `mkdir -p`，Windows 用 `mkdir`）。
 3. 自测。有测试就运行，把结果存成证据文件。自测没过就修，修到过为止；确实过不了，就交接 `blocked`。
 4. 交接（`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。你收到的第一条消息里也有完整命令）：

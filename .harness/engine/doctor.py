@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
-from core import config
+from core import config, targets
 from core.paths import cli_command, policies_dir, python_command
 from core.registry import load_registry
 from core.state import TRACKED_EVENTS
@@ -283,6 +283,44 @@ def check_knowledge_base(report: Report, root: Path) -> None:
             )
 
 
+def check_targets(report: Report, root: Path) -> None:
+    """The target repositories (target.json + target.override.json): found, git repositories, with their base branch."""
+    try:
+        found = targets.load(root)
+    except Exception as error:
+        report.error(f"策略 target.json 有问题：{error}")
+        return
+    if not found.configured:
+        report.ok("没有配置目标仓库（target.override.json 里写 repos_root），请求沿用 harness 自己的仓库")
+        return
+    for problem in found.problems:
+        report.error(f"目标仓库：{problem}")
+    if not found.repos:
+        if not found.problems:
+            report.warn("repos_root 下没有 git 仓库（要有 .git 的子文件夹）")
+        return
+    for name in found.names():
+        repo = found.repos[name]
+        try:
+            info = targets.summary(repo, found.timeout)
+        except targets.TargetError as error:
+            report.error(f"目标仓库 {name}：{error}")
+            continue
+        if not info["has_base_ref"]:
+            report.error(f"目标仓库 {name}：本地没有分支 `{repo.base_ref}`。先在那个仓库里 git switch 或 git fetch 一次，或在 target.override.json 的 repos 里改 base_ref")
+            continue
+        state = "工作区干净" if info["clean"] else f"有 {info['uncommitted_files']} 个未提交的文件（promote 要求工作区干净）"
+        report.ok(f"目标仓库 {name}：{repo.base_ref} 在 {info['base_commit']}（{info['base_commit_date'][:10]}），当前分支 {info['current_branch']}，{state}")
+
+
+def check_location(report: Report, root: Path) -> None:
+    problems = targets.location_warnings(str(root))
+    for text in problems:
+        report.warn(text)
+    if not problems:
+        report.ok("harness 的路径长度和位置没有问题")
+
+
 def check_tool_kinds(report: Report) -> None:
     path = Path(__file__).resolve().parent / "adapters" / "tool_kinds.json"
     try:
@@ -380,6 +418,8 @@ def run(root: Path) -> int:
     check_agents(report, root)
     check_logs(report, root, registry)
     check_overrides(report, root)
+    check_targets(report, root)
+    check_location(report, root)
     check_knowledge_base(report, root)
     for name, entry in registry["modules"].items():
         check_module(report, root, name, entry)

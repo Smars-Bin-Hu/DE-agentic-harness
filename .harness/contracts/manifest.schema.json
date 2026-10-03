@@ -19,8 +19,11 @@
         "properties": {
           "path": { "type": "string", "minLength": 1 },
           "source": { "type": "string", "minLength": 1 },
-          "purpose": { "type": "string", "enum": ["input", "candidate", "previous-attempt"] },
-          "sha256": { "type": "string", "minLength": 1 }
+          "purpose": { "type": "string", "enum": ["input", "candidate", "previous-attempt", "base"] },
+          "sha256": { "type": "string", "minLength": 1 },
+          "repo": { "type": "string" },
+          "blob": { "type": "string" },
+          "base_commit": { "type": "string" }
         }
       }
     },

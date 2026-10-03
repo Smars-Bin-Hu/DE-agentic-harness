@@ -4,6 +4,7 @@
   doctor                       check that the harness files and config are consistent
   level status|set             level of a session (task_level module)
   request, brief, attempt, dispatch, handoff, check, promote   the L3 request (request module)
+  target list|show             the target repositories (request module)
   stats, logs prune            numbers from the session logs; delete old logs (observe module)
   eval list|show|check         fixed scenarios, judged from a finished run (evalcheck module)
 """

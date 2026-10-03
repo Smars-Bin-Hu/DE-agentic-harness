@@ -7,6 +7,8 @@
 
 The pending records live in request.json (written by `dispatch`). The calls waiting for their SubagentStart live in this
 module's state of the session that made the call. Both engines report SubagentStart on that session.
+A call the tool refuses after this hook let it pass (a missing required argument) never reaches SubagentStart. The call
+stays in the waiting list, so the same role may be called again for that attempt without a new dispatch.
 Hook failures are fail-open: hook.py rolls back this module's state changes and carries on.
 """
 
@@ -47,6 +49,8 @@ def on_subagent_call(event: HookEvent, ctx: Context) -> Optional[Decision]:
         if not pending:
             number = data["attempt"]
             used = number >= 1 and role in data["attempts"][number - 1]["dispatched"]
+            if used and any(item["role"] == role and item["attempt"] == number for item in ctx.module_state(NAME).get("calls", [])):
+                return None  # the earlier call never started: this is the retry
             if used:
                 return refuse(
                     f"第 {number} 轮的 {role} 已经调用过了。每次 dispatch 只对应一次调用。"
@@ -59,21 +63,39 @@ def on_subagent_call(event: HookEvent, ctx: Context) -> Optional[Decision]:
         chosen = pending[0]
         data["pending_dispatch"].remove(chosen)
     calls = ctx.module_state(NAME).setdefault("calls", [])
+    calls[:] = [item for item in calls if item["role"] != role]  # a call that never started is replaced by this one
     calls.append({"role": role, "attempt": chosen["attempt"]})
     del calls[:-CALLS_KEPT]
     return None
 
 
-def start_text(request_id: str, role: str, number: int) -> str:
+def start_text(request_id: str, role: str, number: int, target_repos: str = "") -> str:
     base = f"{layout.REQUESTS_DIR}/{request_id}"
+    where = (
+        f"这个请求改的是目标仓库里的文件，成果路径的第一段是仓库名（{target_repos}），例如 `bdtt_repo/src/a.sql`。"
+        if target_repos
+        else "位置按将来在仓库里的相对路径。"
+    )
     package = f"{base}/handoffs/orchestrator/{layout.attempt_name(number)}/to-{role}"
     outputs = f"{base}/{role}/outputs/{layout.attempt_name(number)}"
     return (
         f"你是请求 {request_id} 第 {number} 轮的 {role}。\n"
         f"第一步：读 {package}/assignment.md 和同目录的 manifest.json，按它们工作。\n"
-        f"成果和证据写在 {outputs}/ 下，位置按将来在仓库里的相对路径。`handoff submit` 的 --output、--evidence 写相对于该目录的路径，不要写完整路径；先用终端 `{mkdir_command()}` 建好父目录（编辑工具不会建）。\n"
+        f"成果和证据写在 {outputs}/ 下，{where}`handoff submit` 的 --output、--evidence 写相对于该目录的路径，不要写完整路径；先用终端 `{mkdir_command()}` 建好父目录（编辑工具不会建）。\n"
         f"做完用 `{cli_command()} handoff submit --request {request_id} --role {role} ...` 交接。"
     )
+
+
+def target_repo_names(root: Any, request_id: str) -> str:
+    """The names of the target repositories when this request has them, else an empty string. Never raises: this is a hint."""
+    try:
+        if not store.read_request(root, request_id).get("target_mode"):
+            return ""
+        from core import targets
+
+        return "、".join(targets.load(root).names())
+    except Exception:
+        return ""
 
 
 def on_subagent_start(event: HookEvent, ctx: Context) -> Optional[Decision]:
@@ -86,7 +108,7 @@ def on_subagent_start(event: HookEvent, ctx: Context) -> Optional[Decision]:
     if found is None:
         return None
     calls.remove(found)
-    return Decision(context=start_text(request_id, role, found["attempt"]))
+    return Decision(context=start_text(request_id, role, found["attempt"], target_repo_names(ctx.root, request_id)))
 
 
 def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:

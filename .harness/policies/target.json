@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "description": "Target repositories: git repositories outside this folder that an L3 request reads from and promotes into. Put your own values in target.override.json. repos_root: a folder whose subfolders that are git repositories are the targets (named after the folder). repos: name -> {path, base_ref, refused_paths} for a repository elsewhere or settings for a found one. base_ref: the branch files are read from. refused_paths: paths promote never writes in a target (git-style globs).",
+  "repos_root": "",
+  "repos": {},
+  "base_ref": "main",
+  "refused_paths": [".git/**"],
+  "git_timeout_seconds": 30
+}

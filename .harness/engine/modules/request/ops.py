@@ -13,7 +13,7 @@ import stat
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core import config
+from core import config, repo_paths, targets
 from core.paths import cli_command, mkdir_command, utc_now
 from core.state import session, state_path
 
@@ -114,10 +114,70 @@ def copy_in(root: Path, sources: List[str], target: Path, limit: int, purpose: s
 # --- request new / show -----------------------------------------------------------------------------
 
 
-def new_request(root: Path, title: str, session_id: str, surface: str = "vscode") -> Dict[str, Any]:
+TASKS_DIR = ".workspace/current_tasks"
+
+
+def load_targets(root: Path) -> targets.Targets:
+    try:
+        return targets.load(root)
+    except Exception as error:
+        raise CommandError(f"目标仓库的配置有问题（target.json 或 target.override.json）：{error}") from error
+
+
+def target_repo(found: targets.Targets, name: str) -> targets.Repo:
+    try:
+        return found.get(name)
+    except targets.TargetError as error:
+        raise CommandError(str(error)) from error
+
+
+def clean_branch(branch: str) -> str:
+    name = branch.strip()
+    if name and not targets.valid_branch(name):
+        raise CommandError(f"分支名 `{name}` 不合法。写成 `feature/<名字>`，名字只能用字母、数字和下划线，不能有 `-`、`.`、`/`。")
+    return name
+
+
+def clean_task(root: Path, raw: str) -> str:
+    """A task folder under .workspace/current_tasks/, as a path relative to the repository. Empty when none is given."""
+    text = raw.strip()
+    if not text:
+        return ""
+    path = Path(text)
+    path = path if path.is_absolute() else root / path
+    relative = layout.inside(root, path)
+    if relative is None or not relative.startswith(TASKS_DIR + "/"):
+        raise CommandError(f"--task `{raw}` 要是 {TASKS_DIR}/ 下的一个任务目录，例如 {TASKS_DIR}/<任务名>。")
+    if not path.is_dir():
+        raise CommandError(f"任务目录 `{relative}` 不存在。")
+    return relative
+
+
+def target_note(data: Dict[str, Any], found: Optional[targets.Targets] = None, role: str = "builder") -> str:
+    """One line for the assignment: this request changes files in target repositories, so output paths start with the repository."""
+    if not data.get("target_mode"):
+        return ""
+    names = "、".join(found.names()) if found else ""
+    known = f"可用的仓库：{names}。" if names else ""
+    if role == "reviewer":
+        return (
+            "- 这个请求改的是目标仓库里的文件。评审对象在 `candidate/<仓库名>/<路径>`，改动前 main 上的版本在 `base/<仓库名>/<路径>`（新文件没有），用它们对比。"
+            f"{known}"
+        )
+    return (
+        "- 这个请求改的是目标仓库里的文件。要改的文件在输入包的 `inputs/<仓库名>/<路径>`（main 上的版本，只读）。"
+        f"成果路径的第一段也是仓库名，例如 `bdtt_repo/src/a.sql`，`--output` 也这样写。{known}"
+    )
+
+
+def new_request(root: Path, title: str, session_id: str, surface: str = "vscode", task: str = "", branch: str = "") -> Dict[str, Any]:
     title = title.strip()
     if not title:
         raise CommandError("--title 不能为空。")
+    found = load_targets(root)
+    task_path, branch_name = clean_task(root, task), clean_branch(branch)
+    if branch_name and not found.configured:
+        raise CommandError("还没有配置目标仓库（target.override.json 里的 repos_root），--branch 用不上。")
     if not state_path(root, surface, session_id).exists():
         raise CommandError(
             f"没有会话 `{session_id}`。用本条提示开头规则里写的“当前会话 id”，原样抄，不要改。"
@@ -136,16 +196,41 @@ def new_request(root: Path, title: str, session_id: str, surface: str = "vscode"
             ):
                 (directory / sub).mkdir(parents=True)
             write_text(directory / "orchestrator" / "plan.md", f"# 计划：{title}\n\n（待填）\n")
-            store.write_request(root, directory, store.empty_request(request_id, title, session_id, surface))
+            store.write_request(root, directory, store.empty_request(request_id, title, session_id, surface, found.configured, task_path, branch_name))
         except BaseException:
             shutil.rmtree(str(directory), ignore_errors=True)
             raise
         state["active_request"] = request_id
-    return {
+    result = {
         "request_id": request_id,
         "path": layout.REQUESTS_DIR + "/" + request_id,
         "next": "request add-input 放入需求和必要文件；写 knowledge-brief 后 brief set；写 orchestrator/plan.md；再 attempt new。",
     }
+    if found.configured:
+        result["target_repos"] = found.names()
+        result["next"] += " 要改目标仓库里的文件，用 --from-target <仓库名>/<路径> 取 main 的版本；promote 之前要 `request set-branch`。"
+    if task_path:
+        result["task"] = task_path
+    if branch_name:
+        result["branch"] = branch_name
+    return result
+
+
+def set_branch(root: Path, request_id: str, branch: str) -> Dict[str, Any]:
+    name = clean_branch(branch)
+    if not name:
+        raise CommandError("--branch 不能为空。")
+    with store.locked(root, request_id) as data:
+        store.require_open(data)
+        if not data.get("target_mode"):
+            raise CommandError("这个请求没有目标仓库，不需要分支名。")
+        if data["promote"]["state"] == "done":
+            raise CommandError("已经 promote 过了，分支名不能再改。")
+        reset = data["promote"]["state"] == "dry_run"
+        if reset:
+            data["promote"] = {"state": "none"}  # the plan names the branch: a new name needs a new dry-run and a new approval
+        data["branch"] = name
+    return {"request_id": request_id, "branch": name, "promote_plan_reset": reset}
 
 
 def list_requests(root: Path, status: str = "") -> Dict[str, Any]:
@@ -181,18 +266,153 @@ def any_dispatched(data: Dict[str, Any]) -> bool:
     return any(item["dispatched"] for item in data["attempts"])
 
 
-def add_input(root: Path, request_id: str, sources: List[str]) -> Dict[str, Any]:
+def copy_from_target(
+    root: Path, data: Dict[str, Any], specs: List[str], target: Path, limit: int, purpose: str
+) -> List[Dict[str, str]]:
+    """Files of target repositories as `base_ref` has them (the commit is fixed at the first read), not the working tree.
+
+    A spec is `<repo>/<path>`: a file, or a folder (every tracked file under it). Records the repositories and the blob
+    of each file in `data`, so promote can tell later whether main moved under the files it is about to write.
+    """
+    if not specs:
+        return []
+    found = load_targets(root)
+    if not found.configured:
+        raise CommandError("还没有配置目标仓库。在 .harness/policies/target.override.json 里写 repos_root，运行 `target list` 确认。")
+    records = data.setdefault("targets", {})
+    files = data.setdefault("target_files", {})
+    wanted: Dict[str, Any] = {}
+    for spec in specs:
+        name, _, rest = spec.strip().replace("\\", "/").partition("/")
+        if not name or not rest.strip("/"):
+            raise CommandError(f"--from-target `{spec}` 要写成 `<仓库名>/<仓库里的路径>`，例如 bdtt_repo/src/a.sql。")
+        repo = target_repo(found, name)
+        relative = layout.relative_name(rest, "仓库里的路径")
+        if name not in records:
+            try:
+                commit = targets.ref_commit(repo, found.timeout)
+            except targets.TargetError as error:
+                raise CommandError(str(error)) from error
+            if not commit:
+                raise CommandError(f"仓库 {name} 本地没有分支 `{repo.base_ref}`。先在那个仓库里准备好它，运行 `doctor` 确认。")
+            records[name] = {"path": str(repo.path), "base_ref": repo.base_ref, "base_commit": commit}
+        commit = records[name]["base_commit"]
+        try:
+            listed = targets.tracked_files(repo, commit, relative, found.timeout)
+        except targets.TargetError as error:
+            raise CommandError(str(error)) from error
+        if not listed:
+            raise CommandError(f"仓库 {name} 的 {repo.base_ref}（{commit[:12]}）上没有 `{relative}`。要新建的文件不用取，让 builder 在成果里创建。")
+        for mode, blob, path in listed:
+            if mode not in targets.REGULAR_FILE_MODES:
+                if path == relative:
+                    raise CommandError(f"`{name}/{path}` 不是普通文件（符号链接或子模块），不能复制。")
+                continue
+            wanted[f"{name}/{path}"] = (repo, commit, blob, path)
+    if len(wanted) > limit:
+        raise CommandError(f"一次复制了 {len(wanted)} 个文件，上限 {limit}。只复制这个任务要用的文件。")
+    entries = []
+    for key, (repo, commit, blob, path) in sorted(wanted.items()):
+        try:
+            content = targets.read_blob(repo, blob, found.timeout)
+        except targets.TargetError as error:
+            raise CommandError(str(error)) from error
+        destination = target / repo.name / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            writable(destination)
+        destination.write_bytes(content)
+        entries.append({
+            "path": destination.relative_to(target.parent).as_posix(),
+            "source": key,
+            "purpose": purpose,
+            "sha256": store.sha256_file(destination),
+            "repo": repo.name,
+            "blob": blob,
+            "base_commit": commit,
+        })
+        files[key] = {"blob": blob, "base_commit": commit}
+    return entries
+
+
+def staged_target_files(
+    root: Path, data: Dict[str, Any], target: Path, taken: List[Dict[str, str]], limit: int
+) -> List[Dict[str, str]]:
+    """The files `add-input --from-target` staged, put into the builder's package too (the ones already there are skipped).
+
+    They are read again by blob hash, so they are exactly what was staged, whatever main did since.
+    """
+    staged = [item for item in data["inputs"] if item.get("repo") and item.get("blob")]
+    have = {item["source"] for item in taken}
+    staged = [item for item in staged if item["source"] not in have]
+    if not staged:
+        return []
+    if len(staged) > limit:
+        raise CommandError(f"输入包会有 {len(taken) + len(staged)} 个文件，上限 {len(taken) + limit}。只复制这个任务要用的文件。")
+    found = load_targets(root)
+    entries = []
+    for item in staged:
+        repo = target_repo(found, item["repo"])
+        try:
+            content = targets.read_blob(repo, item["blob"], found.timeout)
+        except targets.TargetError as error:
+            raise CommandError(str(error)) from error
+        destination = target / item["path"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            writable(destination)
+        destination.write_bytes(content)
+        entries.append({
+            "path": destination.relative_to(target.parent).as_posix(), "source": item["source"], "purpose": "input",
+            "sha256": store.sha256_file(destination), "repo": item["repo"], "blob": item["blob"], "base_commit": item["base_commit"],
+        })
+    return entries
+
+
+def baseline_files(root: Path, data: Dict[str, Any], directory: Path, number: int, target: Path) -> List[Dict[str, str]]:
+    """Reviewer: the main version of each file the builder changed, so a diff needs no look into the target repository."""
+    handoff = store_json(layout.handoff_file(directory, number, "builder"))
+    wanted = [(name, data.get("target_files", {}).get(name)) for name in handoff["outputs"]]
+    wanted = [(name, record) for name, record in wanted if record]
+    if not wanted:
+        return []
+    found = load_targets(root)
+    entries = []
+    for name, record in wanted:
+        repo = target_repo(found, name.split("/", 1)[0])
+        try:
+            content = targets.read_blob(repo, record["blob"], found.timeout)
+        except targets.TargetError as error:
+            raise CommandError(str(error)) from error
+        destination = target / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
+        entries.append({
+            "path": destination.relative_to(target.parent).as_posix(), "source": name, "purpose": "base",
+            "sha256": store.sha256_file(destination), "repo": repo.name, "blob": record["blob"], "base_commit": record["base_commit"],
+        })
+    return entries
+
+
+def add_input(root: Path, request_id: str, sources: List[str], from_target: Optional[List[str]] = None) -> Dict[str, Any]:
+    if not sources and not from_target:
+        raise CommandError("要给文件路径，或用 --from-target <仓库名>/<路径>。")
     rules = policy(root)
     directory = layout.request_dir(root, request_id)
     with store.locked(root, request_id) as data:
         store.require_open(data)
         if any_dispatched(data):
             raise CommandError("已经派发过输入包，init-inputs 不再改。要补充内容，放进下一轮：dispatch 时用 --input。")
-        entries = copy_in(root, sources, layout.init_inputs(directory), rules["inputs"]["max_files"], "input")
+        limit = rules["inputs"]["max_files"]
+        entries = copy_in(root, sources, layout.init_inputs(directory), limit, "input")
+        entries += copy_from_target(root, data, from_target or [], layout.init_inputs(directory), limit - len(entries), "input")
         known = {item["path"]: item for item in data["inputs"]}
         for entry in entries:
             name = entry["path"].split("/", 1)[1]  # relative to init-inputs/
             known[name] = {"path": name, "source": entry["source"], "sha256": entry["sha256"]}
+            for extra in ("repo", "blob", "base_commit"):
+                if extra in entry:
+                    known[name][extra] = entry[extra]
         data["inputs"] = list(known.values())
     return {"added": [item["path"] for item in known.values() if item["source"] in {e["source"] for e in entries}], "total_inputs": len(data["inputs"])}
 
@@ -221,7 +441,7 @@ def set_brief(root: Path, request_id: str, source: str) -> Dict[str, Any]:
 # --- attempts, dispatch ----------------------------------------------------------------------------------
 
 
-def assignment_text(root: Path, request_id: str, number: int, role: str, directory: Path) -> str:
+def assignment_text(root: Path, request_id: str, number: int, role: str, directory: Path, note: str = "") -> str:
     template = (root / ".harness" / "contracts" / "templates" / "assignment.md").read_text(encoding="utf-8")
     outputs = layout.inside(root, layout.outputs_dir(directory, number, role)) or ""
     return (
@@ -231,6 +451,7 @@ def assignment_text(root: Path, request_id: str, number: int, role: str, directo
         .replace("{outputs_dir}", outputs)
         .replace("{cli}", cli_command())
         .replace("{mkdir}", mkdir_command())
+        .replace("{target_note}\n", note + "\n" if note else "")
     )
 
 
@@ -249,10 +470,12 @@ def new_attempt(root: Path, request_id: str, human_approved: str = "") -> Dict[s
             )
         if number > 1 and not data["attempts"][-1]["handoffs"]:
             raise CommandError(f"第 {number - 1} 轮还没有任何 handoff，不能开下一轮。先让它交接（handoff submit），或 `request set-status abandoned`。")
+        found = load_targets(root) if data.get("target_mode") else None
         for role in layout.ROLES:
+            note = target_note(data, found, role) if found else ""
             package = layout.package_dir(directory, number, role)
             (package / ("candidate" if role == "reviewer" else "inputs")).mkdir(parents=True, exist_ok=True)
-            write_text(package / "assignment.md", assignment_text(root, request_id, number, role, directory))
+            write_text(package / "assignment.md", assignment_text(root, request_id, number, role, directory, note))
             layout.outputs_dir(directory, number, role).mkdir(parents=True, exist_ok=True)
             layout.handoff_file(directory, number, role).parent.mkdir(parents=True, exist_ok=True)
         data["attempt"] = number
@@ -323,7 +546,7 @@ def last_brief_version(data: Dict[str, Any], role: str, number: int) -> int:
     return 0
 
 
-def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]] = None) -> Dict[str, Any]:
+def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]] = None, from_target: Optional[List[str]] = None) -> Dict[str, Any]:
     if role not in layout.ROLES:
         raise CommandError("--role 只能是 builder 或 reviewer。")
     rules = policy(root)
@@ -348,10 +571,14 @@ def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]]
         files: List[Dict[str, str]] = []
         try:
             files += copy_in(root, inputs or [], package / "inputs", rules["inputs"]["max_files"], "input")
+            files += copy_from_target(root, data, from_target or [], package / "inputs", rules["inputs"]["max_files"] - len(files), "input")
+            if role == "builder":
+                files += staged_target_files(root, data, package / "inputs", files, rules["inputs"]["max_files"] - len(files))
             if role == "builder" and number > 1:
                 files += previous_files(root, directory, number, package / "inputs")
             if role == "reviewer":
                 files += candidate_files(root, directory, number, package / "candidate")
+                files += baseline_files(root, data, directory, number, package / "base")
             brief_path = layout.brief_file(directory)
             version = data["brief"]["version"]
             delta: List[str] = []
@@ -374,9 +601,10 @@ def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]]
             write_text(package / "manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
         except BaseException:
             (package / "manifest.json").unlink() if (package / "manifest.json").exists() else None
-            for sub in ("inputs", "candidate"):
+            for sub in ("inputs", "candidate", "base"):
                 shutil.rmtree(str(package / sub), ignore_errors=True)
-                (package / sub).mkdir(parents=True, exist_ok=True)
+                if sub != "base":
+                    (package / sub).mkdir(parents=True, exist_ok=True)
             raise
         for file in [assignment, package / "manifest.json"] + [package / item["path"] for item in files]:
             read_only(file)
@@ -394,6 +622,17 @@ def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]]
 
 
 # --- handoff ------------------------------------------------------------------------------------------------
+
+
+def check_target_output(found: targets.Targets, name: str) -> None:
+    """In a request with target repositories every result path is `<repo>/<path in the repo>`, and not a path promote refuses."""
+    repo_name, _, rest = name.partition("/")
+    if repo_name not in found.repos or not rest:
+        known = "、".join(found.names()) or "（没有）"
+        raise CommandError(f"--output `{name}` 的第一段要是仓库名，后面是仓库里的路径，例如 bdtt_repo/src/a.sql。已知的仓库：{known}。")
+    for pattern in found.repos[repo_name].refused_paths:
+        if repo_paths.glob_regex(pattern).match(rest):
+            raise CommandError(f"--output `{name}` 属于不能回写的路径（{repo_name} 的 {pattern}）。把它从成果里去掉。")
 
 
 def parse_kb(items: List[str]) -> List[Dict[str, str]]:
@@ -446,9 +685,12 @@ def submit_handoff(
             raise CommandError("reviewer 的 status 是 passed 时，要用 --evidence 列出证据文件。")
         base = layout.outputs_dir(directory, number, role)
         clean_outputs, clean_evidence = [], []
+        found = load_targets(root) if data.get("target_mode") else None
         for items, clean, label in ((outputs, clean_outputs, "--output"), (evidence, clean_evidence, "--evidence")):
             for item in items:
                 name = layout.relative_name(item, label)
+                if found is not None and label == "--output":
+                    check_target_output(found, name)
                 if not (base / name).is_file():
                     raise CommandError(f"{label} `{item}` 不是文件：{layout.inside(root, base / name)}。成果和证据放在 {layout.inside(root, base)}/ 下，路径相对于它。")
                 clean.append(name)
@@ -493,6 +735,14 @@ def wait(root: Path, request_id: str, reason: str) -> Dict[str, Any]:
     }
 
 
+def _has_candidates(root: Path, request_id: str, data: Dict[str, Any]) -> bool:
+    """Did the last reviewer package hold result files, i.e. something promote would write?"""
+    path = layout.package_dir(layout.request_dir(root, request_id), data["attempt"], "reviewer") / "manifest.json"
+    if not path.is_file():
+        return False
+    return any(item.get("purpose") == "candidate" for item in store_json(path).get("files", []))
+
+
 def set_status(root: Path, request_id: str, status: str, reason: str = "") -> Dict[str, Any]:
     if status not in STATUS_ENDS:
         raise CommandError("--status 只能是 accepted、hitl 或 abandoned。")
@@ -505,6 +755,12 @@ def set_status(root: Path, request_id: str, status: str, reason: str = "") -> Di
             last = data["attempts"][-1] if data["attempts"] else None
             if not (last and last["handoffs"].get("reviewer") == "passed") and not reason:
                 raise CommandError("最后一轮 reviewer 还不是 passed，不能 accepted。要么先走完评审，要么用 --reason 写明为什么可以跳过评审。")
+            if last and last["handoffs"].get("reviewer") == "passed" and data["promote"]["state"] != "done" and _has_candidates(root, request_id, data):
+                if not reason:
+                    raise CommandError(
+                        "reviewer 评审过的成果还没有 promote，不能 accepted（结束后就不能再 promote）。"
+                        "先 `promote --dry-run`，`request wait` 等用户批准，再 `promote`。成果确实不需要回写，才用 --reason 写明理由。"
+                    )
         data["status"] = status
         data["status_reason"] = reason
         data.pop("waiting", None)

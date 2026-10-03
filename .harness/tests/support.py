@@ -63,7 +63,8 @@ def make_root(root: Path, with_registry: bool = True, with_policy: bool = True) 
     if with_registry:
         shutil.copy(REPO / ".harness" / "registry.json", root / ".harness" / "registry.json")
     if with_policy:
-        shutil.copytree(REPO / ".harness" / "policies", root / ".harness" / "policies")
+        # Not the override files: they are the user's own settings (a target repository, a gate rule) and must not leak into a test
+        shutil.copytree(REPO / ".harness" / "policies", root / ".harness" / "policies", ignore=shutil.ignore_patterns("*.override.json"))
         shutil.copytree(REPO / ".harness" / "contracts", root / ".harness" / "contracts")
 
 

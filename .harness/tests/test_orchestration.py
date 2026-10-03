@@ -59,10 +59,28 @@ class DispatchGateTests(RequestCase):
         self.assertEqual(self.request(request_id)["pending_dispatch"][0]["role"], "builder")
         self.assertEqual(self.call("builder"), {})
         self.assertEqual(self.request(request_id)["pending_dispatch"], [])
+        self.hook(payload("SubagentStart", SESSION, agent_id="a-builder", agent_type="builder"))  # the call really started
         output = self.call("builder")
         self.assertEqual(self.decision(output), "deny")
         self.assertIn("已经调用过了", self.reason(output))
         self.assertEqual(self.check(request_id)["problems"], [])
+
+    def test_a_call_the_tool_refused_can_be_made_again_without_a_new_dispatch(self) -> None:
+        """The tool checks its arguments after the hook. A missing required one means the subagent never started."""
+        request_id = self.ready_builder()
+        self.dispatch(request_id, "builder")
+        self.assertEqual(self.call("builder"), {})  # passes the hook; the tool then refuses it, no SubagentStart follows
+        self.assertEqual(self.call("builder"), {})  # the retry is allowed
+        self.assertEqual(self.call("builder"), {})  # and again
+        self.hook(payload("SubagentStart", SESSION, agent_id="a-builder", agent_type="builder"))
+        self.assertEqual(self.decision(self.call("builder")), "deny")  # it started once: no second run for this dispatch
+
+    def test_a_retry_is_only_for_the_role_and_attempt_that_never_started(self) -> None:
+        request_id = self.ready_builder()
+        self.dispatch(request_id, "builder")
+        self.assertEqual(self.call("builder"), {})
+        self.assertEqual(self.decision(self.call("reviewer")), "deny")  # no dispatch for the reviewer
+        self.assertEqual(self.request(request_id)["pending_dispatch"], [])
 
     def test_a_dispatch_for_one_role_does_not_open_the_other(self) -> None:
         request_id = self.ready_builder()

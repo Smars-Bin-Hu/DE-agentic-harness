@@ -25,7 +25,7 @@ RESULT_TEXT = {
     "abandoned": "已放弃。",
     "open": "进行中，还没有收尾。",
 }
-PROMOTE_TEXT = {"none": "没有回写。", "dry_run": "已生成计划，没有回写。", "done": "已回写到仓库。"}
+PROMOTE_TEXT = {"none": "没有回写。", "dry_run": "已生成计划，没有回写。", "done": "已回写到仓库。", "partial": "回写中途出错，仓库可能是半成品，要人处理（见 request.json 的 promote.recovery）。"}
 
 
 def report_path(root: Path, request_id: str) -> Path:
@@ -68,6 +68,8 @@ def head_section(data: Dict[str, Any], limit: int) -> List[str]:
         f"- 更新：{data['updated_at']}",
         f"- 会话：{data.get('session_id', '')}（{data.get('surface', '')}）",
         f"- 轮数：{data['attempt']} / 上限 {limit}",
+    ] + ([f"- 任务目录：{data['task']}"] if data.get("task") else []) + ([f"- 分支：{data['branch']}"] if data.get("branch") else []) + [
+        f"- 目标仓库：{name}，{item['base_ref']} 在 {item['base_commit'][:12]}" for name, item in data.get("targets", {}).items()
     ] + ([f"- 在等人：{data['waiting']['reason']}"] if data.get("waiting") else []) + [
         "",
         "## 结果",
@@ -77,6 +79,8 @@ def head_section(data: Dict[str, Any], limit: int) -> List[str]:
     ]
     for item in promote.get("files", []):
         lines.append(f"- {item['action']} {item['path']}")
+    if promote.get("dev"):
+        lines.append(f"- 备份：{promote['dev']}，补丁：{promote.get('patch', '')}")
     return lines
 
 

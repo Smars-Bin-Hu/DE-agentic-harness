@@ -1,6 +1,6 @@
 """CLI commands of the request module.
 
-  request new|add-input|set-status|wait|show|list|approve-promote    the request itself (approve-promote: a person at a terminal)
+  request new|add-input|set-branch|set-status|wait|show|list|approve-promote|recover    the request itself (approve-promote, recover: a person at a terminal)
   brief set                                  hand the knowledge brief to the CLI
   attempt new                                open the next attempt
   dispatch                                   build and freeze the input package of one role
@@ -8,6 +8,7 @@
   report                                     one Markdown page about a request (also written when it is concluded)
   check                                      does the request folder agree with itself
   promote                                    copy the reviewed result back into the repository (ask in the gate)
+  target list|show                           the target repositories (policy target.json): where they are, what their base branch is
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import argparse
 from typing import Any, Dict
 
+from core import targets
 from core.paths import repo_root
 
 from . import check, ops, promote, report
@@ -25,11 +27,15 @@ def _request(parser: argparse.ArgumentParser) -> None:
 
 
 def cmd_new(args: argparse.Namespace) -> Dict[str, Any]:
-    return ops.new_request(repo_root(), args.title, args.session_id, args.surface)
+    return ops.new_request(repo_root(), args.title, args.session_id, args.surface, args.task, args.branch)
+
+
+def cmd_set_branch(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.set_branch(repo_root(), args.request, args.branch)
 
 
 def cmd_add_input(args: argparse.Namespace) -> Dict[str, Any]:
-    return ops.add_input(repo_root(), args.request, args.paths)
+    return ops.add_input(repo_root(), args.request, args.paths, args.from_target)
 
 
 def cmd_set_status(args: argparse.Namespace) -> Dict[str, Any]:
@@ -42,6 +48,10 @@ def cmd_wait(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_approve_promote(args: argparse.Namespace) -> Dict[str, Any]:
     return promote.approve(repo_root(), args.request or "")
+
+
+def cmd_recover(args: argparse.Namespace) -> Dict[str, Any]:
+    return promote.recover(repo_root(), args.request or "")
 
 
 def cmd_report(args: argparse.Namespace) -> Dict[str, Any]:
@@ -65,7 +75,7 @@ def cmd_attempt_new(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def cmd_dispatch(args: argparse.Namespace) -> Dict[str, Any]:
-    return ops.dispatch(repo_root(), args.request, args.role, args.input)
+    return ops.dispatch(repo_root(), args.request, args.role, args.input, args.from_target)
 
 
 def cmd_handoff_submit(args: argparse.Namespace) -> Dict[str, Any]:
@@ -86,6 +96,20 @@ def cmd_promote(args: argparse.Namespace) -> Dict[str, Any]:
     return promote.run(repo_root(), args.request, args.dry_run)
 
 
+def cmd_target_list(args: argparse.Namespace) -> Dict[str, Any]:
+    found = targets.load(repo_root())
+    return {
+        "configured": found.configured,
+        "repos": [targets.summary(found.repos[name], found.timeout) for name in found.names()],
+        "problems": found.problems,
+    }
+
+
+def cmd_target_show(args: argparse.Namespace) -> Dict[str, Any]:
+    found = targets.load(repo_root())
+    return targets.summary(found.get(args.repo), found.timeout)
+
+
 def register(subparsers: Any) -> None:
     request = subparsers.add_parser("request", help="the L3 request")
     commands = request.add_subparsers(dest="request_command", required=True)
@@ -94,11 +118,19 @@ def register(subparsers: Any) -> None:
     new.add_argument("--title", required=True)
     new.add_argument("--session-id", required=True, help="the session id written at the top of the prompt rules")
     new.add_argument("--surface", default="vscode", choices=["vscode", "cli"])
+    new.add_argument("--task", default="", help="the task folder under .workspace/current_tasks/ (promote backs the result up to its DEV folder)")
+    new.add_argument("--branch", default="", help="feature/<name> for the target repositories (letters, digits, `_`); can be set later")
     new.set_defaults(handler=cmd_new)
+
+    set_branch = commands.add_parser("set-branch", help="set the feature branch name of a request with target repositories")
+    _request(set_branch)
+    set_branch.add_argument("--branch", required=True)
+    set_branch.set_defaults(handler=cmd_set_branch)
 
     add = commands.add_parser("add-input", help="copy files into init-inputs/")
     _request(add)
-    add.add_argument("paths", nargs="+")
+    add.add_argument("paths", nargs="*")
+    add.add_argument("--from-target", action="append", default=[], help="<repo>/<path>: a file or folder as the target repository's base branch has it (repeatable)")
     add.set_defaults(handler=cmd_add_input)
 
     status = commands.add_parser("set-status", help="end the request: accepted, hitl or abandoned")
@@ -115,6 +147,10 @@ def register(subparsers: Any) -> None:
     approve = commands.add_parser("approve-promote", help="the person approves the plan of the last promote --dry-run (terminal only)")
     approve.add_argument("--request", default="", help="request id; left out, the only request waiting for approval is used")
     approve.set_defaults(handler=cmd_approve_promote)
+
+    recover = commands.add_parser("recover", help="the person puts the repositories back after a promote stopped halfway (terminal only)")
+    recover.add_argument("--request", default="", help="request id; left out, the only request whose promote stopped halfway is used")
+    recover.set_defaults(handler=cmd_recover)
 
     list_parser = commands.add_parser("list", help="list requests, newest first (id, title, status, waiting for approval)")
     list_parser.add_argument("--status", default="", choices=["", "open", "accepted", "hitl", "abandoned"])
@@ -146,6 +182,7 @@ def register(subparsers: Any) -> None:
     _request(dispatch)
     dispatch.add_argument("--role", required=True, choices=["builder", "reviewer"])
     dispatch.add_argument("--input", action="append", default=[], help="a repo file or folder to copy into the package (repeatable)")
+    dispatch.add_argument("--from-target", action="append", default=[], help="<repo>/<path> from a target repository's base branch (repeatable)")
     dispatch.set_defaults(handler=cmd_dispatch)
 
     handoff = subparsers.add_parser("handoff", help="handoffs")
@@ -171,3 +208,11 @@ def register(subparsers: Any) -> None:
     _request(promote_parser)
     promote_parser.add_argument("--dry-run", action="store_true")
     promote_parser.set_defaults(handler=cmd_promote)
+
+    target = subparsers.add_parser("target", help="the target repositories")
+    target_commands = target.add_subparsers(dest="target_command", required=True)
+    target_list = target_commands.add_parser("list", help="every target repository: path, base branch, its commit, clean or not")
+    target_list.set_defaults(handler=cmd_target_list)
+    target_show = target_commands.add_parser("show", help="one target repository")
+    target_show.add_argument("--repo", required=True, help="the repository name (the folder name under repos_root)")
+    target_show.set_defaults(handler=cmd_target_show)

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Pattern, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Pattern, Tuple
 
 from core import repo_paths, schema
 from core.guardrails import CORE_GUARDRAILS, guardrail_paths, missing_core
 
 POLICY_NAME = "gate"
+# Any `.git` folder (in a target repository or anywhere else) in a terminal command, with the spellings Windows treats as the same.
+GIT_FOLDER = r"(?<![\w.-])(?:\.git|git~\d+)\.*(?:::\$\w+)?(?:/[^\s\"']*)?(?![\w.-])"
 REQUEST_PLACEHOLDER = "{request_id}"
 GUARD_PLACEHOLDER = "{guard}"
 # Where a command can start: the beginning, or after `;`, `&`, `|`, `(`, a new line. An optional `sudo` may lead.
@@ -74,7 +77,8 @@ def validate_policy(policy: Dict[str, Any], floor: bool = True) -> None:
 class Compiled:
     """The policy with its patterns compiled. Built once per hook call."""
 
-    def __init__(self, policy: Dict[str, Any]) -> None:
+    def __init__(self, policy: Dict[str, Any], repos: Optional[List[Tuple[str, Path, List[str]]]] = None) -> None:
+        """`repos`: (name, path, refused_paths) of each target repository. Without them only the `.git` floor applies."""
         self.paths = guardrail_paths(policy)
         self.path_regexes: List[Tuple[str, Pattern[str]]] = [(item, repo_paths.glob_regex(item)) for item in self.paths]
         guard = repo_paths.command_regex(self.paths).pattern
@@ -93,6 +97,20 @@ class Compiled:
         self.deny = [(re.compile(expand(rule["pattern"], ""), re.IGNORECASE), rule["why"]) for rule in policy["terminal"]["deny"]]
         self.ask = [(re.compile(expand(rule["pattern"], ""), re.IGNORECASE), rule["why"]) for rule in policy["terminal"]["ask"]]
         self.l3_write_root = policy["l3_write_root"]
+        # A `.git` folder is never written by an agent (A4); a target repository's refused_paths are not written either.
+        self.repos: List[Tuple[str, Path, List[Tuple[str, Pattern[str]]]]] = [
+            (name, path, [(item, repo_paths.glob_regex(item)) for item in refused if item.strip() != ".git/**"])
+            for name, path, refused in (repos or [])
+        ]
+        absolute = [
+            f"{repo_paths.normal(str(path))}/{item}"
+            for _name, path, refused in (repos or []) for item in refused if item.strip() != ".git/**"
+        ]
+        target_guard = "(?:" + GIT_FOLDER + (("|" + repo_paths.command_regex(absolute).pattern) if absolute else "") + ")"
+        self.target_writes = [
+            (re.compile(expand(rule["pattern"], target_guard), re.IGNORECASE), rule["why"])
+            for rule in policy["terminal"]["guardrail_write"]
+        ]
 
     def guardrail_match(self, relative: str) -> str:
         """The guardrail pattern a repo-relative path falls under, or an empty string."""
@@ -110,3 +128,12 @@ class Compiled:
 
     def request_root(self, request_id: str) -> str:
         return self.l3_write_root.replace(REQUEST_PLACEHOLDER, request_id).strip("/")
+
+    def refused_match(self, absolute: str) -> Optional[Tuple[str, str, str]]:
+        """`(repo name, repo-relative path, pattern)` when an absolute path falls under a target repository's refused_paths."""
+        for name, path, patterns in self.repos:
+            for relative in repo_paths.inside(absolute, path):
+                for pattern, regex in patterns:
+                    if regex.match(relative):
+                        return name, relative, pattern
+        return None

@@ -21,6 +21,8 @@ class ReportCase(RequestCase):
 
     def conclude(self, request_id: str, status: str, reason: str = "") -> Dict[str, Any]:
         extra = ["--reason", reason] if reason else []
+        if status == "accepted" and self.request(request_id)["promote"]["state"] != "done" and self.request(request_id)["attempts"]:
+            self.promote_for_real(request_id)  # an accepted request has its result in the repository
         return self.run_cli("request", "set-status", "--request", request_id, "--status", status, *extra)
 
 

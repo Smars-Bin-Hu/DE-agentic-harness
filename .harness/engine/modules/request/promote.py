@@ -5,6 +5,8 @@ Only the files the reviewer saw (to-reviewer/candidate/) are copied, and only wh
 `request approve-promote`: it works only in a terminal the person types in (stdin and stdout are a TTY) and asks them to
 type a code from the plan. A tool-call dialog cannot be the guard, because "Allow in this Session" switches it off.
 The gate also denies an agent that tries to run `approve-promote`.
+A request with target repositories is planned and written by `promote_target.py`: the result goes onto a new branch of each
+repository (never committed), and nothing is written unless every repository passes its checks.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from core import config, repo_paths
 from core.guardrails import guardrail_paths
 from core.paths import cli_command, utc_now
 
-from . import layout, ops, store
+from . import layout, ops, promote_target, store
 from .layout import CommandError
 
 DIFF_PREVIEW_LINES = 40
@@ -91,6 +93,17 @@ def _diff(old: bytes, new: bytes, name: str) -> Dict[str, Any]:
     return {"added": added, "removed": removed, "diff": lines[:DIFF_PREVIEW_LINES]}
 
 
+def make_plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    return promote_target.plan(root, request_id, data) if data.get("target_mode") else plan(root, request_id, data)
+
+
+def shown(result: Dict[str, Any]) -> Dict[str, Any]:
+    """The plan as the CLI prints it: each file once (the per-repository copies in `repos` are for the run)."""
+    if "repos" not in result:
+        return result
+    return {**result, "repos": [{key: value for key, value in repo.items() if key != "files"} for repo in result["repos"]]}
+
+
 def approve_command(request_id: str) -> str:
     return f"{cli_command()} request approve-promote --request {request_id}"
 
@@ -130,10 +143,12 @@ def approve(
     store.require_open(data)
     if data["promote"]["state"] != "dry_run":
         raise CommandError("还没有 --dry-run 的计划，或者已经 promote 过。先让 agent 运行 promote --dry-run。")
-    result = plan(root, request_id, data)
+    result = make_plan(root, request_id, data)
     if result["plan_sha256"] != data["promote"]["plan_sha256"]:
         raise CommandError("成果或仓库在 dry-run 之后变了。让 agent 重新运行 promote --dry-run，再来批准。")
     print(f"请求 {request_id}，第 {result['attempt']} 轮。将回写这些文件：", file=out)
+    for repo in result.get("repos", []):
+        print(f"  仓库 {repo['name']}（{repo['path']}）：从 {repo['base_ref']}（{repo['base_commit'][:12]}）新建分支 {result['branch']}，写入文件，不提交。", file=out)
     for item in result["files"]:
         print(f"  {item['action']:9} {item['path']}  (+{item['added']} -{item['removed']})", file=out)
         for line in item["diff"][:12]:
@@ -144,7 +159,7 @@ def approve(
         raise CommandError("没有批准。什么都没有写。")
     with store.locked(root, request_id) as locked:
         store.require_open(locked)
-        again = plan(root, request_id, locked)
+        again = make_plan(root, request_id, locked)
         if again["plan_sha256"] != result["plan_sha256"] or locked["promote"].get("plan_sha256") != result["plan_sha256"]:
             raise CommandError("你确认的时候计划变了。让 agent 重新运行 promote --dry-run，再来批准。")
         locked["promote"]["approved_plan_sha256"] = result["plan_sha256"]
@@ -152,12 +167,78 @@ def approve(
     return {"approved": True, "plan_sha256": result["plan_sha256"], "files": len(result["files"]), "next": "告诉 agent 可以运行 promote 了。"}
 
 
+def partial_request(root: Path) -> str:
+    """The one open request whose promote stopped halfway. Raises when there is none or several."""
+    found = [item["request_id"] for item in ops.list_requests(root, "open")["requests"] if item["promote"] == "partial"]
+    if not found:
+        raise CommandError("没有中途出错的 promote。用 `request list` 看所有请求。")
+    if len(found) > 1:
+        raise CommandError("有好几个请求的 promote 中途出错：" + "、".join(found) + "。用 --request 指定一个。")
+    return found[0]
+
+
+def recover(
+    root: Path,
+    request_id: str = "",
+    reader: Optional[Callable[[str], str]] = None,
+    interactive: Optional[bool] = None,
+    out: Any = None,
+) -> Dict[str, Any]:
+    """The person puts the repositories back after a promote that stopped halfway. Terminal only, like `approve`.
+
+    Runs the recorded steps (restore the written files, switch back, delete the new branch) one repository at a time.
+    When every step is done or not needed, the request goes back to "no promote yet": `--dry-run` and a new approval follow.
+    """
+    out = out or sys.stdout
+    request_id = request_id or partial_request(root)
+    if interactive is None:
+        interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    if not interactive:
+        raise CommandError("recover 只能由用户在自己的终端里手动运行，要打字确认。agent 不能运行它，管道和脚本也不行。")
+    data = store.read_request(root, request_id)
+    store.require_open(data)
+    record = data["promote"]
+    if record["state"] != "partial":
+        raise CommandError("这个请求的 promote 没有中途出错，不需要恢复。")
+    steps = record.get("recovery_steps")
+    if steps is None:  # a record written before the steps were kept: only the printed commands exist
+        raise CommandError("这个请求的记录里没有可以自动运行的恢复步骤。照 `request show` 里 promote.recovery 的命令，自己逐条运行。")
+    print(f"请求 {request_id}：promote 中途出错（出错的仓库 {record.get('repo_failed', '')}：{record.get('error', '')}）。将运行：", file=out)
+    for command in record.get("recovery", []) or ["（没有要运行的命令：没有仓库被改动）"]:
+        print(f"  {command}", file=out)
+    code = code_of(record["plan_sha256"])
+    answer = (reader or input)(f"确认恢复，输入 {code}（其他任何输入都是取消）：").strip()
+    if answer != code:
+        raise CommandError("没有确认。什么都没有做。")
+    found = ops.load_targets(root)
+    results = promote_target.run_recovery(steps, record["branch"], found.timeout)
+    for item in results:
+        print(f"  [{item['status']}] {item['command']}" + (f"  {item['message']}" if item["message"] else ""), file=out)
+    failed = [item for item in results if item["status"] == "failed"]
+    if failed:
+        raise CommandError(
+            f"{len(failed)} 步没有成功（上面标 [failed] 的）。先按 git 的提示处理（例如文件夹只读、文件被占用），再运行一次 recover：已经做完的步骤会跳过。"
+        )
+    with store.locked(root, request_id) as locked:
+        locked["promote"] = {"state": "none", "recovered_at": utc_now()}
+    counts = {status: sum(1 for item in results if item["status"] == status) for status in ("done", "skipped")}
+    return {"recovered": True, "request_id": request_id, **counts, "next": "仓库已经恢复。让 agent 重新运行 promote --dry-run，用户再批准。"}
+
+
 def run(root: Path, request_id: str, dry_run: bool) -> Dict[str, Any]:
     with store.locked(root, request_id) as data:
         store.require_open(data)
         if data["promote"]["state"] == "done":
             raise CommandError("这个请求已经 promote 过了，不再回写第二次。需要再改，用 `request new` 开新请求。")
-        result = plan(root, request_id, data)
+        partial = data["promote"]["state"] == "partial"
+        if partial and not dry_run:
+            raise CommandError("上次 promote 中途出错，仓库可能还是半成品。先让用户按恢复命令把仓库恢复成原样（命令在 `request show` 的 promote.recovery 里），再重新 --dry-run、批准。")
+        try:
+            result = make_plan(root, request_id, data)
+        except CommandError as error:
+            if partial:
+                raise CommandError(f"{error}\n（上次 promote 中途出错。如果仓库还没有恢复，先让用户运行 promote.recovery 里的命令。）") from error
+            raise
         if dry_run:
             record = {"state": "dry_run", "plan_sha256": result["plan_sha256"], "at": utc_now()}
             old = data["promote"]
@@ -170,7 +251,7 @@ def run(root: Path, request_id: str, dry_run: bool) -> Dict[str, Any]:
                 if result["approved"]
                 else "把这份计划给用户看，请用户在自己的终端运行：" + approve_command(request_id) + "。用户批准后，再运行 promote（去掉 --dry-run）。"
             )
-            return {"dry_run": True, **result}
+            return {"dry_run": True, **shown(result)}
         if data["promote"]["state"] != "dry_run" or data["promote"].get("plan_sha256") != result["plan_sha256"]:
             raise CommandError("还没有对应的 --dry-run，或者成果、仓库在 dry-run 之后变了。先重新运行 --dry-run，让用户看过再批准。")
         if data["promote"].get("approved_plan_sha256") != result["plan_sha256"]:
@@ -178,19 +259,31 @@ def run(root: Path, request_id: str, dry_run: bool) -> Dict[str, Any]:
                 "用户还没有批准这份计划。请用户在自己的终端运行：" + approve_command(request_id)
                 + "，看完计划，按提示输入确认码。你不能自己运行它。用户说批准好了，再运行 promote。"
             )
-        directory = layout.request_dir(root, request_id)
-        package = layout.package_dir(directory, data["attempt"], "reviewer")
-        for item in result["files"]:
-            if item["action"] == "unchanged":
-                continue
-            ops.copy_file(package / "candidate" / item["path"], root / item["path"])
-        data["promote"] = {
-            "state": "done",
-            "plan_sha256": result["plan_sha256"],
-            "approved_plan_sha256": data["promote"]["approved_plan_sha256"],
-            "approved_at": data["promote"]["approved_at"],
-            "at": utc_now(),
-            "files": [{"path": f["path"], "action": f["action"], "sha256": f["sha256"]} for f in result["files"]],
-        }
-        result["next"] = "已回写。用 `request set-status accepted` 结束请求。"
-        return {"dry_run": False, **result}
+        if data.get("target_mode"):
+            record, failed = promote_target.run(root, data, request_id, result)
+            data["promote"] = record  # a `partial` record is saved too: the lock writes it back, the error is raised after
+            if not failed:
+                result["next"] = (
+                    f"已写到各仓库的新分支 {result['branch']}，文件没有提交，成果和补丁备份在 {record['dev']}。"
+                    "告诉用户：在每个仓库里检查改动、自己 commit。然后用 `request set-status accepted` 结束请求。"
+                )
+                return {"dry_run": False, **shown(result)}
+            failure = promote_target.partial_message(record)
+        else:
+            directory = layout.request_dir(root, request_id)
+            package = layout.package_dir(directory, data["attempt"], "reviewer")
+            for item in result["files"]:
+                if item["action"] == "unchanged":
+                    continue
+                ops.copy_file(package / "candidate" / item["path"], root / item["path"])
+            data["promote"] = {
+                "state": "done",
+                "plan_sha256": result["plan_sha256"],
+                "approved_plan_sha256": data["promote"]["approved_plan_sha256"],
+                "approved_at": data["promote"]["approved_at"],
+                "at": utc_now(),
+                "files": [{"path": f["path"], "action": f["action"], "sha256": f["sha256"]} for f in result["files"]],
+            }
+            result["next"] = "已回写。用 `request set-status accepted` 结束请求。"
+            return {"dry_run": False, **result}
+    raise CommandError(failure)

@@ -2,6 +2,8 @@
 
   edit / create tools   a guardrail file or a file only the CLI writes is denied; in L3 a path outside the request folder is denied
   terminal              a command that writes a guardrail file or is dangerous is denied; some commands ask a person
+  `.git`                a path in a `.git` folder is denied at every Level, in a terminal command too (A4); so is a path a target
+                        repository lists in refused_paths
 
 A call with no path the gate can read is allowed: the gate only denies what it can see clearly (AGENTS.md).
 """
@@ -9,9 +11,10 @@ A call with no path the gate can read is allowed: the gate only denies what it c
 from __future__ import annotations
 
 import re
-from typing import Optional
+from pathlib import Path
+from typing import List, Optional, Tuple
 
-from core import repo_paths
+from core import repo_paths, targets
 from core.context import Context
 from core.events import Decision, HookEvent
 
@@ -32,6 +35,12 @@ def check_write(event: HookEvent, ctx: Context, compiled: Compiled) -> Optional[
         request_root = compiled.request_root(request_id)
     outside: Optional[Decision] = None
     for raw in event.paths:
+        for absolute in repo_paths.resolve(raw, ctx.root, event.cwd):
+            if repo_paths.has_git_folder(absolute):
+                return Decision(permission="deny", reason=rules.git_folder(absolute))
+            hit = compiled.refused_match(absolute)
+            if hit:
+                return Decision(permission="deny", reason=rules.target_refused_file(*hit))
         readings = repo_paths.repo_relative(raw, ctx.root, event.cwd)
         for relative in (item for item in readings if item is not None):
             pattern = compiled.guardrail_match(relative)
@@ -64,6 +73,9 @@ def check_terminal(event: HookEvent, compiled: Compiled) -> Optional[Decision]:
     why = terminal.owned_write(event.command, compiled)
     if why:
         return Decision(permission="deny", reason=rules.cli_owned_terminal(why))
+    why = terminal.git_write(event.command, compiled)
+    if why:
+        return Decision(permission="deny", reason=rules.git_folder_terminal(why))
     verdict = terminal.check(event.command, compiled)
     if verdict is None:
         return None
@@ -72,12 +84,21 @@ def check_terminal(event: HookEvent, compiled: Compiled) -> Optional[Decision]:
     return Decision(permission=permission, reason=reason)
 
 
+def target_repos(ctx: Context) -> List[Tuple[str, Path, List[str]]]:
+    """The target repositories and their refused_paths. A broken target.json gives none: the `.git` floor still holds, and doctor reports it."""
+    try:
+        found = targets.load(ctx.root)
+    except Exception:  # noqa: BLE001 - the gate must not fail on a bad target.json
+        return []
+    return [(repo.name, repo.path, repo.refused_paths) for repo in found.repos.values()]
+
+
 def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
     if event.event != "PreToolUse" or event.tool_kind not in WRITE_KINDS + ("terminal",):
         return None
     policy = ctx.policy(POLICY_NAME)
     validate_policy(policy, floor=False)
-    compiled = Compiled(policy)
+    compiled = Compiled(policy, target_repos(ctx))
     if event.tool_kind == "terminal":
         return check_terminal(event, compiled)
     return check_write(event, ctx, compiled)

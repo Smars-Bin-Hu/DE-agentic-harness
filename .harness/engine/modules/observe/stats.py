@@ -47,7 +47,8 @@ def seconds_between(first: str, second: str) -> float:
 def same_call_twice(previous: Dict[str, Any], row: Dict[str, Any]) -> bool:
     """Two rows of one session for the same event and tool within a moment, from two processes: the hook may be configured twice.
 
-    Two real tool calls of the same kind at the same moment look the same, so this is a hint, not proof.
+    Two real tool calls of the same kind at the same moment (an agent reading two files in parallel) look the same, so a
+    few are normal. A hook configured twice doubles nearly every call.
     """
     if not previous or previous.get("pid") == row.get("pid"):
         return False

@@ -17,7 +17,7 @@ from support import CLI, ENGINE, REPO
 
 def copy_repo(destination: Path) -> None:
     """The parts of the repository that doctor looks at."""
-    ignore = shutil.ignore_patterns("__pycache__", "runtime", "*.pyc")
+    ignore = shutil.ignore_patterns("__pycache__", "runtime", "*.pyc", "*.override.json")
     shutil.copytree(REPO / ".github", destination / ".github", ignore=ignore)
     shutil.copytree(REPO / ".harness", destination / ".harness", ignore=ignore)
     (destination / ".workspace").mkdir()

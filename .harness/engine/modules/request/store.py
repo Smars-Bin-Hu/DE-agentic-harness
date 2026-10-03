@@ -58,7 +58,7 @@ def new_request_id(root: Path, title: str) -> str:
     raise CommandError("建不出不重复的请求 id，稍后再试。")
 
 
-def empty_request(request_id: str, title: str, session_id: str, surface: str) -> Dict[str, Any]:
+def empty_request(request_id: str, title: str, session_id: str, surface: str, target_mode: bool = False, task: str = "", branch: str = "") -> Dict[str, Any]:
     now = utc_now()
     return {
         "schema_version": SCHEMA_VERSION,
@@ -76,6 +76,11 @@ def empty_request(request_id: str, title: str, session_id: str, surface: str) ->
         "pending_dispatch": [],
         "inputs": [],
         "promote": {"state": "none"},
+        "target_mode": target_mode,
+        "task": task,
+        "branch": branch,
+        "targets": {},
+        "target_files": {},
     }
 
 

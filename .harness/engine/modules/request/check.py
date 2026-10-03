@@ -35,6 +35,7 @@ def run(root: Path, request_id: str, require_conclusion: bool = False) -> Dict[s
         if not (directory / sub).is_dir():
             problems.append(f"缺目录：{sub}")
     check_brief(root, directory, data, problems)
+    check_targets(root, data, problems)
     if len(data["attempts"]) != data["attempt"]:
         problems.append(f"request.json 的 attempt 是 {data['attempt']}，但记录了 {len(data['attempts'])} 轮。")
     for attempt in data["attempts"]:
@@ -54,6 +55,25 @@ def run(root: Path, request_id: str, require_conclusion: bool = False) -> Dict[s
     if require_conclusion and not concluded:
         problems.append("请求还没有结论。用 `request set-status accepted|hitl|abandoned` 结束它。")
     return {"ok": not problems, "request_id": request_id, "status": data["status"], "concluded": concluded, "problems": problems}
+
+
+def check_targets(root: Path, data: Dict[str, Any], problems: List[str]) -> None:
+    from core import targets
+
+    if data.get("branch") and not targets.valid_branch(data["branch"]):
+        problems.append(f"分支名 `{data['branch']}` 不合法（要 feature/ 加字母、数字、下划线）。")
+    if data.get("task") and not (root / data["task"]).is_dir():
+        problems.append(f"任务目录 {data['task']} 不存在。")
+    if not data.get("target_mode"):
+        return
+    try:
+        known = set(targets.load(root).names())
+    except Exception as error:
+        problems.append(f"目标仓库的配置读不了：{error}")
+        return
+    for name in data.get("targets", {}):
+        if name not in known:
+            problems.append(f"请求用过仓库 {name}，但 target 配置里现在没有它。")
 
 
 def check_brief(root: Path, directory: Path, data: Dict[str, Any], problems: List[str]) -> None:

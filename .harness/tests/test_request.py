@@ -570,8 +570,15 @@ class StatusTests(RequestCase):
         self.builder_round(request_id, 1)
         self.assertIn("reviewer", self.refused("request", "set-status", "--request", request_id, "--status", "accepted"))
         self.reviewer_round(request_id, 1)
-        result = self.run_cli("request", "set-status", "--request", request_id, "--status", "accepted")
+        result = self.run_cli("request", "set-status", "--request", request_id, "--status", "accepted", "--reason", "不回写，只看评审结论")
         self.assertTrue(result["session_released"])
+
+    def test_accepted_needs_the_promote_when_the_reviewed_files_are_not_in_the_repository_yet(self) -> None:
+        request_id = self.passed_request()
+        message = self.refused("request", "set-status", "--request", request_id, "--status", "accepted")
+        self.assertIn("promote", message)
+        self.promote_for_real(request_id)
+        self.assertTrue(self.run_cli("request", "set-status", "--request", request_id, "--status", "accepted")["session_released"])
 
     def test_accepted_without_a_review_is_possible_with_a_reason(self) -> None:
         request_id = self.new_request()
@@ -628,6 +635,7 @@ class CheckTests(RequestCase):
         result = self.check(request_id, "--require-conclusion")
         self.assertEqual(result["exit"], 1)
         self.assertIn("没有结论", result["problems"][0])
+        self.promote_for_real(request_id)
         self.run_cli("request", "set-status", "--request", request_id, "--status", "accepted")
         result = self.check(request_id, "--require-conclusion")
         self.assertEqual((result["exit"], result["concluded"], result["problems"]), (0, True, []))

@@ -59,6 +59,15 @@ def owned_write(command: str, compiled: Compiled) -> Optional[str]:
     return None
 
 
+def git_write(command: str, compiled: Compiled) -> Optional[str]:
+    """Why this command changes a `.git` folder or a path a target repository refuses, or None."""
+    text = normalize(command)
+    for regex, why in compiled.target_writes:
+        if regex.search(text):
+            return why
+    return None
+
+
 def check(command: str, compiled: Compiled) -> Optional[Verdict]:
     """`("deny", why)`, `("ask", why)` or None. Deny rules come first."""
     if not command.strip():

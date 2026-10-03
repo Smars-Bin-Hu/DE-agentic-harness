@@ -221,6 +221,8 @@ class TerminalTests(unittest.TestCase):
             "dd if=/dev/zero of=/dev/sda",
             "Remove-Item -Recurse -Force C:\\",
             "python3 .harness/engine/cli.py request approve-promote --request r1",
+            "python3 .harness/engine/cli.py request recover --request r1",
+            "python .harness\\engine\\cli.py request recover",
             "python .harness/engine/cli.py request approve-promote --request r1",
             "python .harness\\engine\\cli.py request approve-promote --request r1",
             "py -3 .\\.harness\\engine\\cli.py request approve-promote --request r1",
