@@ -40,6 +40,7 @@ POLICY_SCHEMA = {
             "required": ["guardrail_write", "deny", "ask"],
             "properties": {"guardrail_write": _RULES_SCHEMA, "deny": _RULES_SCHEMA, "ask": _RULES_SCHEMA},
         },
+        "git": {"type": "object", "properties": {"approval_minutes": {"type": "integer", "minimum": 1}}},
         "circuit_breaker": {
             "type": "object",
             "properties": {"repeat_limit": {"type": "integer", "minimum": 0}},

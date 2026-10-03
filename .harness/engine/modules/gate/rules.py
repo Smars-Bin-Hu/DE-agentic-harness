@@ -78,3 +78,20 @@ def cli_owned_terminal(why: str) -> str:
         f"这条终端命令会直接改由 CLI 生成的文件（{why}），例如 request.json、handoff.json、manifest.json。"
         f"用 `{cli_command()}` 的命令来改；没有对应的命令时，停下来告诉用户。"
     )
+
+
+def git_never(why: str, command: str) -> str:
+    return (
+        f"这条 git 命令永远不能批准：{why}。命令：{command}\n"
+        "不要换个写法重试。需要时，停下来告诉用户原因，由用户自己在终端运行。"
+    )
+
+
+def git_needs_approval(why: str, command: str, code: str, minutes: int) -> str:
+    return (
+        f"这条命令里的 git 命令会改仓库，agent 不能直接运行（{why}）。\n"
+        f"命令：{command}\n"
+        f"请把整条命令和验证码 {code} 告诉用户，让用户在自己的终端运行 `{cli_command()} approve-command`，看清命令后输入验证码。"
+        f"用户批准后，{minutes} 分钟内可以把同一条命令再运行一次（只放行一次，写法要完全一样）。"
+        "不要换个写法，也不要自己运行 approve-command。"
+    )

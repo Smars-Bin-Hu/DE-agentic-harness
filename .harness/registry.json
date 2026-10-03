@@ -60,6 +60,7 @@
         ".harness/engine/modules/gate/",
         ".harness/tests/test_gate.py",
         ".harness/tests/test_gate_git.py",
+        ".harness/tests/test_gate_approval.py",
         ".github/instructions/workspace.instructions.md",
         ".workspace/README.md"
       ],

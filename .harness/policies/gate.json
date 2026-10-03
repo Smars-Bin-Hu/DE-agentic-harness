@@ -68,8 +68,8 @@
         "pattern": "{cmd}mkfs(?:\\.\\w+)?\\b|{cmd}dd\\b[^\\n]*\\bof=/dev/|>\\s*/dev/(?:sd|nvme|disk)"
       },
       {
-        "why": "批准 promote（approve-promote）和恢复中途出错的 promote（recover）只能由用户在自己的终端里运行。告诉用户运行这条命令，不要自己运行",
-        "pattern": "\\bcli\\.py\\s+request\\s+(?:approve-promote|recover)\\b"
+        "why": "批准 promote（approve-promote）、恢复中途出错的 promote（recover）和批准 git 命令（approve-command）只能由用户在自己的终端里运行。告诉用户运行这条命令，不要自己运行",
+        "pattern": "\\bcli\\.py\\s+(?:request\\s+(?:approve-promote|recover)|approve-command)\\b"
       }
     ],
     "ask": [
@@ -102,6 +102,9 @@
         "pattern": "\\bcli\\.py\\s+logs\\s+prune\\b"
       }
     ]
+  },
+  "git": {
+    "approval_minutes": 10
   },
   "circuit_breaker": {
     "repeat_limit": 3

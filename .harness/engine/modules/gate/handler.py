@@ -2,6 +2,8 @@
 
   edit / create tools   a guardrail file or a file only the CLI writes is denied; in L3 a path outside the request folder is denied
   terminal              a command that writes a guardrail file or is dangerous is denied; some commands ask a person
+  git commands          with target repositories configured (A5): a git read passes, a write is refused until a person approves that exact command
+                        (`approve-command`), some are never approved (push, clean, reset --hard, branch -D, any force)
   `.git`                a path in a `.git` folder is denied at every Level, in a terminal command too (A4); so is a path a target
                         repository lists in refused_paths
 
@@ -11,14 +13,13 @@ A call with no path the gate can read is allowed: the gate only denies what it c
 from __future__ import annotations
 
 import re
-from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from core import repo_paths, targets
 from core.context import Context
 from core.events import Decision, HookEvent
 
-from . import rules, terminal
+from . import approvals, gitcmd, rules, terminal
 from .policy import POLICY_NAME, Compiled, validate_policy
 
 NAME = "gate"
@@ -66,7 +67,7 @@ def _within(relative: str, folder: str) -> bool:
     return relative == folder or relative.startswith(folder + "/")
 
 
-def check_terminal(event: HookEvent, compiled: Compiled) -> Optional[Decision]:
+def check_terminal(event: HookEvent, ctx: Context, compiled: Compiled, policy: dict, guard_git: bool) -> Optional[Decision]:
     why = terminal.guardrail_write(event.command, compiled)
     if why:
         return Decision(permission="deny", reason=rules.guardrail_terminal(why))
@@ -76,7 +77,18 @@ def check_terminal(event: HookEvent, compiled: Compiled) -> Optional[Decision]:
     why = terminal.git_write(event.command, compiled)
     if why:
         return Decision(permission="deny", reason=rules.git_folder_terminal(why))
+    git = gitcmd.classify(event.command) if guard_git else gitcmd.Verdict()
+    if git.kind == gitcmd.NEVER:
+        return Decision(permission="deny", reason=rules.git_never(git.why, gitcmd.collapse(event.command)))
     verdict = terminal.check(event.command, compiled)
+    if verdict is not None and verdict[0] == "deny":
+        return Decision(permission="deny", reason=rules.terminal_denied(verdict[1]))
+    if git.kind == gitcmd.APPROVE:
+        minutes = approvals.minutes(policy)
+        if approvals.consume(ctx.root, event.session_id, event.command, minutes):
+            return None  # the person read this command and approved it
+        code = approvals.request(ctx.root, event.surface, event.session_id, event.command, minutes)
+        return Decision(permission="deny", reason=rules.git_needs_approval(git.why, gitcmd.collapse(event.command), code, minutes), facts={"kind": "git-approval"})
     if verdict is None:
         return None
     permission, why = verdict
@@ -84,13 +96,12 @@ def check_terminal(event: HookEvent, compiled: Compiled) -> Optional[Decision]:
     return Decision(permission=permission, reason=reason)
 
 
-def target_repos(ctx: Context) -> List[Tuple[str, Path, List[str]]]:
-    """The target repositories and their refused_paths. A broken target.json gives none: the `.git` floor still holds, and doctor reports it."""
+def load_targets(ctx: Context) -> Optional[targets.Targets]:
+    """The target repositories. A broken target.json gives None: the `.git` floor still holds, and doctor reports it."""
     try:
-        found = targets.load(ctx.root)
+        return targets.load(ctx.root)
     except Exception:  # noqa: BLE001 - the gate must not fail on a bad target.json
-        return []
-    return [(repo.name, repo.path, repo.refused_paths) for repo in found.repos.values()]
+        return None
 
 
 def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
@@ -98,7 +109,9 @@ def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
         return None
     policy = ctx.policy(POLICY_NAME)
     validate_policy(policy, floor=False)
-    compiled = Compiled(policy, target_repos(ctx))
+    found = load_targets(ctx)
+    compiled = Compiled(policy, [(repo.name, repo.path, repo.refused_paths) for repo in found.repos.values()] if found else None)
     if event.tool_kind == "terminal":
-        return check_terminal(event, compiled)
+        # Without target repositories the harness behaves as before: only the ask rules in gate.json look at git.
+        return check_terminal(event, ctx, compiled, policy, guard_git=bool(found and found.configured))
     return check_write(event, ctx, compiled)
