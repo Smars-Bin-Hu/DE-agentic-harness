@@ -10,14 +10,14 @@
 
 ```text
 请完成这个 L3 请求：在 demo-b8/ 下写 slugify(s)（转小写，把空格换成连字符，放在 demo-b8/slug.py）和 3 个 unittest 测试（demo-b8/test_slug.py）。
-验收标准：在 demo-b8/ 目录下运行 python3 -m unittest，全部通过。
+验收标准：在 demo-b8/ 目录下运行 python -m unittest（macOS/Linux 用 python3），全部通过。
 走完整流程（builder、reviewer）。两个额外要求（流程测试）：
 a) 调用 builder 和 reviewer 时，调用消息里只写“请开始”，不要写任何路径或请求 id。
 b) 填 assignment 时，让 builder 和 reviewer 在 handoff 的 summary 第一行写上自己的模型名（例如 model: xxx）。
 reviewer 通过后，运行 promote --dry-run，把计划给我看，然后停下来等我批准。我批准以后会告诉你，你再 promote 并结束请求。
 ```
 
-orchestrator 给你计划后，你在**自己的终端**运行它给你的命令（`python3 .harness/engine/cli.py request approve-promote`），输入确认码。然后在**同一个对话**里回：
+orchestrator 给你计划后，你在**自己的终端**运行它给你的命令（`python .harness/engine/cli.py request approve-promote`），输入确认码。然后在**同一个对话**里回：
 
 ```text
 我批准了。
@@ -33,7 +33,7 @@ orchestrator 给你计划后，你在**自己的终端**运行它给你的命令
 ## 跑完以后
 
 ```text
-python3 .harness/engine/cli.py eval check s1
+python .harness/engine/cli.py eval check s1
 ```
 
 默认检查最新的主会话和它的请求。要指定：`--session-id <会话 id>`（提示开头的规则里有，`cli.py stats` 的 `recent_sessions` 里有最近的会话 id），`--request <请求 id>`。

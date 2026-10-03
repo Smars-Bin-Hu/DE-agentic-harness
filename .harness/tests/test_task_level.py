@@ -336,6 +336,8 @@ class TaskLevelTests(HarnessTestCase):
             "python3 .harness/engine/cli.py   level   set --session-id s --level 2",
             'python3 ".harness/engine/cli.py" "level" "set" --session-id s --level 2',
             "PYTHONPATH=. python3 .harness/engine/cli.py LEVEL SET --level 2",
+            "python .harness\\engine\\cli.py level set --session-id s --level 2",
+            "py -3 .\\.harness\\engine\\cli.py level set --level 2",
         ]
         for command in variants:
             with self.subTest(command):

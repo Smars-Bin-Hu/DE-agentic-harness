@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command line entry for agents and people: python3 .harness/engine/cli.py <command>.
+"""Command line entry for agents and people: <python> .harness/engine/cli.py <command> (python on Windows, python3 elsewhere).
 
   doctor                       check that the harness files and config are consistent
   level status|set             level of a session (task_level module)
@@ -37,7 +37,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def safe_streams() -> None:
+    """A character the terminal encoding cannot show (a Chinese text on a Windows pipe) must not kill the command."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv=None) -> int:
+    safe_streams()
     args = build_parser().parse_args(argv)
     if args.command == "doctor":
         return doctor.run(repo_root())

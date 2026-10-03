@@ -46,6 +46,22 @@ class SchemaTests(unittest.TestCase):
             schema.check([], self.SCHEMA, "thing")
 
 
+class CommandNameTests(unittest.TestCase):
+    def test_windows_uses_python_and_the_others_python3(self) -> None:
+        from core import paths
+
+        self.assertEqual(paths.cli_command(windows=True), "python .harness/engine/cli.py")
+        self.assertEqual(paths.cli_command(windows=False), "python3 .harness/engine/cli.py")
+        self.assertEqual(paths.mkdir_command(windows=True), "mkdir")
+        self.assertEqual(paths.mkdir_command(windows=False), "mkdir -p")
+
+    def test_the_default_follows_the_system(self) -> None:
+        import os
+        from core import paths
+
+        self.assertEqual(paths.python_command(), "python" if os.name == "nt" else "python3")
+
+
 class ConfigTests(unittest.TestCase):
     def test_deep_merge_replaces_leaves_and_keeps_the_rest(self) -> None:
         base = {"a": {"x": 1, "y": 2}, "b": [1, 2], "c": 3}

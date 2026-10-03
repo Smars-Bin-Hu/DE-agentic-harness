@@ -10,7 +10,7 @@ agent 和人的工作区。这里的运行内容不进 git，只有本文件和�
 | `current_tasks/` | 人放任务材料 | 人 |
 | `reports/` | 请求的执行报告。请求收尾时自动写，也可以 `cli.py report` 重写 | CLI |
 
-`<request-id>` 的格式是 `<yyyymmdd-HHMM>-<slug>-<4 位随机>`。请求目录和里面的子目录都由 CLI 建立：`cli.py request new`、`attempt new`、`dispatch`。命令一览：`python3 .harness/engine/cli.py --help`。
+`<request-id>` 的格式是 `<yyyymmdd-HHMM>-<slug>-<4 位随机>`。请求目录和里面的子目录都由 CLI 建立：`cli.py request new`、`attempt new`、`dispatch`。命令一览：`python .harness/engine/cli.py --help`（macOS/Linux 用 `python3`）。
 
 L1、L2 不走 sandbox，直接在仓库里改。`sandbox/` 下请求目录之外的东西，是手测或探针留下的，可以直接删。
 

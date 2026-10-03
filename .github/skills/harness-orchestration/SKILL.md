@@ -8,7 +8,7 @@ specificTo: harness-orchestration
 # L3 请求流程
 
 只有 orchestrator 用这个流程。所有数字（轮数、brief 大小、摘要行数）在 `.harness/policies/orchestration.json`，这里不写。
-命令一览：`python3 .harness/engine/cli.py --help`。下面省略命令前的 `python3 .harness/engine/cli.py`。
+`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。提示开头的规则里也写了它。命令一览：`<cli> --help`。下面省略命令前的 `<cli>`。
 
 ## 一条原则
 

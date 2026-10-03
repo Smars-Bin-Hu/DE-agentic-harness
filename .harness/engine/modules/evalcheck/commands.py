@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 from typing import Any, Dict
 
-from core.paths import repo_root
+from core.paths import cli_command, repo_root
 
 from . import checks, scenario
 
@@ -30,7 +30,7 @@ def cmd_show(args: argparse.Namespace) -> Dict[str, Any]:
         "before": scenario.section(loaded["text"], "## 前置"),
         "prompt": prompt,
         "manual_checks": loaded["manual"],
-        "then": f"python3 .harness/engine/cli.py eval check {loaded['id']}",
+        "then": f"{cli_command()} eval check {loaded['id']}",
     }
 
 

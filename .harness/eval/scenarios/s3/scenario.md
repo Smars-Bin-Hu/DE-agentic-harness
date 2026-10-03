@@ -24,7 +24,7 @@ builder 不用认真做，写一个最简单的 slug.py 就行。
 ## 跑完以后
 
 ```text
-python3 .harness/engine/cli.py eval check s3
+python .harness/engine/cli.py eval check s3
 ```
 
 默认检查最新的主会话和它的请求。要指定：`--session-id <会话 id>`（提示开头的规则里有，`cli.py stats` 的 `recent_sessions` 里有最近的会话 id），`--request <请求 id>`。

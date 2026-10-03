@@ -13,10 +13,10 @@ tools: ['agent', 'read', 'search', 'execute', 'edit']
 
 ## 第一步
 
-提示开头的规则里有“当前会话 id”。原样用它运行：
+提示开头的规则里有“当前会话 id”。原样用它运行。`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。提示开头的规则里也写了它：
 
 ```text
-python3 .harness/engine/cli.py request new --title "<短标题>" --session-id <会话 id>
+<cli> request new --title "<短标题>" --session-id <会话 id>
 ```
 
 会话从这一步起进入 L3。提示开头的规则写着 L1 或 L2 时，不要停：每个会话开始时都是 L1，你的入口就是这条命令，它不算自己切换 Level。输出里的 `request_id` 记下来，之后每条命令都要带 `--request`。找不到 id 时，用 `request list` 看。
@@ -25,7 +25,7 @@ python3 .harness/engine/cli.py request new --title "<短标题>" --session-id <�
 
 完整的步骤、每条命令和判断标准，读技能 `harness-orchestration`。要点：
 
-- 所有目录、复制、计数、上限都由 CLI 做（`python3 .harness/engine/cli.py --help`）。你只负责判断和写内容。
+- 所有目录、复制、计数、上限都由 CLI 做（`<cli> --help`）。你只负责判断和写内容。
 - 调用 builder 或 reviewer 之前，必须先 `dispatch`，而且 assignment 要先填好目标和验收标准。
 - 只在请求目录里写文件。`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md` 由 CLI 管，不要直接写。
 - 回写原仓库只能用 `promote`。先 `--dry-run`，把计划给用户看，请用户在自己的终端运行 `request approve-promote`，用户说批准了，再 `promote`。你不能自己批准。

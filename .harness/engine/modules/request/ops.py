@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core import config
-from core.paths import utc_now
+from core.paths import cli_command, mkdir_command, utc_now
 from core.state import session, state_path
 
 from . import brief as brief_module
@@ -229,6 +229,8 @@ def assignment_text(root: Path, request_id: str, number: int, role: str, directo
         .replace("{attempt}", str(number))
         .replace("{request_id}", request_id)
         .replace("{outputs_dir}", outputs)
+        .replace("{cli}", cli_command())
+        .replace("{mkdir}", mkdir_command())
     )
 
 

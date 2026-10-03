@@ -135,6 +135,36 @@ class DoctorTests(unittest.TestCase):
         )
         self.assertEqual(self.doctor().returncode, 1)
 
+    # --- interpreter and cross-platform text -----------------------------------------------------
+
+    def test_a_missing_interpreter_is_a_warning(self) -> None:
+        empty = self.root / "empty-path"
+        empty.mkdir()
+        result = subprocess.run(
+            [sys.executable, str(CLI), "doctor"], text=True, encoding="utf-8", capture_output=True, check=False,
+            env={**os.environ, "HARNESS_ROOT": str(self.root), "PATH": str(empty)},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("PATH 里找不到", result.stdout)
+
+    def test_agent_facing_files_do_not_hard_code_python3(self) -> None:
+        """Windows has `python` and often no `python3`. A command written with python3 must say it is for macOS/Linux."""
+        offenders = []
+        files = list((REPO / ".github").rglob("*.md")) + list((REPO / ".harness" / "contracts").rglob("*.md")) + [REPO / "README.md", REPO / ".workspace" / "README.md"]
+        for path in files:
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if "python3 .harness/engine" in line and "macOS/Linux" not in line:
+                    offenders.append(f"{path.relative_to(REPO)}:{number}")
+        self.assertEqual(offenders, [])
+
+    def test_the_cli_does_not_crash_on_a_terminal_that_cannot_show_chinese(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(CLI), "eval", "show", "s4"], capture_output=True, check=False,
+            env={**os.environ, "HARNESS_ROOT": str(REPO), "PYTHONIOENCODING": "ascii"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr.decode("ascii", "replace"))
+        self.assertIn(b"\\u", result.stdout)
+
     # --- override ---------------------------------------------------------------------------
 
     def override(self, name: str, data: dict) -> None:

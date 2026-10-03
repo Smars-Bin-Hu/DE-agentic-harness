@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 from core import config
 from core.context import Context
 from core.events import Decision, HookEvent
-from core.paths import utc_now
+from core.paths import cli_command, utc_now
 
 from . import layout, store
 from .policy import POLICY_NAME, validate_policy
@@ -46,9 +46,9 @@ def open_request(ctx: Context) -> Optional[Dict[str, Any]]:
 def stop_text(request_id: str) -> str:
     return (
         f"请求 {request_id} 还没有收尾。二选一：\n"
-        f"1. 做完了：`python3 .harness/engine/cli.py request set-status --request {request_id} --status <accepted|hitl|abandoned> [--reason \"<原因>\"]`，"
-        f"再 `python3 .harness/engine/cli.py check --request {request_id} --require-conclusion`。\n"
-        f"2. 在等用户（批准 promote、HITL 的提问、要用户决定）：先 `python3 .harness/engine/cli.py request wait --request {request_id} --reason \"<等什么>\"`，再结束。"
+        f"1. 做完了：`{cli_command()} request set-status --request {request_id} --status <accepted|hitl|abandoned> [--reason \"<原因>\"]`，"
+        f"再 `{cli_command()} check --request {request_id} --require-conclusion`。\n"
+        f"2. 在等用户（批准 promote、HITL 的提问、要用户决定）：先 `{cli_command()} request wait --request {request_id} --reason \"<等什么>\"`，再结束。"
         "用户的下一条提示到达时，等待标记自动清除。"
     )
 
@@ -68,7 +68,7 @@ def handoff_text(request_id: str, role: str, number: int) -> str:
     outputs = f"{layout.REQUESTS_DIR}/{request_id}/{role}/outputs/{layout.attempt_name(number)}"
     return (
         f"你是第 {number} 轮的 {role}，还没有交接。运行："
-        f"`python3 .harness/engine/cli.py handoff submit --request {request_id} --role {role} --status <passed|failed|blocked> --summary \"<几行以内>\" ...`。\n"
+        f"`{cli_command()} handoff submit --request {request_id} --role {role} --status <passed|failed|blocked> --summary \"<几行以内>\" ...`。\n"
         f"成果和证据放在 {outputs}/ 下，`--output`、`--evidence` 写相对于它的路径。做不完就提交 `--status blocked`，用 `--blocker` 写明缺什么。"
     )
 

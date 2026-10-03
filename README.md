@@ -44,7 +44,7 @@ README 是仓库的第一目录。先从这里找到目标文件，再读取需�
 | [.harness/engine/adapters/](.harness/engine/adapters/)                                                   | 运行时差异：payload 解析、输出格式、工具名表。 |
 | [.harness/eval/scenarios/](.harness/eval/scenarios/)                                                     | 固定场景：`scenario.md`（怎么跑、人看什么）和 `expect.json`（程序检查什么）。 |
 | [.harness/eval/fixtures/](.harness/eval/fixtures/)                                                       | 真实 hook 输入的录制样本，用于回放测试。     |
-| [.harness/tests/](.harness/tests/)                                                                       | 全部测试。`python3 -m unittest discover -s .harness/tests` |
+| [.harness/tests/](.harness/tests/)                                                                       | 全部测试。`python -m unittest discover -s .harness/tests`（macOS/Linux 用 `python3`） |
 | [.workspace/README.md](.workspace/README.md)                                                             | 工作区目录约定，以及 gate 管得住和管不住什么。 |
 | [knowledge-base/](knowledge-base/)                                                                       | 数据工程领域资料、术语、架构说明和操作手册。 |
 

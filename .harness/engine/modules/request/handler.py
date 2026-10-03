@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 
 from core.context import Context
 from core.events import Decision, HookEvent
+from core.paths import cli_command, mkdir_command
 
 from . import layout, store, verify
 
@@ -25,7 +26,7 @@ CALLS_KEPT = 8
 
 
 def dispatch_command(request_id: str, role: str) -> str:
-    return f"python3 .harness/engine/cli.py dispatch --request {request_id} --role {role}"
+    return f"{cli_command()} dispatch --request {request_id} --role {role}"
 
 
 def refuse(reason: str) -> Decision:
@@ -70,8 +71,8 @@ def start_text(request_id: str, role: str, number: int) -> str:
     return (
         f"你是请求 {request_id} 第 {number} 轮的 {role}。\n"
         f"第一步：读 {package}/assignment.md 和同目录的 manifest.json，按它们工作。\n"
-        f"成果和证据写在 {outputs}/ 下，位置按将来在仓库里的相对路径。`handoff submit` 的 --output、--evidence 写相对于该目录的路径，不要写完整路径；先用终端 mkdir -p 建好父目录（编辑工具不会建）。\n"
-        f"做完用 `python3 .harness/engine/cli.py handoff submit --request {request_id} --role {role} ...` 交接。"
+        f"成果和证据写在 {outputs}/ 下，位置按将来在仓库里的相对路径。`handoff submit` 的 --output、--evidence 写相对于该目录的路径，不要写完整路径；先用终端 `{mkdir_command()}` 建好父目录（编辑工具不会建）。\n"
+        f"做完用 `{cli_command()} handoff submit --request {request_id} --role {role} ...` 交接。"
     )
 
 

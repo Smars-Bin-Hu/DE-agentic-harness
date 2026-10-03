@@ -68,5 +68,6 @@ hook 按调用时的 `agentName` 判断。没有 `agentName` 的是通用子 age
 
 - hook 配置：`.github/hooks/harness.json`。所有事件都进 `.harness/engine/hook.py`。
 - 会话 state：`.harness/runtime/state/<surface>/<session-id>.json`，不提交。
-- 检查整套配置是否一致：`python3 .harness/engine/cli.py doctor`。
-- 用户自己调试可以运行 `python3 .harness/engine/cli.py level status|set --session-id <id>`。
+- 下面的命令写 `python`（Windows）；macOS/Linux 把它换成 `python3`。
+- 检查整套配置是否一致：`python .harness/engine/cli.py doctor`。
+- 用户自己调试可以运行 `python .harness/engine/cli.py level status|set --session-id <id>`。

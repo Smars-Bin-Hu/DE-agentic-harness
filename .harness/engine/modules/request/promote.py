@@ -16,9 +16,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core import config, repo_paths
-from core.paths import utc_now
-
 from core.guardrails import guardrail_paths
+from core.paths import cli_command, utc_now
 
 from . import layout, ops, store
 from .layout import CommandError
@@ -93,7 +92,7 @@ def _diff(old: bytes, new: bytes, name: str) -> Dict[str, Any]:
 
 
 def approve_command(request_id: str) -> str:
-    return f"python3 .harness/engine/cli.py request approve-promote --request {request_id}"
+    return f"{cli_command()} request approve-promote --request {request_id}"
 
 
 def code_of(plan_sha256: str) -> str:

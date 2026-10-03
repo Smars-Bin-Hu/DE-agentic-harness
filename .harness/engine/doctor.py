@@ -6,12 +6,13 @@ import ast
 import importlib
 import json
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
 from core import config
-from core.paths import policies_dir
+from core.paths import cli_command, policies_dir, python_command
 from core.registry import load_registry
 from core.state import TRACKED_EVENTS
 
@@ -48,6 +49,15 @@ def check_python(report: Report) -> None:
         report.ok(f"Python {text}")
     else:
         report.error(f"Python {text} 太旧，需要 3.9 或更高")
+
+
+def check_interpreter(report: Report) -> None:
+    """The commands shown to agents start with `python` (Windows) or `python3` (elsewhere). It has to run from the terminal."""
+    name = python_command()
+    if shutil.which(name):
+        report.ok(f"终端里能找到 `{name}`（agent 提示里的命令前缀：{cli_command()}）")
+    else:
+        report.warn(f"终端的 PATH 里找不到 `{name}`。agent 提示里的命令前缀是 `{cli_command()}`，运行会失败。装好 Python，或把它加进 PATH")
 
 
 def check_files(report: Report, root: Path, owner: str, files: List[str]) -> None:
@@ -133,7 +143,7 @@ def check_logs(report: Report, root: Path, registry: Dict[str, Any]) -> None:
     base = root / ".harness" / "runtime" / "logs"
     count = len(list(base.glob("*/*.jsonl"))) if base.is_dir() else 0
     if count > limit:
-        report.warn(f"有 {count} 个会话日志（超过 {limit}）。不用的可以删：python3 .harness/engine/cli.py logs prune --days 30")
+        report.warn(f"有 {count} 个会话日志（超过 {limit}）。不用的可以删：{cli_command()} logs prune --days 30")
     if (base / "hook-calls.jsonl").exists():
         report.warn("还有旧的 .harness/runtime/logs/hook-calls.jsonl。现在每个会话一个文件，这个旧文件不再写入，可以删除")
 
@@ -338,6 +348,7 @@ def check_agents(report: Report, root: Path) -> None:
 def run(root: Path) -> int:
     report = Report()
     check_python(report)
+    check_interpreter(report)
     try:
         registry = load_registry(root)
     except Exception as error:

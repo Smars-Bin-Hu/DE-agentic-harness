@@ -5,10 +5,33 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 
 # Where L3 requests live. Core knows it so modules that only read a request (eval) need not import the request module.
 REQUESTS_DIR = ".workspace/sandbox/requests"
+
+
+CLI_PATH = ".harness/engine/cli.py"
+
+
+def is_windows(windows: Optional[bool] = None) -> bool:
+    return os.name == "nt" if windows is None else windows
+
+
+def python_command(windows: Optional[bool] = None) -> str:
+    """The interpreter name to type. Windows has `python` and often no `python3`; macOS and Linux have `python3`."""
+    return "python" if is_windows(windows) else "python3"
+
+
+def cli_command(windows: Optional[bool] = None) -> str:
+    """The prefix of every harness command shown to an agent or a person."""
+    return f"{python_command(windows)} {CLI_PATH}"
+
+
+def mkdir_command(windows: Optional[bool] = None) -> str:
+    """Make a folder and its parents: `mkdir` does it on Windows (PowerShell and cmd), `mkdir -p` elsewhere."""
+    return "mkdir" if is_windows(windows) else "mkdir -p"
 
 
 def utc_now() -> str:

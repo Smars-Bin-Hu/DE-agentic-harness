@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from core.paths import cli_command
+
 
 def guardrail_file(relative: str, pattern: str) -> str:
     return (
@@ -46,12 +48,12 @@ def terminal_ask(why: str) -> str:
 def cli_owned_file(relative: str) -> str:
     return (
         f"`{relative}` 由 CLI 生成和更新，不能直接写。"
-        "用 `python3 .harness/engine/cli.py` 的命令来改它；没有对应的命令时，停下来告诉用户。"
+        f"用 `{cli_command()}` 的命令来改它；没有对应的命令时，停下来告诉用户。"
     )
 
 
 def cli_owned_terminal(why: str) -> str:
     return (
         f"这条终端命令会直接改由 CLI 生成的文件（{why}），例如 request.json、handoff.json、manifest.json。"
-        "用 `python3 .harness/engine/cli.py` 的命令来改；没有对应的命令时，停下来告诉用户。"
+        f"用 `{cli_command()}` 的命令来改；没有对应的命令时，停下来告诉用户。"
     )
