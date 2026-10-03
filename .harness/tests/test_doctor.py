@@ -193,7 +193,7 @@ class LayoutTests(unittest.TestCase):
         local = {"core", "adapters", "modules", "doctor", "hook", "cli"}
         stdlib = {
             "__future__", "argparse", "ast", "contextlib", "copy", "dataclasses", "datetime", "difflib", "hashlib", "importlib",
-            "json", "math", "os", "pathlib", "posixpath", "random", "re", "shutil", "stat", "string", "sys", "tempfile", "time",
+            "json", "math", "os", "pathlib", "posixpath", "random", "re", "shutil", "stat", "string", "subprocess", "sys", "tempfile", "time",
             "traceback", "typing", "urllib", "uuid",
         }
         for path in sorted(ENGINE.rglob("*.py")):

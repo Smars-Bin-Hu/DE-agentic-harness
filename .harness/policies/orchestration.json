@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Limits for an L3 request: how many attempts, how large the knowledge brief and the handoff summary may be.",
+  "description": "Limits for an L3 request: how many attempts, how large the knowledge brief and the handoff summary may be. verify: the end checks (main_stop: block once when the request is open and not waiting; subagent_stop: block, log or off).",
   "max_attempts": 2,
   "brief": {
     "max_bytes": 8000,
@@ -11,5 +11,9 @@
   },
   "inputs": {
     "max_files": 200
+  },
+  "verify": {
+    "main_stop": true,
+    "subagent_stop": "block"
   }
 }

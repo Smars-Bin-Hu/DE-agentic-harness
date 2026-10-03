@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "description": "reviewer 两轮都 failed，到上限，没有 --human-approved，请求 hitl。",
+  "calls": [
+    {
+      "name": "builder 启动两次",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "builder"
+      },
+      "exactly": 2
+    },
+    {
+      "name": "reviewer 启动两次",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "reviewer"
+      },
+      "exactly": 2
+    },
+    {
+      "name": "会话进过 L3",
+      "match": {
+        "level": 3
+      },
+      "min": 1
+    }
+  ],
+  "request": {
+    "status": "hitl",
+    "attempts": 2,
+    "max_attempts_reached": true,
+    "handoffs": {
+      "1": {
+        "builder": "passed",
+        "reviewer": "failed"
+      },
+      "2": {
+        "builder": "passed",
+        "reviewer": "failed"
+      }
+    },
+    "human_approved": false,
+    "pending_dispatch": 0,
+    "promote": "none",
+    "check": {
+      "require_conclusion": true
+    },
+    "report": true
+  },
+  "files": [
+    {
+      "path": "demo-b8/slug.py",
+      "exists": false
+    }
+  ]
+}

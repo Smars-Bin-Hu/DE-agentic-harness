@@ -163,6 +163,7 @@ def list_requests(root: Path, status: str = "") -> Dict[str, Any]:
             "request_id": data["request_id"], "title": data["title"], "status": data["status"],
             "attempt": data["attempt"], "promote": data["promote"]["state"],
             "waiting_for_approval": data["status"] == "open" and data["promote"]["state"] == "dry_run" and "approved_plan_sha256" not in data["promote"],
+            "waiting_for": (data.get("waiting") or {}).get("reason", ""),
             "created_at": data["created_at"],
         })
     found.sort(key=lambda item: item["created_at"], reverse=True)  # the id starts with the minute only; the time is exact
@@ -473,6 +474,23 @@ def submit_handoff(
 # --- set-status --------------------------------------------------------------------------------------
 
 
+def wait(root: Path, request_id: str, reason: str) -> Dict[str, Any]:
+    """Mark the request as waiting for a person, so the Stop check lets the agent end its turn. Cleared by the next user prompt."""
+    reason = reason.strip()
+    if not reason:
+        raise CommandError("--reason 要写明在等什么（例如：等用户批准 promote）。")
+    from . import verify
+
+    with store.locked(root, request_id) as data:
+        store.require_open(data)
+        verify.mark_waiting(data, reason)
+    return {
+        "request_id": request_id,
+        "waiting_for": reason,
+        "next": "现在可以把问题交给用户，并结束这一轮。用户的下一条提示到达时，等待标记自动清除。",
+    }
+
+
 def set_status(root: Path, request_id: str, status: str, reason: str = "") -> Dict[str, Any]:
     if status not in STATUS_ENDS:
         raise CommandError("--status 只能是 accepted、hitl 或 abandoned。")
@@ -487,6 +505,7 @@ def set_status(root: Path, request_id: str, status: str, reason: str = "") -> Di
                 raise CommandError("最后一轮 reviewer 还不是 passed，不能 accepted。要么先走完评审，要么用 --reason 写明为什么可以跳过评审。")
         data["status"] = status
         data["status_reason"] = reason
+        data.pop("waiting", None)
         surface, session_id = data.get("surface", "vscode"), data["session_id"]
     released = False
     if state_path(root, surface, session_id).exists():

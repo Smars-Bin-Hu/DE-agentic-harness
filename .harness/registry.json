@@ -68,11 +68,15 @@
       "status": "active",
       "enabled": true,
       "events": [
+        "UserPromptSubmit",
         "PreToolUse",
-        "SubagentStart"
+        "SubagentStart",
+        "SubagentStop",
+        "Stop"
       ],
       "enforcement": [
-        "C"
+        "C",
+        "H"
       ],
       "surfaces_verified": [
         "vscode"
@@ -91,7 +95,8 @@
         ".github/agents/reviewer.agent.md",
         ".github/skills/harness-orchestration/",
         ".harness/tests/test_orchestration.py",
-        ".harness/tests/test_report.py"
+        ".harness/tests/test_report.py",
+        ".harness/tests/test_verify.py"
       ],
       "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排。请求目录和 promote 不退役"
     },
@@ -111,6 +116,23 @@
         ".harness/tests/test_observe.py"
       ],
       "retire_when": "Copilot 提供按会话的 hook 调用日志和用量统计"
+    },
+    "evalcheck": {
+      "status": "active",
+      "enabled": true,
+      "events": [],
+      "enforcement": [
+        "V"
+      ],
+      "surfaces_verified": [
+        "vscode"
+      ],
+      "files": [
+        ".harness/engine/modules/evalcheck/",
+        ".harness/eval/scenarios/",
+        ".harness/tests/test_evalcheck.py"
+      ],
+      "retire_when": "Copilot 提供自己的 agent eval 和场景回归工具"
     }
   }
 }

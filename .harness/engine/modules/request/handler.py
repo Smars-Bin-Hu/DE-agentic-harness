@@ -3,6 +3,7 @@
   PreToolUse(subagent)   L3: only builder and reviewer, and only with a pending dispatch record. The call uses the record up.
                          Other names are refused by task_level. A subagent session cannot call a subagent.
   SubagentStart          the subagent that was just called is told its request, attempt, assignment path and output folder
+  Stop, SubagentStop, UserPromptSubmit   the end checks of an L3 request (verify.py)
 
 The pending records live in request.json (written by `dispatch`). The calls waiting for their SubagentStart live in this
 module's state of the session that made the call. Both engines report SubagentStart on that session.
@@ -16,7 +17,7 @@ from typing import Any, Dict, Optional
 from core.context import Context
 from core.events import Decision, HookEvent
 
-from . import layout, store
+from . import layout, store, verify
 
 NAME = "request"
 ROLES = layout.ROLES
@@ -92,4 +93,10 @@ def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
         return on_subagent_call(event, ctx)
     if event.event == "SubagentStart":
         return on_subagent_start(event, ctx)
+    if event.event == "Stop":
+        return verify.on_stop(event, ctx)
+    if event.event == "SubagentStop":
+        return verify.on_subagent_stop(event, ctx)
+    if event.event == "UserPromptSubmit":
+        return verify.on_user_prompt(event, ctx)
     return None

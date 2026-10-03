@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "description": "一轮通过，人批准后 promote，请求 accepted。",
+  "calls": [
+    {
+      "name": "builder 启动一次",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "builder"
+      },
+      "exactly": 1
+    },
+    {
+      "name": "reviewer 启动一次",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "reviewer"
+      },
+      "exactly": 1
+    },
+    {
+      "name": "builder 结束一次",
+      "match": {
+        "event": "SubagentStop",
+        "agent_type": "builder"
+      },
+      "exactly": 1
+    },
+    {
+      "name": "reviewer 结束一次",
+      "match": {
+        "event": "SubagentStop",
+        "agent_type": "reviewer"
+      },
+      "exactly": 1
+    },
+    {
+      "name": "会话进过 L3",
+      "match": {
+        "level": 3
+      },
+      "min": 1
+    }
+  ],
+  "order": [
+    {
+      "name": "builder 先于 reviewer",
+      "steps": [
+        {
+          "event": "SubagentStart",
+          "agent_type": "builder"
+        },
+        {
+          "event": "SubagentStop",
+          "agent_type": "builder"
+        },
+        {
+          "event": "SubagentStart",
+          "agent_type": "reviewer"
+        },
+        {
+          "event": "SubagentStop",
+          "agent_type": "reviewer"
+        }
+      ]
+    }
+  ],
+  "request": {
+    "status": "accepted",
+    "attempts": 1,
+    "handoffs": {
+      "1": {
+        "builder": "passed",
+        "reviewer": "passed"
+      }
+    },
+    "human_approved": false,
+    "pending_dispatch": 0,
+    "promote": "done",
+    "check": {
+      "require_conclusion": true
+    },
+    "report": true
+  },
+  "files": [
+    {
+      "path": "demo-b8/slug.py",
+      "exists": true
+    },
+    {
+      "path": "demo-b8/test_slug.py",
+      "exists": true
+    }
+  ]
+}

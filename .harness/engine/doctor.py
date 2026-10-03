@@ -99,6 +99,13 @@ def check_module(report: Report, root: Path, name: str, entry: Dict[str, Any]) -
         (report.error if entry["enabled"] else report.warn)(f"模块 {name} 不能加载：{error}")
         return
     report.ok(f"模块 {name} 可以加载")
+    own_check = getattr(module, "doctor", None)
+    if callable(own_check):
+        found = own_check(root)
+        for text in found:
+            report.error(f"模块 {name}：{text}")
+        if not found:
+            report.ok(f"模块 {name} 自己的检查通过")
     policy_name = getattr(module, "POLICY_NAME", None)
     if policy_name:
         try:

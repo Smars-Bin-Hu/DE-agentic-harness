@@ -5,6 +5,7 @@
   level status|set             level of a session (task_level module)
   request, brief, attempt, dispatch, handoff, check, promote   the L3 request (request module)
   stats, logs prune            numbers from the session logs; delete old logs (observe module)
+  eval list|show|check         fixed scenarios, judged from a finished run (evalcheck module)
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from core.paths import repo_root  # noqa: E402
 import doctor  # noqa: E402
+from modules.evalcheck import commands as eval_commands  # noqa: E402
 from modules.observe import commands as observe_commands  # noqa: E402
 from modules.request import commands as request_commands  # noqa: E402
 from modules.task_level import commands as task_level_commands  # noqa: E402
@@ -31,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     task_level_commands.register(commands)
     request_commands.register(commands)
     observe_commands.register(commands)
+    eval_commands.register(commands)
     return parser
 
 

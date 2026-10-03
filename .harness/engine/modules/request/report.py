@@ -68,6 +68,7 @@ def head_section(data: Dict[str, Any], limit: int) -> List[str]:
         f"- 更新：{data['updated_at']}",
         f"- 会话：{data.get('session_id', '')}（{data.get('surface', '')}）",
         f"- 轮数：{data['attempt']} / 上限 {limit}",
+    ] + ([f"- 在等人：{data['waiting']['reason']}"] if data.get("waiting") else []) + [
         "",
         "## 结果",
         "",

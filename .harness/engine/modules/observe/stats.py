@@ -10,6 +10,9 @@ from core.logs import read_lines, session_files
 from core.paths import logs_dir, utc_now
 
 
+RECENT_SESSIONS = 5
+
+
 def percentile(values: List[float], share: float) -> float:
     ordered = sorted(values)
     return ordered[min(len(ordered) - 1, int(len(ordered) * share))] if ordered else 0.0
@@ -80,6 +83,19 @@ def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[
         if isinstance(row.get("ms"), (int, float)):
             by_event.setdefault(event, []).append(float(row["ms"]))
             every.append(float(row["ms"]))
+    recent = []
+    for found_surface, path in reversed(list(session_files(root))[-RECENT_SESSIONS:]):
+        if surface and found_surface != surface:
+            continue
+        if session_id and path.stem != session_id:
+            continue
+        lines = read_lines(path)
+        if lines:
+            recent.append({
+                "surface": found_surface, "session_id": path.stem, "first_call": lines[0].get("at", ""), "calls": len(lines),
+                "highest_level": max(int(row.get("level", 1)) for row in lines),
+                "subagent_session": bool(lines[0].get("parent_session_id")),
+            })
     errors = [row for row in read_lines(logs_dir(root) / "hook-errors.jsonl") if not since or row.get("at", "") >= since]
     return {
         "sessions": len(sessions),
@@ -94,6 +110,7 @@ def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[
         "subagents_started": subagents,
         "hook_time": timing(every),
         "hook_time_by_event": {name: timing(values) for name, values in sorted(by_event.items())},
+        "recent_sessions": recent,
         "hook_errors": len(errors),
         "as_of": utc_now(),
     }

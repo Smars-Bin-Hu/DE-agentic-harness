@@ -38,9 +38,10 @@ README 是仓库的第一目录。先从这里找到目标文件，再读取需�
 | [.harness/policies/agents.json](.harness/policies/agents.json)                                           | 模型系列：回退只能在同一系列，builder 和 reviewer 不同系列。 |
 | [.harness/contracts/](.harness/contracts/)                                                               | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板。 |
 | [.harness/engine/hook.py](.harness/engine/hook.py)                                                       | hook 入口：识别运行时，分发给模块，合并结果。 |
-| [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口：`doctor` 检查配置，`level` 管理 Level，`request`、`report` 等管理 L3 请求，`stats`、`logs prune` 看和清理日志。 |
-| [.harness/engine/modules/](.harness/engine/modules/)                                                     | 可插拔模块：`task_level`、`gate`、`request`、`observe`。 |
+| [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口：`doctor` 检查配置，`level` 管理 Level，`request`、`report` 等管理 L3 请求，`stats`、`logs prune` 看和清理日志，`eval check` 判一个跑完的场景。 |
+| [.harness/engine/modules/](.harness/engine/modules/)                                                     | 可插拔模块：`task_level`、`gate`、`request`、`observe`、`evalcheck`。 |
 | [.harness/engine/adapters/](.harness/engine/adapters/)                                                   | 运行时差异：payload 解析、输出格式、工具名表。 |
+| [.harness/eval/scenarios/](.harness/eval/scenarios/)                                                     | 固定场景：`scenario.md`（怎么跑、人看什么）和 `expect.json`（程序检查什么）。 |
 | [.harness/eval/fixtures/](.harness/eval/fixtures/)                                                       | 真实 hook 输入的录制样本，用于回放测试。     |
 | [.harness/tests/](.harness/tests/)                                                                       | 全部测试。`python3 -m unittest discover -s .harness/tests` |
 | [.workspace/README.md](.workspace/README.md)                                                             | 工作区目录约定，以及 gate 管得住和管不住什么。 |

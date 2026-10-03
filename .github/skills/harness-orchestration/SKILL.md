@@ -32,13 +32,18 @@ specificTo: harness-orchestration
     - `passed`：去第 12 步。
     - `failed`：问题明确、能修，就读 `kb_additions`，需要的话更新 brief（再 `brief set`），`attempt new`，回到第 6 步。
     - `blocked`：缺什么就补什么；补不了就进 HITL。
-11. **上限**：`attempt new` 到了上限会被拒绝。先问用户要不要继续。用户同意，才加 `--human-approved "<原因>"`。用户不同意，或要改需求，就进 HITL。
+11. **上限**：`attempt new` 到了上限会被拒绝。先 `request wait --request <id> --reason "等用户决定要不要继续"`，再问用户要不要继续。用户同意，才加 `--human-approved "<原因>"`。用户不同意，或要改需求，就进 HITL。
 12. **回写**：
     1. `promote --request <id> --dry-run`，列出要写的文件和差异。
-    2. 把计划给用户看，原样给出这条命令，请用户**在自己的终端**运行：`request approve-promote --request <id>`，看计划，输入确认码。你不能自己运行它。
+    2. 先 `request wait --request <id> --reason "等用户批准 promote"`。把计划给用户看，原样给出这条命令，请用户**在自己的终端**运行：`request approve-promote --request <id>`，看计划，输入确认码。你不能自己运行它。
     3. 用户说批准了，再 `promote --request <id>`。
 13. **结束**：`request set-status --request <id> --status accepted`（reviewer 通过并已回写）。然后 `check --request <id> --require-conclusion`。会话回到 L1。
     `set-status` 会自动写报告，输出里的 `report` 是路径。把它告诉用户。`report --request <id>` 可以随时重写。
+
+## 等用户
+
+要把问题交给用户、结束这一轮时（批准 promote、HITL 的提问、要用户决定），先运行 `request wait --request <id> --reason "<等什么>"`，再结束。
+请求还是 open 又没标等待，你结束时会被拦一次，理由里有这两条路。用户的下一条提示到达时，等待标记自动清除。
 
 ## 进入 HITL
 

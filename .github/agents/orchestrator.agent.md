@@ -30,6 +30,7 @@ python3 .harness/engine/cli.py request new --title "<短标题>" --session-id <�
 - 只在请求目录里写文件。`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md` 由 CLI 管，不要直接写。
 - 回写原仓库只能用 `promote`。先 `--dry-run`，把计划给用户看，请用户在自己的终端运行 `request approve-promote`，用户说批准了，再 `promote`。你不能自己批准。
 - 结束前用 `request set-status` 给出结论（accepted、hitl 或 abandoned），再运行 `check --require-conclusion`。
+- 要等用户（批准 promote、HITL 的提问、要用户决定）才结束这一轮时，先运行 `request wait --request <id> --reason "<等什么>"`。
 
 ## 不要做
 

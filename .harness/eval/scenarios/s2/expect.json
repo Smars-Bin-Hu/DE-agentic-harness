@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "description": "reviewer 第一轮 failed，第二轮 passed；没有 promote；请求 abandoned。",
+  "calls": [
+    {
+      "name": "builder 启动两次",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "builder"
+      },
+      "exactly": 2
+    },
+    {
+      "name": "reviewer 启动两次",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "reviewer"
+      },
+      "exactly": 2
+    },
+    {
+      "name": "会话进过 L3",
+      "match": {
+        "level": 3
+      },
+      "min": 1
+    }
+  ],
+  "request": {
+    "status": "abandoned",
+    "attempts": 2,
+    "handoffs": {
+      "1": {
+        "builder": "passed",
+        "reviewer": "failed"
+      },
+      "2": {
+        "builder": "passed",
+        "reviewer": "passed"
+      }
+    },
+    "human_approved": false,
+    "pending_dispatch": 0,
+    "promote": "dry_run",
+    "check": {
+      "require_conclusion": true
+    },
+    "report": true
+  },
+  "files": [
+    {
+      "path": "demo-b8/slug.py",
+      "exists": false
+    }
+  ]
+}

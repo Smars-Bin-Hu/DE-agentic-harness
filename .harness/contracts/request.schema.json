@@ -213,6 +213,22 @@
           "type": "string"
         }
       }
+    },
+    "waiting": {
+      "type": "object",
+      "required": [
+        "reason",
+        "at"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "type": "string"
+        }
+      }
     }
   }
 }

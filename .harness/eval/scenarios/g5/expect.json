@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "description": "把下载内容交给 shell 的命令被 gate 拒绝。",
+  "calls": [
+    {
+      "name": "危险命令被 gate 拒绝",
+      "match": {
+        "event": "PreToolUse",
+        "tool_kind": "terminal",
+        "decision": "deny",
+        "by": "gate",
+        "reason_contains": "把下载的内容直接交给 shell"
+      },
+      "min": 1
+    }
+  ]
+}

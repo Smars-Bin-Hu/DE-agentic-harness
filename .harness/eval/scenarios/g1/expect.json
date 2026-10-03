@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "description": "编辑工具改 guardrail 文件被 gate 拒绝，文件没变。",
+  "calls": [
+    {
+      "name": "编辑 gate.json 被 gate 拒绝",
+      "match": {
+        "event": "PreToolUse",
+        "tool_kind": "edit",
+        "decision": "deny",
+        "by": "gate",
+        "reason_contains": "guardrail",
+        "target_contains": ".harness/policies/gate.json"
+      },
+      "min": 1
+    }
+  ],
+  "json": [
+    {
+      "file": ".harness/policies/gate.json",
+      "path": "circuit_breaker.repeat_limit",
+      "not_equals": 5
+    }
+  ]
+}

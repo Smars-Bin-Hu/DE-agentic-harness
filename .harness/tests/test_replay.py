@@ -143,8 +143,9 @@ class ReplayTests(HarnessTestCase):
             for data, output, record in self.replay(name):
                 if data["hook_event_name"] in ("Stop", "SubagentStart", "SubagentStop"):
                     self.assertEqual(output, {})  # L1: nothing to review
-                    # task_level handles Stop (L2 review check). The request module listens to SubagentStart (it has nothing to say at L1).
-                    expected = {"Stop": ["task_level"], "SubagentStart": ["request"], "SubagentStop": []}
+                    # task_level handles Stop (L2 review check). The request module listens to SubagentStart, SubagentStop and Stop
+                    # (the L3 end checks); it has nothing to say with no request.
+                    expected = {"Stop": ["task_level", "request"], "SubagentStart": ["request"], "SubagentStop": ["request"]}
                     self.assertEqual(record["modules"], expected[data["hook_event_name"]])
 
     def test_the_recorded_pasted_marker_switches_to_l2(self) -> None:

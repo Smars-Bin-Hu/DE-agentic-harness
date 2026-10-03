@@ -28,6 +28,11 @@ POLICY_SCHEMA = {
             "properties": {"summary_max_lines": {"type": "integer", "minimum": 1}},
         },
         "inputs": {"type": "object", "required": ["max_files"], "properties": {"max_files": {"type": "integer", "minimum": 1}}},
+        "verify": {
+            "type": "object",
+            "required": ["main_stop", "subagent_stop"],
+            "properties": {"main_stop": {"type": "boolean"}, "subagent_stop": {"type": "string", "enum": ["block", "log", "off"]}},
+        },
     },
 }
 

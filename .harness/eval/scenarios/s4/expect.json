@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "description": "没 dispatch 的 builder 调用被拒绝；dispatch 后放行；builder 交接；请求 abandoned。",
+  "calls": [
+    {
+      "name": "没 dispatch 的 builder 调用被 request 模块拒绝",
+      "match": {
+        "event": "PreToolUse",
+        "tool_kind": "subagent",
+        "decision": "deny",
+        "by": "request"
+      },
+      "min": 1
+    },
+    {
+      "name": "builder 启动一次",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "builder"
+      },
+      "exactly": 1
+    },
+    {
+      "name": "reviewer 没有启动",
+      "match": {
+        "event": "SubagentStart",
+        "agent_type": "reviewer"
+      },
+      "exactly": 0
+    },
+    {
+      "name": "会话进过 L3",
+      "match": {
+        "level": 3
+      },
+      "min": 1
+    }
+  ],
+  "order": [
+    {
+      "name": "先被拒绝，再启动，再结束",
+      "steps": [
+        {
+          "event": "PreToolUse",
+          "tool_kind": "subagent",
+          "decision": "deny"
+        },
+        {
+          "event": "SubagentStart",
+          "agent_type": "builder"
+        },
+        {
+          "event": "SubagentStop",
+          "agent_type": "builder"
+        }
+      ]
+    }
+  ],
+  "request": {
+    "status": "abandoned",
+    "attempts": 1,
+    "handoffs": {
+      "1": {
+        "builder": "passed"
+      }
+    },
+    "pending_dispatch": 0,
+    "promote": "none",
+    "check": {
+      "require_conclusion": true
+    },
+    "report": true
+  }
+}

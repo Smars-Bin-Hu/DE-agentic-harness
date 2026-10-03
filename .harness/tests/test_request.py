@@ -555,7 +555,7 @@ class ListTests(RequestCase):
         self.assertEqual({r["request_id"] for r in listed}, {first, second})
         self.assertEqual([r["request_id"] for r in self.run_cli("request", "list", "--status", "open")["requests"]], [second])
         self.assertEqual(listed[0]["title"] in ("first", "second"), True)
-        self.assertEqual(set(listed[0]), {"request_id", "title", "status", "attempt", "promote", "waiting_for_approval", "created_at"})
+        self.assertEqual(set(listed[0]), {"request_id", "title", "status", "attempt", "promote", "waiting_for_approval", "waiting_for", "created_at"})
 
     def test_list_with_no_requests_and_with_a_stray_folder(self) -> None:
         self.assertEqual(self.run_cli("request", "list")["requests"], [])

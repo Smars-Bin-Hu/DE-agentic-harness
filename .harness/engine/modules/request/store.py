@@ -85,6 +85,11 @@ def write_request(root: Path, directory: Path, data: Dict[str, Any]) -> None:
     atomic_write(layout.request_file(directory), data)
 
 
+def read_json_file(path: Path) -> Any:
+    with path.open(encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def read_request(root: Path, request_id: str) -> Dict[str, Any]:
     directory = layout.request_dir(root, request_id)
     path = layout.request_file(directory)

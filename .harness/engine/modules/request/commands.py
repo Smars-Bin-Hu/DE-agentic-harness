@@ -1,6 +1,6 @@
 """CLI commands of the request module.
 
-  request new|add-input|set-status|show|list|approve-promote    the request itself (approve-promote: a person at a terminal)
+  request new|add-input|set-status|wait|show|list|approve-promote    the request itself (approve-promote: a person at a terminal)
   brief set                                  hand the knowledge brief to the CLI
   attempt new                                open the next attempt
   dispatch                                   build and freeze the input package of one role
@@ -34,6 +34,10 @@ def cmd_add_input(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_set_status(args: argparse.Namespace) -> Dict[str, Any]:
     return ops.set_status(repo_root(), args.request, args.status, args.reason)
+
+
+def cmd_wait(args: argparse.Namespace) -> Dict[str, Any]:
+    return ops.wait(repo_root(), args.request, args.reason)
 
 
 def cmd_approve_promote(args: argparse.Namespace) -> Dict[str, Any]:
@@ -102,6 +106,11 @@ def register(subparsers: Any) -> None:
     status.add_argument("--status", required=True, choices=["accepted", "hitl", "abandoned"])
     status.add_argument("--reason", default="")
     status.set_defaults(handler=cmd_set_status)
+
+    wait_parser = commands.add_parser("wait", help="say the request is waiting for a person, so the agent may end its turn")
+    _request(wait_parser)
+    wait_parser.add_argument("--reason", required=True, help="what it waits for, e.g. the person's approval of the promote plan")
+    wait_parser.set_defaults(handler=cmd_wait)
 
     approve = commands.add_parser("approve-promote", help="the person approves the plan of the last promote --dry-run (terminal only)")
     approve.add_argument("--request", default="", help="request id; left out, the only request waiting for approval is used")

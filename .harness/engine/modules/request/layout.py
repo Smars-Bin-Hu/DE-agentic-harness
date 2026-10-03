@@ -7,7 +7,9 @@ import re
 from pathlib import Path
 from typing import Optional
 
-REQUESTS_DIR = ".workspace/sandbox/requests"
+from core import paths
+
+REQUESTS_DIR = paths.REQUESTS_DIR
 ROLES = ("builder", "reviewer")
 REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 

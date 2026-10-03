@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "description": "终端命令写 guardrail 路径被 gate 拒绝，文件没有建出来。",
+  "calls": [
+    {
+      "name": "终端命令被 gate 拒绝",
+      "match": {
+        "event": "PreToolUse",
+        "tool_kind": "terminal",
+        "decision": "deny",
+        "by": "gate",
+        "reason_contains": "guardrail"
+      },
+      "min": 1
+    }
+  ],
+  "files": [
+    {
+      "path": ".harness/runtime/b6-probe.txt",
+      "exists": false
+    }
+  ]
+}
