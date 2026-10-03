@@ -4,6 +4,9 @@
 # Eval run output
 .harness/eval/results/
 
+# Machine-local target repository settings (holds a local path)
+.harness/policies/target.override.json
+
 # Python cache
 __pycache__/
 *.pyc
