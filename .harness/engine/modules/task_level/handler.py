@@ -89,9 +89,8 @@ def deny_budget(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict
     for name in _budgets_for(event):
         budget = budgets[name]
         if budget["on_exceed"] == "deny" and ms["counters"][name] >= budget["limit"]:
-            if name == "repository_searches":
-                return Decision(permission="deny", reason=rules.search_denied(policy, level, budget["limit"]))
-            return Decision(permission="deny", reason=rules.tool_calls_denied(policy, level, budget["limit"]))
+            reason = rules.search_denied(policy, level, budget["limit"]) if name == "repository_searches" else rules.tool_calls_denied(policy, level, budget["limit"])
+            return Decision(permission="deny", reason=reason, facts={"kind": "budget"})
     return None
 
 
@@ -136,7 +135,9 @@ def on_pre_tool_use(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: 
 def on_post_tool_use(event: HookEvent, ctx: Context, ms: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Decision]:
     if is_subagent_session(ctx):
         return None
-    review.record_post_tool(event, ms, policy)
+    verdict = review.record_post_tool(event, ms, policy)
+    if verdict:
+        return Decision(facts={"judge": "verifier", "verdict": verdict})  # for the call log; not a decision
     return None
 
 

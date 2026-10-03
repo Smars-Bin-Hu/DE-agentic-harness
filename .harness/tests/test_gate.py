@@ -333,7 +333,7 @@ class GateHookTests(HarnessTestCase):
         for relative in (
             "README.md", "AGENTS.md", ".github/copilot-instructions.md", ".github/skills/l2/SKILL.md",
             ".harness/tests/test_x.py", ".harness/eval/fixtures/a.json", "knowledge-base/doc.md",
-            ".workspace/sandbox/probe/a.txt", ".workspace/reports/r.md",
+            ".workspace/sandbox/probe/a.txt", ".workspace/current_tasks/r.md",
         ):
             with self.subTest(relative):
                 output = self.pre("create_file", {"filePath": self.path(relative), "content": "x"})
@@ -343,7 +343,7 @@ class GateHookTests(HarnessTestCase):
         self.assertEqual(self.pre("create_file", {"filePath": "/tmp/elsewhere.txt", "content": "x"}), {})
 
     def test_reads_are_never_blocked(self) -> None:
-        for relative in (GUARD, ".harness/engine/hook.py", ".github/hooks/harness.json", ".harness/runtime/logs/hook-calls.jsonl",
+        for relative in (GUARD, ".harness/engine/hook.py", ".github/hooks/harness.json", ".harness/runtime/logs/vscode/session.jsonl",
                          ".github/skills/l2/SKILL.md", "knowledge-base/README.md"):
             with self.subTest(relative):
                 self.assertEqual(self.pre("read_file", {"filePath": self.path(relative)}), {})
@@ -388,7 +388,7 @@ class GateHookTests(HarnessTestCase):
             with self.subTest(relative):
                 self.assertEqual(self.pre("create_file", {"filePath": self.path(relative), "content": "x"}), {})
         for relative in ("README.md", ".workspace/sandbox/requests/other-id/a.txt", ".workspace/sandbox/probe/a.txt",
-                         f".workspace/sandbox/requests/{request}-evil/a.txt", ".workspace/reports/r.md", "src/app.py"):
+                         f".workspace/sandbox/requests/{request}-evil/a.txt", ".workspace/current_tasks/r.md", "src/app.py"):
             with self.subTest(relative):
                 output = self.pre("replace_string_in_file", {"filePath": self.path(relative), "oldString": "a", "newString": "b"})
                 self.assertEqual(self.decision(output), "deny")
@@ -545,7 +545,7 @@ class GateHookTests(HarnessTestCase):
 
     def test_the_call_log_names_the_gate(self) -> None:
         self.pre("create_file", {"filePath": self.path(GUARD), "content": ""})
-        last = self.log_lines("hook-calls.jsonl")[-1]
+        last = self.call_lines()[-1]
         self.assertIn("gate", last["modules"])
         self.assertEqual(last["decision"], "deny")
 

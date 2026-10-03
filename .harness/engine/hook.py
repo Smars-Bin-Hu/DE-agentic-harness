@@ -6,6 +6,7 @@
          -> modules from registry.json that subscribe to the event
          -> merge (deny > ask > allow; contexts joined; one block blocks)
   stdout <- adapter (Decision -> runtime output JSON)
+  log    -> observe module: one line per call in the log of the session
 
 Any error: log it, print {} and exit 0. A broken hook must not block normal work.
 """
@@ -25,19 +26,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import adapters  # noqa: E402
 from core import breaker  # noqa: E402
+from core import callrecord  # noqa: E402
 from core import registry as registry_module  # noqa: E402
 from core import state as state_module  # noqa: E402
 from core.context import Context  # noqa: E402
 from core.events import Decision, HookEvent, merge  # noqa: E402
 from core.failopen import call_safely  # noqa: E402
-from core.logs import log_call, log_error  # noqa: E402
+from core.logs import log_error  # noqa: E402
 from core.paths import repo_root  # noqa: E402
 
 
-def run_modules(root: Path, event: HookEvent, ctx: Context, names: List[str]) -> Tuple[List[Decision], List[str]]:
-    """Call each module. A module that raises has no opinion and its state changes are rolled back."""
-    decisions: List[Decision] = []
+def run_modules(root: Path, event: HookEvent, ctx: Context, names: List[str]) -> Tuple[List[Tuple[str, Decision]], List[str], Dict[str, Any]]:
+    """Call each module. A module that raises has no opinion and its state changes are rolled back.
+
+    Returns what each module decided (with its name), the modules that ran, and the facts they report for the log."""
+    sources: List[Tuple[str, Decision]] = []
     ran: List[str] = []
+    facts: Dict[str, Any] = {}
     for name in names:
         snapshot = copy.deepcopy(ctx.state)
         try:
@@ -50,8 +55,9 @@ def run_modules(root: Path, event: HookEvent, ctx: Context, names: List[str]) ->
             ctx.state.update(snapshot)
             decision = None
         if decision is not None:
-            decisions.append(decision)
-    return decisions, ran
+            sources.append((name, decision))
+            facts.update(decision.facts)
+    return sources, ran, facts
 
 
 def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -72,31 +78,35 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             state.update(link)  # a subagent session: it inherits the parent's level, and its first prompt is not the user
             event.from_subagent = True
         ctx = Context(root, state)
-        decisions, ran = run_modules(root, event, ctx, names)
-        decision = merge(decisions)
+        sources, ran, facts = run_modules(root, event, ctx, names)
+        decision = merge([item for _name, item in sources])
         denial = call_safely(root, "breaker", breaker.apply, root, state, event, decision, ctx.level)  # a refusal stays a refusal
         state_module.track_after(state, event, decision)
-    outcome = decision.permission or ("block" if decision.block else ("context" if decision.context else "none"))
-    record = {
-        "surface": event.surface,
-        "engine": getattr(adapter, "engine", lambda _payload: "")(payload),
-        "event": event.event,
-        "session_id": event.session_id,
-        "tool_name": event.tool_name,
-        "agent_type": event.agent_type,
-        "from_subagent": event.from_subagent,
-        "continuation": event.continuation,
-        "modules": ran,
-        "decision": outcome,
-    }
-    if denial:
-        record["denial"] = denial
-    if event.event in ("SessionStart", "SubagentStart", "SubagentStop"):
-        # Where to look up which model ran: the transcript, and the model name when the engine reports one.
-        record["transcript"] = event.raw.get("transcript_path") or event.raw.get("transcriptPath") or ""
-        if event.raw.get("model"):
-            record["model"] = event.raw["model"]
+        level = ctx.level
+        parent_session_id = state.get("parent_session_id")
+    record = callrecord.build(
+        event,
+        decision,
+        engine=getattr(adapter, "engine", lambda _payload: "")(payload),
+        ran=ran,
+        sources=sources,
+        facts=facts,
+        level=level,
+        parent_session_id=parent_session_id,
+        denial=denial,
+    )
     return adapter.render(event, decision), record
+
+
+def observe(root: Path, record: Dict[str, Any], raw: str, output: Dict[str, Any]) -> None:
+    """Hand the call record to the observe module, if it is on. Logging must never get in the way of the hook."""
+    try:
+        entry = registry_module.load_registry(root)["modules"].get("observe")
+        if entry is None or not entry["enabled"] or entry["status"] == "retired":
+            return
+        importlib.import_module("modules.observe").record_call(root, record, raw, output)
+    except Exception as error:
+        log_error(root, "observe", error)
 
 
 def main() -> int:
@@ -114,7 +124,7 @@ def main() -> int:
         output = {}
     record["ms"] = round((time.monotonic() - started) * 1000, 1)
     record["pid"] = os.getpid()
-    log_call(root, record)
+    observe(root, record, raw, output)
     sys.stdout.write(json.dumps(output))
     sys.stdout.write("\n")
     return 0

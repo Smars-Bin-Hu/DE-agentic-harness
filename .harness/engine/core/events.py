@@ -52,6 +52,9 @@ class Decision:
     reason: str = ""  # why denied, or why Stop is blocked
     block: bool = False  # Stop / SubagentStop
     context: str = ""  # text for the model (UserPromptSubmit, SessionStart, SubagentStart)
+    # Facts for the call log (observe). Not a decision: `merge` ignores them, and a Decision with only facts is empty.
+    # Known keys: `kind` (what kind of refusal, e.g. "budget"), `judge` ("verifier"), `verdict` ("PASS", "FAIL", "unknown").
+    facts: Dict[str, Any] = field(default_factory=dict)
 
     def is_empty(self) -> bool:
         return not (self.permission or self.block or self.context)

@@ -8,7 +8,7 @@ agent 和人的工作区。这里的运行内容不进 git，只有本文件和�
 | --- | --- | --- |
 | `sandbox/requests/<request-id>/` | L3 请求的执行目录。L3 任务只在这里写 | L3 的 agent 和 CLI |
 | `current_tasks/` | 人放任务材料 | 人 |
-| `reports/` | 请求的执行报告 | CLI |
+| `reports/` | 请求的执行报告。请求收尾时自动写，也可以 `cli.py report` 重写 | CLI |
 
 `<request-id>` 的格式是 `<yyyymmdd-HHMM>-<slug>-<4 位随机>`。请求目录和里面的子目录都由 CLI 建立：`cli.py request new`、`attempt new`、`dispatch`。命令一览：`python3 .harness/engine/cli.py --help`。
 
@@ -21,7 +21,7 @@ agent 要遵守的写法见 [workspace.instructions.md](../.github/instructions/
 
 - 所有 Level：guardrail 文件不能改。
 - L3：编辑类工具只能写当前请求目录。写到别处会被拒绝，回写原仓库用 `promote`：先 `--dry-run`，用户在自己的终端运行 `request approve-promote` 批准，再 `promote`。
-- 所有 Level：`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md` 只由 CLI 写，agent 直接写会被拒绝。
+- 所有 Level：`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md` 和 `reports/` 下的报告只由 CLI 写，agent 直接写会被拒绝。
 - gate 不管读取。skills、指令、知识库、contract 谁都能读。
 
 ## 管得住什么，管不住什么

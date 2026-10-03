@@ -163,7 +163,7 @@ class ReplayThroughTheRealProcessTests(HarnessTestCase):
         events = list(iter_session("subagent-child.jsonl"))
         for data in events:
             self.hook(data)
-        calls = self.log_lines("hook-calls.jsonl")
+        calls = self.call_lines()
         self.assertEqual([c["event"] for c in calls], [e["hook_event_name"] for e in events])
         self.assertEqual(len({c["pid"] for c in calls}), len(events))
         self.assertTrue(all("error" not in c for c in calls))
@@ -173,7 +173,7 @@ class ReplayThroughTheRealProcessTests(HarnessTestCase):
     def test_the_recorded_denied_call_leaves_a_deny_record(self) -> None:
         for data in iter_session("subagent-default-to-locked.jsonl"):
             self.hook(data)
-        denied = [c for c in self.log_lines("hook-calls.jsonl") if c["decision"] == "deny"]
+        denied = [c for c in self.call_lines() if c["decision"] == "deny"]
         self.assertEqual([c["tool_name"] for c in denied], ["runSubagent"])
 
     def test_the_output_of_a_recorded_payload_is_valid_json_with_ascii_only(self) -> None:

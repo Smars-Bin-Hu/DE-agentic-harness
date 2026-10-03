@@ -125,5 +125,17 @@ class HarnessTestCase(unittest.TestCase):
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
+    def session_log(self, session_id: str, surface: str = "vscode") -> List[Dict[str, Any]]:
+        """The call log of one session: one line per hook call."""
+        return self.log_lines(f"{surface}/{session_id}.jsonl")
+
+    def call_lines(self) -> List[Dict[str, Any]]:
+        """Every call of every session, oldest first."""
+        base = self.root / ".harness" / "runtime" / "logs"
+        rows: List[Dict[str, Any]] = []
+        for path in sorted(base.glob("*/*.jsonl")):
+            rows.extend(json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+        return sorted(rows, key=lambda row: row["at"])
+
     def set_level(self, session_id: str, level: int, reason: str = "test transition") -> Dict[str, Any]:
         return self.cli_json("level", "set", "--session-id", session_id, "--level", str(level), "--reason", reason)

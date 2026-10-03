@@ -38,6 +38,7 @@ specificTo: harness-orchestration
     2. 把计划给用户看，原样给出这条命令，请用户**在自己的终端**运行：`request approve-promote --request <id>`，看计划，输入确认码。你不能自己运行它。
     3. 用户说批准了，再 `promote --request <id>`。
 13. **结束**：`request set-status --request <id> --status accepted`（reviewer 通过并已回写）。然后 `check --request <id> --require-conclusion`。会话回到 L1。
+    `set-status` 会自动写报告，输出里的 `report` 是路径。把它告诉用户。`report --request <id>` 可以随时重写。
 
 ## 进入 HITL
 

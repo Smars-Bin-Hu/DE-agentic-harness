@@ -108,6 +108,23 @@ def check_module(report: Report, root: Path, name: str, entry: Dict[str, Any]) -
             report.error(f"策略 {policy_name}.json 有问题：{error}")
 
 
+def check_logs(report: Report, root: Path, registry: Dict[str, Any]) -> None:
+    """Nothing deletes the session logs by itself. Say so when there are many, and name the command."""
+    entry = registry["modules"].get("observe")
+    if entry is None or not entry["enabled"]:
+        return
+    try:
+        limit = config.load_policy(root, "observe")["warn_session_files"]
+    except Exception:
+        return  # the policy check of the module reports a broken file
+    base = root / ".harness" / "runtime" / "logs"
+    count = len(list(base.glob("*/*.jsonl"))) if base.is_dir() else 0
+    if count > limit:
+        report.warn(f"有 {count} 个会话日志（超过 {limit}）。不用的可以删：python3 .harness/engine/cli.py logs prune --days 30")
+    if (base / "hook-calls.jsonl").exists():
+        report.warn("还有旧的 .harness/runtime/logs/hook-calls.jsonl。现在每个会话一个文件，这个旧文件不再写入，可以删除")
+
+
 def check_tool_kinds(report: Report) -> None:
     path = Path(__file__).resolve().parent / "adapters" / "tool_kinds.json"
     try:
@@ -202,6 +219,7 @@ def run(root: Path) -> int:
     check_tool_kinds(report)
     check_hook_config(report, root, registry)
     check_agents(report, root)
+    check_logs(report, root, registry)
     for name, entry in registry["modules"].items():
         check_module(report, root, name, entry)
     print("\n".join(report.lines))

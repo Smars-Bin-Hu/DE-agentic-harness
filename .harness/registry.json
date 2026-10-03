@@ -90,9 +90,27 @@
         ".github/agents/builder.agent.md",
         ".github/agents/reviewer.agent.md",
         ".github/skills/harness-orchestration/",
-        ".harness/tests/test_orchestration.py"
+        ".harness/tests/test_orchestration.py",
+        ".harness/tests/test_report.py"
       ],
       "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排。请求目录和 promote 不退役"
+    },
+    "observe": {
+      "status": "active",
+      "enabled": true,
+      "events": [],
+      "enforcement": [
+        "V"
+      ],
+      "surfaces_verified": [
+        "vscode"
+      ],
+      "files": [
+        ".harness/policies/observe.json",
+        ".harness/engine/modules/observe/",
+        ".harness/tests/test_observe.py"
+      ],
+      "retire_when": "Copilot 提供按会话的 hook 调用日志和用量统计"
     }
   }
 }

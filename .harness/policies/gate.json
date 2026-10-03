@@ -15,7 +15,8 @@
     ".workspace/sandbox/requests/*/handoffs/**/handoff.json",
     ".workspace/sandbox/requests/*/handoffs/**/manifest.json",
     ".workspace/sandbox/requests/*/handoffs/orchestrator/init-inputs/knowledge-brief.md",
-    ".workspace/sandbox/requests/*/handoffs/orchestrator/init-inputs/brief-history/**"
+    ".workspace/sandbox/requests/*/handoffs/orchestrator/init-inputs/brief-history/**",
+    ".workspace/reports/**"
   ],
   "l3_write_root": ".workspace/sandbox/requests/{request_id}",
   "terminal": {
@@ -95,6 +96,10 @@
       {
         "why": "会递归改权限，或删除容器、集群、基础设施",
         "pattern": "\\b(?:chmod|chown)\\s+-R\\b|\\bdocker\\s+(?:rm|rmi|system\\s+prune|volume\\s+rm)\\b|\\bkubectl\\s+delete\\b|\\bterraform\\s+(?:apply|destroy)\\b"
+      },
+      {
+        "why": "会删除会话日志",
+        "pattern": "\\bcli\\.py\\s+logs\\s+prune\\b"
       }
     ]
   },

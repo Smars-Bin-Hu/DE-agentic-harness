@@ -169,7 +169,7 @@ class BreakerHookTests(HarnessTestCase):
         self.prompt()
         for _ in range(3):
             self.denied_write()
-        denials = [item["denial"] for item in self.log_lines("hook-calls.jsonl") if "denial" in item]
+        denials = [item["denial"] for item in self.call_lines() if "denial" in item]
         self.assertEqual([item["count"] for item in denials], [1, 2, 3])
         self.assertEqual([item["tripped"] for item in denials], [False, False, True])
         self.assertEqual(len({item["reason_hash"] for item in denials}), 1)

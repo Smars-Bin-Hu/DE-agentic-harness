@@ -310,7 +310,7 @@ class CallLogTests(RequestCase):
     def test_start_and_stop_calls_log_where_the_transcript_is_and_the_model(self) -> None:
         self.hook(payload("SessionStart", "log-session", model="claude-opus-5.5", source="new"))
         self.hook(payload("SubagentStart", "log-session", agent_id="a1", agent_type="builder"))
-        calls = {item["event"]: item for item in self.log_lines("hook-calls.jsonl") if item.get("session_id") == "log-session"}
+        calls = {item["event"]: item for item in self.call_lines() if item.get("session_id") == "log-session"}
         self.assertEqual(calls["SessionStart"]["model"], "claude-opus-5.5")
         self.assertTrue(calls["SessionStart"]["transcript"].endswith("x.jsonl"))
         self.assertTrue(calls["SubagentStart"]["transcript"])

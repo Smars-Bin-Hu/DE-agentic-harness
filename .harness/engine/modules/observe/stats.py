@@ -1,0 +1,99 @@
+"""`cli stats`: counts and times from the session logs."""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from core.logs import read_lines, session_files
+from core.paths import logs_dir, utc_now
+
+
+def percentile(values: List[float], share: float) -> float:
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, int(len(ordered) * share))] if ordered else 0.0
+
+
+def timing(values: List[float]) -> Dict[str, float]:
+    if not values:
+        return {"calls": 0, "mean_ms": 0.0, "p95_ms": 0.0, "max_ms": 0.0}
+    return {
+        "calls": len(values),
+        "mean_ms": round(sum(values) / len(values), 1),
+        "p95_ms": round(percentile(values, 0.95), 1),
+        "max_ms": round(max(values), 1),
+    }
+
+
+def bump(table: Dict[str, int], key: str) -> None:
+    table[key] = table.get(key, 0) + 1
+
+
+def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[int] = None) -> Dict[str, Any]:
+    """Numbers over the matching sessions. `days` keeps only the calls of the last N days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat() if days is not None else ""
+    rows: List[Dict[str, Any]] = []
+    sessions = set()
+    for found_surface, path in session_files(root):
+        if surface and found_surface != surface:
+            continue
+        if session_id and path.stem != session_id:
+            continue
+        for row in read_lines(path):
+            if since and row.get("at", "") < since:
+                continue
+            rows.append(row)
+            sessions.add((found_surface, path.stem))
+
+    prompts: Dict[str, int] = {}
+    tool_calls: Dict[str, int] = {}
+    refused: Dict[str, int] = {}
+    asked: Dict[str, int] = {}
+    blocked: Dict[str, int] = {}
+    budget_denials = 0
+    verifier: Dict[str, int] = {}
+    subagents: Dict[str, int] = {}
+    by_event: Dict[str, List[float]] = {}
+    every: List[float] = []
+    for row in rows:
+        event = row.get("event", "")
+        level = f"L{row.get('level', 1)}"
+        if event == "UserPromptSubmit" and not row.get("from_subagent") and not row.get("continuation"):
+            bump(prompts, level)
+        elif event == "PreToolUse":
+            bump(tool_calls, level)
+        elif event == "SubagentStart":
+            bump(subagents, row.get("agent_type") or "default")
+        decision = row.get("decision")
+        owners = ",".join(row.get("by") or []) or "unknown"
+        if decision == "deny":
+            bump(refused, owners)
+            if row.get("kind") == "budget":
+                budget_denials += 1
+        elif decision == "ask":
+            bump(asked, owners)
+        elif decision == "block":
+            bump(blocked, owners)
+        if row.get("judge") == "verifier":
+            bump(verifier, row.get("verdict") or "unknown")
+        if isinstance(row.get("ms"), (int, float)):
+            by_event.setdefault(event, []).append(float(row["ms"]))
+            every.append(float(row["ms"]))
+    errors = [row for row in read_lines(logs_dir(root) / "hook-errors.jsonl") if not since or row.get("at", "") >= since]
+    return {
+        "sessions": len(sessions),
+        "calls": len(rows),
+        "prompts_by_level": prompts,
+        "tool_calls_by_level": tool_calls,
+        "denied_by_module": refused,
+        "budget_denials": budget_denials,
+        "asked_by_module": asked,
+        "stop_blocks_by_module": blocked,
+        "verifier_verdicts": verifier,
+        "subagents_started": subagents,
+        "hook_time": timing(every),
+        "hook_time_by_event": {name: timing(values) for name, values in sorted(by_event.items())},
+        "hook_errors": len(errors),
+        "as_of": utc_now(),
+    }

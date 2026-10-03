@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "description": "Call log: one file per session under .harness/runtime/logs/<surface>/. Tool arguments are never recorded; a call that was denied or sent to a person keeps its paths and command (cut to max_text_chars). capture saves the raw hook input and output of every call, for finding out what a runtime sends: leave it off, the input holds code.",
+  "max_text_chars": 300,
+  "capture": { "enabled": false },
+  "warn_session_files": 500
+}

@@ -5,6 +5,7 @@
   attempt new                                open the next attempt
   dispatch                                   build and freeze the input package of one role
   handoff submit                             write a role's handoff
+  report                                     one Markdown page about a request (also written when it is concluded)
   check                                      does the request folder agree with itself
   promote                                    copy the reviewed result back into the repository (ask in the gate)
 """
@@ -16,7 +17,7 @@ from typing import Any, Dict
 
 from core.paths import repo_root
 
-from . import check, ops, promote
+from . import check, ops, promote, report
 
 
 def _request(parser: argparse.ArgumentParser) -> None:
@@ -37,6 +38,10 @@ def cmd_set_status(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_approve_promote(args: argparse.Namespace) -> Dict[str, Any]:
     return promote.approve(repo_root(), args.request or "")
+
+
+def cmd_report(args: argparse.Namespace) -> Dict[str, Any]:
+    return report.generate(repo_root(), args.request or "")
 
 
 def cmd_list(args: argparse.Namespace) -> Dict[str, Any]:
@@ -109,6 +114,10 @@ def register(subparsers: Any) -> None:
     show = commands.add_parser("show", help="print request.json")
     _request(show)
     show.set_defaults(handler=cmd_show)
+
+    report_parser = subparsers.add_parser("report", help="write .workspace/reports/<request id>.md: result, attempts, handoffs, refusals")
+    report_parser.add_argument("--request", default="", help="request id; left out, the newest request is used")
+    report_parser.set_defaults(handler=cmd_report)
 
     brief = subparsers.add_parser("brief", help="the knowledge brief")
     brief_commands = brief.add_subparsers(dest="brief_command", required=True)

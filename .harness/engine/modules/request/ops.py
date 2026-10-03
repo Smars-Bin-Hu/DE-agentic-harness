@@ -152,7 +152,7 @@ def list_requests(root: Path, status: str = "") -> Dict[str, Any]:
     """Every request folder, newest first: enough for a person to find a request id."""
     found: List[Dict[str, Any]] = []
     base = layout.requests_root(root)
-    for path in sorted(base.iterdir(), reverse=True) if base.is_dir() else []:
+    for path in base.iterdir() if base.is_dir() else []:
         try:
             data = store.read_request(root, path.name)
         except Exception:
@@ -165,6 +165,7 @@ def list_requests(root: Path, status: str = "") -> Dict[str, Any]:
             "waiting_for_approval": data["status"] == "open" and data["promote"]["state"] == "dry_run" and "approved_plan_sha256" not in data["promote"],
             "created_at": data["created_at"],
         })
+    found.sort(key=lambda item: item["created_at"], reverse=True)  # the id starts with the minute only; the time is exact
     return {"requests": found}
 
 
@@ -493,4 +494,11 @@ def set_status(root: Path, request_id: str, status: str, reason: str = "") -> Di
             if state["active_request"] == request_id:
                 state["active_request"] = None
                 released = True
-    return {"request_id": request_id, "status": status, "session_released": released, "next": "会话回到 L1。" if released else ""}
+    result = {"request_id": request_id, "status": status, "session_released": released, "next": "会话回到 L1。" if released else ""}
+    try:
+        from . import report  # a report needs this module, so it is imported here
+
+        result["report"] = report.generate(root, request_id)["report"]
+    except Exception as error:  # the conclusion is already written; a missing report must not undo it
+        result["report_error"] = f"{type(error).__name__}: {error}"
+    return result

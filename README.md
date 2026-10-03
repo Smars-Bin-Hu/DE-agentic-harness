@@ -34,11 +34,12 @@ README 是仓库的第一目录。先从这里找到目标文件，再读取需�
 | [.harness/policies/task-levels.json](.harness/policies/task-levels.json)                                 | Task Level 1、2、3 的机器可读规则。          |
 | [.harness/policies/gate.json](.harness/policies/gate.json)                                               | 闸门规则：guardrail 文件、L3 写入范围、危险命令、熔断。 |
 | [.harness/policies/orchestration.json](.harness/policies/orchestration.json)                               | L3 请求的上限：轮数、brief 大小、handoff 摘要行数。 |
+| [.harness/policies/observe.json](.harness/policies/observe.json)                                         | 日志：每个会话一个文件，记录多长的文字，capture 开关。 |
 | [.harness/policies/agents.json](.harness/policies/agents.json)                                           | 模型系列：回退只能在同一系列，builder 和 reviewer 不同系列。 |
 | [.harness/contracts/](.harness/contracts/)                                                               | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板。 |
 | [.harness/engine/hook.py](.harness/engine/hook.py)                                                       | hook 入口：识别运行时，分发给模块，合并结果。 |
-| [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口：`doctor` 检查配置，`level` 管理 Level，`request` 等管理 L3 请求。 |
-| [.harness/engine/modules/](.harness/engine/modules/)                                                     | 可插拔模块：`task_level`、`gate`、`request`。 |
+| [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口：`doctor` 检查配置，`level` 管理 Level，`request`、`report` 等管理 L3 请求，`stats`、`logs prune` 看和清理日志。 |
+| [.harness/engine/modules/](.harness/engine/modules/)                                                     | 可插拔模块：`task_level`、`gate`、`request`、`observe`。 |
 | [.harness/engine/adapters/](.harness/engine/adapters/)                                                   | 运行时差异：payload 解析、输出格式、工具名表。 |
 | [.harness/eval/fixtures/](.harness/eval/fixtures/)                                                       | 真实 hook 输入的录制样本，用于回放测试。     |
 | [.harness/tests/](.harness/tests/)                                                                       | 全部测试。`python3 -m unittest discover -s .harness/tests` |

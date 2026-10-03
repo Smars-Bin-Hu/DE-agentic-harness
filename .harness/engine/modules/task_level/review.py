@@ -35,14 +35,17 @@ def is_verifier_call(event: HookEvent, policy: Dict[str, Any]) -> bool:
     return event.subagent_target.strip().lower() in names
 
 
-def record_post_tool(event: HookEvent, ms: Dict[str, Any], policy: Dict[str, Any]) -> None:
-    """PostToolUse: the call has happened. Note edits, and the verdict of a finished verifier call."""
+def record_post_tool(event: HookEvent, ms: Dict[str, Any], policy: Dict[str, Any]) -> str:
+    """PostToolUse: the call has happened. Note edits, and the verdict of a finished verifier call (returned, else "")."""
     seq = levelstate.next_seq(ms)
     if event.tool_kind in EDIT_KINDS:
         ms["prompt"]["edits"] += 1
         ms["prompt"]["last_edit_seq"] = seq
     elif is_verifier_call(event, policy):
-        ms["reviews"].append({"verdict": parse_verdict(event.tool_response), "seq": seq})
+        verdict = parse_verdict(event.tool_response)
+        ms["reviews"].append({"verdict": verdict, "seq": seq})
+        return verdict
+    return ""
 
 
 def review_reason(ms: Dict[str, Any], need: Dict[str, Any]) -> str:

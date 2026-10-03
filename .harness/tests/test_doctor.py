@@ -135,6 +135,24 @@ class DoctorTests(unittest.TestCase):
         )
         self.assertEqual(self.doctor().returncode, 1)
 
+    def test_many_session_logs_are_a_warning_that_names_the_prune_command(self) -> None:
+        self.edit_json(".harness/policies/observe.json", lambda data: data.update(warn_session_files=2))
+        folder = self.root / ".harness" / "runtime" / "logs" / "vscode"
+        folder.mkdir(parents=True)
+        for name in ("a", "b", "c"):
+            (folder / f"{name}.jsonl").write_text("{}\n", encoding="utf-8")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("logs prune", result.stdout)
+
+    def test_the_old_shared_call_log_is_a_warning(self) -> None:
+        folder = self.root / ".harness" / "runtime" / "logs"
+        folder.mkdir(parents=True)
+        (folder / "hook-calls.jsonl").write_text("{}\n", encoding="utf-8")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("hook-calls.jsonl", result.stdout)
+
     def test_a_bad_registry_is_an_error(self) -> None:
         self.edit_json(".harness/registry.json", lambda data: data["modules"]["task_level"].update(events=["NotAnEvent"]))
         self.assertEqual(self.doctor().returncode, 1)
