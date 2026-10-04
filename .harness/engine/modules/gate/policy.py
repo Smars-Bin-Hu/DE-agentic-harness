@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Pattern, Tuple
 
 from core import repo_paths, schema
-from core.guardrails import CORE_GUARDRAILS, guardrail_paths, missing_core
+from core.guardrails import CORE_GUARDRAILS, admin_locked, guardrail_paths, missing_core
 
 POLICY_NAME = "gate"
 # Any `.git` folder (in a target repository or anywhere else) in a terminal command, with the spellings Windows treats as the same.
@@ -33,6 +33,7 @@ POLICY_SCHEMA = {
         "schema_version": {"type": "integer", "enum": [1]},
         "guardrail_paths": {"type": "array", "items": {"type": "string"}},
         "extra_guardrail_paths": {"type": "array", "items": {"type": "string"}},
+        "admin_locked_paths": {"type": "array", "items": {"type": "string"}},
         "cli_owned_paths": {"type": "array", "items": {"type": "string"}},
         "l3_write_root": {"type": "string"},
         "terminal": {
@@ -61,7 +62,7 @@ def validate_policy(policy: Dict[str, Any], floor: bool = True) -> None:
         raise ValueError(
             f"Invalid {POLICY_NAME}.json: guardrail_paths must keep {core!r} (core guardrails cannot be removed, also not by an override; use 'guardrail_paths+' to add more)"
         )
-    if any(not item.strip() for item in patterns + list(policy.get("cli_owned_paths", []))):
+    if any(not item.strip() for item in patterns + list(policy.get("cli_owned_paths", [])) + list(policy.get("admin_locked_paths", []))):
         raise ValueError(f"Invalid {POLICY_NAME}.json: empty guardrail path")
     if REQUEST_PLACEHOLDER not in policy["l3_write_root"]:
         raise ValueError(f"Invalid {POLICY_NAME}.json: l3_write_root must contain {REQUEST_PLACEHOLDER}")
@@ -78,9 +79,12 @@ def validate_policy(policy: Dict[str, Any], floor: bool = True) -> None:
 class Compiled:
     """The policy with its patterns compiled. Built once per hook call."""
 
-    def __init__(self, policy: Dict[str, Any], repos: Optional[List[Tuple[str, Path, List[str]]]] = None) -> None:
-        """`repos`: (name, path, refused_paths) of each target repository. Without them only the `.git` floor applies."""
-        self.paths = guardrail_paths(policy)
+    def __init__(self, policy: Dict[str, Any], repos: Optional[List[Tuple[str, Path, List[str]]]] = None, admin: bool = False) -> None:
+        """`repos`: (name, path, refused_paths) of each target repository. Without them only the `.git` floor applies.
+
+        `admin`: the session is in admin mode. Only the guardrails that stay closed for an admin count then.
+        """
+        self.paths = admin_locked(policy) if admin else guardrail_paths(policy)
         self.path_regexes: List[Tuple[str, Pattern[str]]] = [(item, repo_paths.glob_regex(item)) for item in self.paths]
         guard = repo_paths.command_regex(self.paths).pattern
         self.guard_writes = [

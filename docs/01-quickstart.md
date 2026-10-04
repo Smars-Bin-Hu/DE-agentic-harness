@@ -143,3 +143,4 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 - **promote 中途出错**：进入 `partial`，信息里列出已写好、出错、没动的仓库。你在自己的终端运行 `<cli> request recover`（L2 任务是 `<cli> task recover`），再让 agent 重新 `--dry-run`。
 - **任务很大，要做很多天或跨多个 session**：输入 `/generic-goal-driven` 建目标，之后每个新 session 输入 `/generic-goal-driven 继续`。日常任务不要用。提示见 [07-prompts.md](07-prompts.md)。
 - **看用量和拒绝次数**：`<cli> stats`。
+- **要改 harness 自己，或查 harness 为什么出错**：在 agent 下拉里选 admin，照它给的命令在终端运行 `<cli> admin on`。用完运行 `<cli> admin off`。见 [02-features.md](02-features.md) 的“admin”一节。

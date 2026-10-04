@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 from core import config, repo_paths, targets
 from core.paths import cli_command, mkdir_command, utc_now
-from core.state import session, state_path
+from core.state import admin_on, session, state_path
 
 from . import brief as brief_module
 from . import layout, store
@@ -186,6 +186,8 @@ def new_request(root: Path, title: str, session_id: str, surface: str = "vscode"
     request_id = store.new_request_id(root, title)
     directory = layout.request_dir(root, request_id)
     with session(root, surface, session_id) as state:
+        if admin_on(state):
+            raise CommandError("这个会话在 admin 模式里，不能开 L3 请求。admin 只用来二开和排查 harness；做任务请用户换一个对话，或先运行 `admin off`。")
         if state["active_request"]:
             raise CommandError(
                 f"这个会话已经有进行中的请求 `{state['active_request']}`。先用 `request set-status` 结束它，再建新的。"

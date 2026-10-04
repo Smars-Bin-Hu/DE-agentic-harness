@@ -150,5 +150,6 @@ DEV/ 里的成果已经写好。不要改文件。
 | RCA、读知识库、出方案，不改文件 | L2，不带任务目录 |
 | 需求清楚的开发，要改目标仓库 | L2 任务模式 |
 | 跨多个仓库或 domain，改动大，想要独立的 reviewer 把关 | L3 |
+| 改 harness 自己（hook、策略、engine、agent、skill），读报告，查 harness 出错的根因 | admin agent，先在终端 `admin on` |
 
 `<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。

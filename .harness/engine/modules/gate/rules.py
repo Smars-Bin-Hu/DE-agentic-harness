@@ -8,14 +8,28 @@ from core.paths import cli_command
 def guardrail_file(relative: str, pattern: str) -> str:
     return (
         f"`{relative}` 是 guardrail 文件（{pattern}），所有 Level 都不能改。"
-        "不要改它，也不要用终端命令绕过。需要改它时，停下来告诉用户要改什么，由用户自己改。"
+        "不要改它，也不要用终端命令绕过。需要改它时，停下来告诉用户要改什么，由用户自己改，或由用户切到 admin agent 改。"
+    )
+
+
+def admin_locked_file(relative: str, pattern: str) -> str:
+    return (
+        f"`{relative}` 在 admin 模式下也不能改（{pattern}）：这里放着会话状态、批准记录和日志，只能读。"
+        "不要用终端命令绕过。确实要清理或修复它时，停下来告诉用户，由用户自己做。"
+    )
+
+
+def admin_locked_terminal(why: str) -> str:
+    return (
+        f"这条终端命令会改 admin 模式下也不能改的文件（{why}），例如 `.harness/runtime/` 里的会话状态、批准记录和日志。"
+        "不要换个命令重试。确实要清理或修复它时，停下来告诉用户，由用户自己做。"
     )
 
 
 def guardrail_terminal(why: str) -> str:
     return (
         f"这条终端命令会改 guardrail 文件（{why}）。guardrail 文件所有 Level 都不能改。"
-        "不要换个命令重试。需要改它时，停下来告诉用户要改什么，由用户自己改。"
+        "不要换个命令重试。需要改它时，停下来告诉用户要改什么，由用户自己改，或由用户切到 admin agent 改。"
     )
 
 

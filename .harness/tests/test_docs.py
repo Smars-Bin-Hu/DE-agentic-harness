@@ -24,7 +24,7 @@ DOCUMENTS = [REPO / "README.md", *sorted((REPO / "docs").glob("*.md")), REPO / "
 REFERENCE = REPO / "docs" / "04-reference.md"
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 LOCAL_FOLDER = re.compile(r"(?<![~\w])\.local/")
-SUBCOMMANDS = {"level", "request", "target", "logs", "eval", "brief", "attempt", "handoff"}
+SUBCOMMANDS = {"level", "request", "target", "logs", "eval", "brief", "attempt", "handoff", "admin"}
 CLI = ENGINE / "cli.py"
 
 

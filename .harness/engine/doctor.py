@@ -368,7 +368,7 @@ def series_of(name: str, series: Dict[str, List[str]]) -> str:
 
 
 def check_agents(report: Report, root: Path) -> None:
-    """Each agent's model list stays in one series; roles listed in `different_series` do not share one."""
+    """Each agent's model list stays in one series (unless it is in `any_series`); roles listed in `different_series` do not share one."""
     directory = root / ".github" / "agents"
     if not directory.is_dir() or not (root / ".harness" / "policies" / "agents.json").exists():
         return
@@ -387,6 +387,8 @@ def check_agents(report: Report, root: Path) -> None:
         if "" in labels:
             report.warn(f"agent {agent} 的 model 里有不认识的模型名：{', '.join(n for n in names if not series_of(n, policy['series']))}。在 agents.json 里加系列关键词，或检查拼写")
             labels.discard("")
+        if len(labels) > 1 and agent in policy.get("any_series", []):
+            continue  # this agent may fall back across series; it takes no part in `different_series`
         if len(labels) > 1:
             report.error(f"agent {agent} 的 model 回退列表跨了系列（{', '.join(sorted(labels))}）。回退只能在同一系列里")
         elif labels:

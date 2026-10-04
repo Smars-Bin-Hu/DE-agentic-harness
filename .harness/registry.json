@@ -64,6 +64,8 @@
         ".harness/tests/test_gate.py",
         ".harness/tests/test_gate_git.py",
         ".harness/tests/test_gate_approval.py",
+        ".harness/tests/test_admin.py",
+        ".github/agents/admin.agent.md",
         ".github/instructions/workspace.instructions.md",
         ".workspace/README.md"
       ],

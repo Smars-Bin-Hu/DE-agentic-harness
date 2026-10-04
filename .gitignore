@@ -20,6 +20,8 @@ __pycache__/
 !.workspace/current_tasks/.gitkeep
 .workspace/reports/*
 !.workspace/reports/.gitkeep
+.workspace/goals/*
+!.workspace/goals/.gitkeep
 
 # OS
 .DS_Store

@@ -1,6 +1,8 @@
 """gate hook handler. PreToolUse only. It guards writes and never blocks a read.
 
   edit / create tools   a guardrail file or a file only the CLI writes is denied; in L3 a path outside the request folder is denied
+  admin mode            the person switched it on for this session (`admin on`): guardrail files are open, except those
+                        that stay closed for an admin (the runtime folder). Every other rule here stays as it is
   terminal              a command that writes a guardrail file or is dangerous is denied; some commands ask a person
   git commands          with target repositories configured (A5): a git read passes, a write is refused until a person approves that exact command
                         (`approve-command`), some are never approved (push, clean, reset --hard, branch -D, any force)
@@ -49,7 +51,8 @@ def check_write(event: HookEvent, ctx: Context, compiled: Compiled) -> Optional[
         for relative in (item for item in readings if item is not None):
             pattern = compiled.guardrail_match(relative)
             if pattern:
-                return Decision(permission="deny", reason=rules.guardrail_file(relative, pattern))
+                reason = rules.admin_locked_file(relative, pattern) if ctx.admin else rules.guardrail_file(relative, pattern)
+                return Decision(permission="deny", reason=reason)
             if compiled.owned_match(relative):
                 return Decision(permission="deny", reason=rules.cli_owned_file(relative))
         if request_id and outside is None and readings:
@@ -95,7 +98,7 @@ def _within(relative: str, folder: str) -> bool:
 def check_terminal(event: HookEvent, ctx: Context, compiled: Compiled, policy: dict, guard_git: bool) -> Optional[Decision]:
     why = terminal.guardrail_write(event.command, compiled)
     if why:
-        return Decision(permission="deny", reason=rules.guardrail_terminal(why))
+        return Decision(permission="deny", reason=rules.admin_locked_terminal(why) if ctx.admin else rules.guardrail_terminal(why))
     why = terminal.owned_write(event.command, compiled)
     if why:
         return Decision(permission="deny", reason=rules.cli_owned_terminal(why))
@@ -138,7 +141,7 @@ def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
     policy = ctx.policy(POLICY_NAME)
     validate_policy(policy, floor=False)
     found = load_targets(ctx)
-    compiled = Compiled(policy, [(repo.name, repo.path, repo.refused_paths) for repo in found.repos.values()] if found else None)
+    compiled = Compiled(policy, [(repo.name, repo.path, repo.refused_paths) for repo in found.repos.values()] if found else None, admin=ctx.admin)
     if event.tool_kind == "terminal":
         # Without target repositories the harness behaves as before: only the ask rules in gate.json look at git.
         return check_terminal(event, ctx, compiled, policy, guard_git=bool(found and found.configured))

@@ -5,6 +5,8 @@ State file: .harness/runtime/state/<surface>/<session>.json
 Shared fields (one writer each, see 00 section 8.3):
   level           1 or 2, the level the user chose. Written by task_level.
   active_request  id of the running L3 request. Written by the request module.
+  admin           {"on": true, ...} while the person has switched admin mode on for this session. Written by the gate CLI
+                  (`admin on|off`, a person at a terminal). Optional: a session without it is not admin.
 Module state lives in state["modules"][<name>].
 """
 
@@ -51,6 +53,7 @@ STATE_SCHEMA = {
         "session_id": {"type": "string"},
         "level": {"type": "integer", "enum": [1, 2]},
         "active_request": {"type": ["string", "null"]},
+        "admin": {"type": "object", "required": ["on"], "properties": {"on": {"type": "boolean"}}},
         "subagents": {
             "type": "object",
             "required": ["active", "pending_prompts"],
@@ -178,6 +181,11 @@ def update_state(root: Path, surface: str, session_id: str, mutator: Callable[[D
 def effective_level(state: Dict[str, Any]) -> int:
     """3 while an L3 request is active, otherwise the level the user chose."""
     return 3 if state.get("active_request") else state["level"]
+
+
+def admin_on(state: Dict[str, Any]) -> bool:
+    """The person switched admin mode on for this session. A subagent session is never admin."""
+    return bool((state.get("admin") or {}).get("on")) and not state.get("parent_session_id")
 
 
 # --- subagent tracking (00 section 2, hard conclusion 5) -------------------------------------------

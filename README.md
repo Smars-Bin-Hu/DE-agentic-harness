@@ -83,7 +83,8 @@ harness 之外：目标仓库（企业的代码仓库）
 | [AGENTS.md](AGENTS.md)、[.github/copilot-instructions.md](.github/copilot-instructions.md) | 核心规则和安全边界；仓库级规则 |
 | [.github/instructions/](.github/instructions/) | 分类规则：[agents](.github/instructions/agents.instructions.md)、[skills](.github/instructions/skills.instructions.md)、[tools](.github/instructions/tools.instructions.md)、[workspace](.github/instructions/workspace.instructions.md)（`.workspace/` 的读写规则） |
 | [.github/skills/harness-task-level/](.github/skills/harness-task-level/)、[.github/skills/harness-orchestration/](.github/skills/harness-orchestration/) | Task Level 的使用流程和 L2 任务模式的每一步；L3 请求的每一步用哪条命令 |
-| [.github/agents/](.github/agents/) | 自定义智能体：orchestrator（用户可选）、builder、reviewer、verifier |
+| [.github/skills/generic-goal-driven/](.github/skills/generic-goal-driven/) | 长周期任务的目标驱动流程：中心思想、TODO、进度指针存成文件，换 session 能接上。只由用户用 `/generic-goal-driven` 启动 |
+| [.github/agents/](.github/agents/) | 自定义智能体：orchestrator、admin（用户可选）、builder、reviewer、verifier。admin 用来二开和排查 harness，要先在终端开 admin 模式 |
 | [.github/hooks/harness.json](.github/hooks/harness.json) | 唯一的 hook 配置，所有事件进同一个入口 |
 | [.harness/registry.json](.harness/registry.json) | 模块注册表：开关、订阅的事件、文件清单 |
 | [.harness/policies/](.harness/policies/) | 策略：task-levels、gate、orchestration、observe、agents、target。覆盖写在同名 `.override.json`，规则见 [配置与定制](docs/03-configure.md) |

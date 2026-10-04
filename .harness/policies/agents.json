@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
-  "description": "Model series, so doctor can check the agent files. An agent's model list may only fall back inside one series, and some roles must not share a series.",
+  "description": "Model series, so doctor can check the agent files. An agent's model list may only fall back inside one series, and some roles must not share a series. Agents in any_series may fall back across series.",
   "series": {
     "opus": ["opus"],
     "sonnet": ["sonnet"],
     "haiku": ["haiku"]
   },
-  "different_series": [["builder", "reviewer"]]
+  "different_series": [["builder", "reviewer"]],
+  "any_series": ["admin"]
 }

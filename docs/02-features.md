@@ -23,17 +23,38 @@ gate 是一个 hook 模块，在每次工具调用前检查。它只管写，不
 
 | 它拦 | 说明 |
 | --- | --- |
-| guardrail 文件 | `.github/hooks/`、`.harness/engine/`、`.harness/policies/`、`.harness/bin/`、`.harness/registry.json`、`.harness/runtime/`、`.vscode/settings.json`。所有 Level 都不能改，也不能被 override 删掉 |
+| guardrail 文件 | `.github/hooks/`、`.harness/engine/`、`.harness/policies/`、`.harness/bin/`、`.harness/registry.json`、`.harness/runtime/`、`.vscode/settings.json`。所有 Level 都不能改，也不能被 override 删掉。只有 admin 模式的会话例外（见下面“admin”一节） |
 | L3 越界写 | L3 的编辑类工具只能写当前请求目录 |
 | L2 任务越界写 | 任务模式下，你批准计划之前只能写 `PLAN.md`，之后只能写任务的 `DEV/` |
 | 目标仓库的工作区 | 任何 Level 都不能直接改目标仓库里的文件，只有 promote 能写 |
 | CLI 专用文件 | `request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md`、报告，只能用命令改 |
 | `.git` | 任何 Level 都不能写 `.git` 文件夹（含 Windows 的别名写法），也不能写目标仓库的 `refused_paths` |
 | 危险终端命令 | 删根目录、`curl \| sh`、联网、装软件包、管理员权限等：拒绝或要你确认 |
-| 批准类命令 | `approve-plan`、`approve-promote`、`recover`、`approve-command` 只能由你在终端运行，agent 运行会被拒绝 |
+| 批准类命令 | `approve-plan`、`approve-promote`、`recover`、`approve-command`、`admin on` 只能由你在终端运行，agent 运行会被拒绝 |
 | 重复被拒 | 同一个拒绝出现多次，理由换成“停止重试”（熔断） |
 
 gate 不是沙盒：终端命令可以用 gate 看不出的写法写任何路径。需要更强的隔离，用操作系统或容器。详细边界见 [.workspace/README.md](../.workspace/README.md)。规则全文在 [gate.json](../.harness/policies/gate.json)。
+
+## admin：二开和排查 harness（可选）
+
+在 agent 下拉里选 admin。它用来改 harness 自己的文件、读报告和日志、查 harness 出错的根因。它不做业务任务，也不能被当成子 agent 调用。
+
+选了 admin 还不够：hook 看不到当前是哪个 agent，所以写权限由你在终端开。admin 会给你这条命令：
+
+```text
+<cli> admin on --session-id <会话 id>
+```
+
+输入确认码后，只有这一个会话进入 admin 模式，直到你运行 `<cli> admin off --session-id <会话 id>`。`<cli> admin status` 列出开着的会话。
+
+| admin 模式下 | 说明 |
+| --- | --- |
+| 放开 | guardrail 文件可以改：hook 配置、策略、engine、短命令、registry、`.vscode/settings.json` |
+| 仍然锁住 | `.harness/runtime/`（会话状态、批准记录、日志，只读）、CLI 专用文件和报告、`.git`、目标仓库；git 写命令和危险命令的规则不变；批准类命令只有你能运行 |
+| Task Level | 不适用：没有预算，`/l1`、`/l2` 不起作用，不能调子 agent，不能开 L3 请求和 L2 任务 |
+| 日志 | 这个会话的每条日志带 `admin: true` |
+
+admin 模式的会话能改 engine 和策略，所以它的底线不是硬的：用完就关，改动用 git 看差异。公司电脑上尽量用 override 和新增文件做定制，见 [03-configure.md](03-configure.md)。
 
 ## L2 任务模式：一个 agent，两次批准
 

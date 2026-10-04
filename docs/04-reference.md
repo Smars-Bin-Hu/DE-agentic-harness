@@ -18,6 +18,8 @@
 | `task recover` | L2 任务的 promote 中途出错后，把仓库恢复原样。只能在终端，输入确认码 |
 | `task status`、`task report` | 看 L2 任务做到哪一步；重写任务报告 |
 | `approve-command` | 批准 agent 被拒绝的一条 git 命令。只能在终端，输入验证码 |
+| `admin on` | 给一个会话开 admin 模式：它可以改 guardrail 文件。只能在终端，输入确认码 |
+| `admin off`、`admin status` | 关掉一个会话的 admin 模式；列出开着 admin 模式的会话 |
 | `request list`、`request show` | 看请求列表和某个请求的 `request.json` |
 | `target list`、`target show` | 看目标仓库：路径、base 分支、提交号、工作区是否干净 |
 | `report` | 重写某个请求的报告 |
@@ -72,6 +74,7 @@
 | task-levels.json | `levels.3.subagents.require_dispatch` | 调子 agent 前必须 `dispatch` |
 | gate.json | `guardrail_paths` | 所有 Level 都不能改的路径 |
 | gate.json | `extra_guardrail_paths` | 你追加的 guardrail 路径 |
+| gate.json | `admin_locked_paths` | admin 模式下也不能改的 guardrail 路径。`.harness/runtime/**` 删不掉 |
 | gate.json | `cli_owned_paths` | 只有 CLI 能写的路径 |
 | gate.json | `l3_write_root` | L3 的可写目录，含 `{request_id}` |
 | gate.json | `terminal.guardrail_write` | 终端命令写 guardrail 的识别规则 |
@@ -91,6 +94,7 @@
 | observe.json | `warn_session_files` | 会话日志文件数超过它时 `doctor` 提醒 |
 | agents.json | `series` | 模型系列 |
 | agents.json | `different_series` | 必须用不同系列的角色组 |
+| agents.json | `any_series` | 回退列表可以跨系列的 agent（admin） |
 | target.json | `repos_root` | 目标仓库的父文件夹 |
 | target.json | `repos` | 单个仓库的 `path`、`base_ref`、`refused_paths` |
 | target.json | `base_ref` | 取文件的分支 |
@@ -123,11 +127,11 @@
 
 ## 运行时文件
 
-都在 `.harness/runtime/`，不进 git，agent 不能写。
+都在 `.harness/runtime/`，不进 git，agent 不能写（admin 模式也不能）。
 
 | 路径 | 内容 |
 | --- | --- |
-| `state/<surface>/<会话>.json` | 每个会话的 Level、当前请求、子 agent、预算计数 |
+| `state/<surface>/<会话>.json` | 每个会话的 Level、当前请求、子 agent、预算计数、是否在 admin 模式 |
 | `logs/<surface>/<会话>.jsonl` | 会话日志 |
 | `logs/hook-errors.jsonl` | hook 自己出的错 |
 | `git-approvals.json` | 等待批准和已批准的 git 命令 |
