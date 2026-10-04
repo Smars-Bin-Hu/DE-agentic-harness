@@ -9,6 +9,7 @@
     "status": { "type": "string", "enum": ["passed", "failed", "blocked"] },
     "summary": { "type": "string", "minLength": 1 },
     "outputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "deletes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "next": { "type": "string" },

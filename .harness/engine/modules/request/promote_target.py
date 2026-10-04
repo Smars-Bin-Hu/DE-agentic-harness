@@ -103,7 +103,7 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         raise CommandError("最后一轮 reviewer 还不是 passed，不能 promote。先走完评审；不通过就 `attempt new` 返工。")
     package = layout.package_dir(directory, number, "reviewer")
     manifest = ops.store_json(package / "manifest.json")
-    candidates = [item for item in manifest["files"] if item["purpose"] == "candidate"]
+    candidates = [item for item in manifest["files"] if item["purpose"] in ("candidate", "deleted")]
     if not candidates:
         raise CommandError("reviewer 评审的输入包里没有成果文件，没有东西可回写。")
     found = ops.load_targets(root)
@@ -118,9 +118,9 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         source = package / item["path"]
         if not source.is_file() or store.sha256_file(source) != item["sha256"]:
             raise CommandError(f"评审过的文件 `{item['path']}` 被改动或丢了（和 manifest 的 sha256 不一致）。重新走一轮评审。")
-        key = layout.relative_name(item["path"].split("/", 1)[1], "成果路径")  # drop the leading `candidate/`
+        key = layout.relative_name(item["path"].split("/", 1)[1], "成果路径")  # drop the leading `candidate/` (or `base/`)
         name, _, relative = key.partition("/")
-        by_repo.setdefault(name, []).append({"key": key, "relative": relative, "source": source, "sha256": item["sha256"]})
+        by_repo.setdefault(name, []).append({"key": key, "relative": relative, "source": source, "sha256": item["sha256"], "delete": item["purpose"] == "deleted"})
     repos: List[Dict[str, Any]] = []
     files: List[Dict[str, Any]] = []
     for name in sorted(by_repo):
@@ -163,7 +163,12 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
                 continue
             new_bytes = item["source"].read_bytes()
             entry: Dict[str, Any] = {"path": key, "repo": name, "relative": relative, "sha256": item["sha256"]}
-            if old_bytes is None:
+            if item["delete"]:
+                if old_bytes is None:
+                    mine.append(f"`{key}` 在 {repo.base_ref} 上不存在，没有东西可删。")
+                    continue
+                entry.update(action="delete", base_blob=blob, **_diff(old_bytes, b"", key))
+            elif old_bytes is None:
                 entry.update(action="create", added=_lines(new_bytes), removed=0, diff=[])
             elif old_bytes == new_bytes:
                 entry.update(action="unchanged", added=0, removed=0, diff=[])
@@ -204,8 +209,15 @@ def full_patch(root: Path, result: Dict[str, Any], package: Path) -> str:
     for item in result["files"]:
         if item["action"] == "unchanged":
             continue
-        new_bytes = (package / "candidate" / item["path"]).read_bytes()
         out.append(f"diff --git a/{item['path']} b/{item['path']}")
+        if item["action"] == "delete":
+            out += ["deleted file", f"--- a/{item['path']}", "+++ /dev/null"]
+            try:
+                out += ["-" + line for line in (package / "base" / item["path"]).read_bytes().decode("utf-8").splitlines()]
+            except UnicodeDecodeError:
+                out.append("（二进制文件，不显示内容）")
+            continue
+        new_bytes = (package / "candidate" / item["path"]).read_bytes()
         if item["action"] == "create":
             out.append("--- /dev/null")
             out.append(f"+++ b/{item['path']}")
@@ -228,7 +240,10 @@ def save_dev(root: Path, data: Dict[str, Any], request_id: str, result: Dict[str
     base = dev_root(root, data, request_id)
     try:
         for item in result["files"]:
-            ops.copy_file(package / "candidate" / item["path"], base / item["path"])
+            if item["action"] == "delete":  # keep the file that goes away, apart from the results
+                ops.copy_file(package / "base" / item["path"], base / "_deleted" / item["path"])
+            else:
+                ops.copy_file(package / "candidate" / item["path"], base / item["path"])
         patch = base / f"{request_id}.patch"
         patch.parent.mkdir(parents=True, exist_ok=True)
         patch.write_text(full_patch(root, result, package), encoding="utf-8")
@@ -252,7 +267,7 @@ def recovery_steps(repo: Dict[str, Any], branch: str, switched: bool, written: L
     """The steps that put one repository back as it was: the written files, the checkout, the branch."""
     path = repo["path"]
     steps = []
-    modified = [item["relative"] for item in written if item["action"] == "modify"]
+    modified = [item["relative"] for item in written if item["action"] in ("modify", "delete")]  # a deleted file comes back with `restore`
     created = [item["relative"] for item in written if item["action"] == "create"]
     if modified:
         steps.append({"repo": path, "git": ["restore", "--", *modified]})
@@ -307,6 +322,16 @@ def run_recovery(steps: List[Dict[str, Any]], branch: str, timeout: int) -> List
     return results
 
 
+def prune_empty_folders(top: Path, folder: Path) -> None:
+    """After a delete: git does not track folders, so a folder that lost its last file goes too. Stops at the repository top."""
+    while folder != top and folder.is_dir():
+        try:
+            folder.rmdir()
+        except OSError:
+            return
+        folder = folder.parent
+
+
 def write_repo(root: Path, found: targets.Targets, repo: Dict[str, Any], branch: str, package: Path, written: List[Dict[str, Any]]) -> bool:
     """Make the branch and write the files of one repository. Returns whether the branch was made; fills `written`."""
     handle = found.repos[repo["name"]]
@@ -319,6 +344,12 @@ def write_repo(root: Path, found: targets.Targets, repo: Dict[str, Any], branch:
         if layout.inside(top, destination) is None:
             raise OSError(f"`{item['relative']}` 指向仓库之外")
         written.append(item)  # before the write: a half-written file is undone like a finished one
+        if item["action"] == "delete":
+            destination.unlink()
+            prune_empty_folders(handle.path, destination.parent)
+            if destination.exists():
+                raise OSError(f"`{item['relative']}` 没有被删掉")
+            continue
         ops.copy_file(package / "candidate" / item["path"], destination)
         if store.sha256_file(destination) != item["sha256"]:
             raise OSError(f"写入后 `{item['relative']}` 的内容和成果不一致")

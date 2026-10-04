@@ -156,6 +156,8 @@ def approve(
     print(f"请求 {request_id}，第 {result['attempt']} 轮。将回写这些文件：", file=out)
     for repo in result.get("repos", []):
         print(f"  仓库 {repo['name']}（{repo['path']}）：从 {repo['base_ref']}（{repo['base_commit'][:12]}）新建分支 {result['branch']}，写入文件，不提交。", file=out)
+    if any(item["action"] == "delete" for item in result["files"]):
+        print("  注意：标着 delete 的文件会被删除。", file=out)
     for item in result["files"]:
         print(f"  {item['action']:9} {item['path']}  (+{item['added']} -{item['removed']})", file=out)
         for line in item["diff"][:12]:

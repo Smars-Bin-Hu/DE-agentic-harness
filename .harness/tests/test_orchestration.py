@@ -276,6 +276,10 @@ class AgentFileTests(unittest.TestCase):
         self.assertIn("assignment_copied_from_builder", skill)
         self.assertIn("candidate.diff", skill)
 
+    def test_the_builder_and_the_orchestrator_know_how_to_delete_a_file(self) -> None:
+        self.assertIn("--delete", (REPO / ".github" / "agents" / "builder.agent.md").read_text(encoding="utf-8"))
+        self.assertIn("--delete", (REPO / ".github" / "skills" / "harness-orchestration" / "SKILL.md").read_text(encoding="utf-8"))
+
     def test_there_is_no_l3_entry_skill(self) -> None:
         self.assertFalse((REPO / ".github" / "skills" / "l3").exists())  # L3 starts from the dropdown (B8 decision)
 

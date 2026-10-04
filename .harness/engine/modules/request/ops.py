@@ -162,12 +162,12 @@ def target_note(data: Dict[str, Any], found: Optional[targets.Targets] = None, r
     known = f"可用的仓库：{names}。" if names else ""
     if role == "reviewer":
         return (
-            "- 这个请求改的是目标仓库里的文件。先读 `candidate.diff`（成果和 main 的差异，只有改动的行）；需要完整内容时读 `candidate/<仓库名>/<路径>`，改动前 main 上的版本在 `base/<仓库名>/<路径>`（新文件没有）。"
+            "- 这个请求改的是目标仓库里的文件。先读 `candidate.diff`（成果和 main 的差异，只有改动的行）；需要完整内容时读 `candidate/<仓库名>/<路径>`，改动前 main 上的版本在 `base/<仓库名>/<路径>`（新文件没有）。被删除的文件在 `candidate.diff` 里标着 `deleted file`。"
             f"{known}"
         )
     return (
         "- 这个请求改的是目标仓库里的文件。要改的文件在输入包的 `inputs/<仓库名>/<路径>`（main 上的版本，只读）。"
-        f"成果路径的第一段也是仓库名，例如 `bdtt_repo/src/a.sql`，`--output` 也这样写。{known}"
+        f"成果路径的第一段也是仓库名，例如 `bdtt_repo/src/a.sql`，`--output` 也这样写。要删除文件（包括改名、移动时的旧文件）：它必须是取过的文件，交接时用 `--delete <仓库名>/<路径>`，不要在成果里放空文件。{known}"
     )
 
 
@@ -371,15 +371,16 @@ def staged_target_files(
 
 
 def baseline_files(root: Path, data: Dict[str, Any], directory: Path, number: int, target: Path) -> List[Dict[str, str]]:
-    """Reviewer: the main version of each file the builder changed, so a diff needs no look into the target repository."""
+    """Reviewer: the main version of each file the builder changed or deletes, so a diff needs no look into the target repository."""
     handoff = store_json(layout.handoff_file(directory, number, "builder"))
-    wanted = [(name, data.get("target_files", {}).get(name)) for name in handoff["outputs"]]
-    wanted = [(name, record) for name, record in wanted if record]
+    wanted = [(name, data.get("target_files", {}).get(name), "base") for name in handoff["outputs"]]
+    wanted += [(name, data.get("target_files", {}).get(name), "deleted") for name in handoff.get("deletes", [])]
+    wanted = [(name, record, purpose) for name, record, purpose in wanted if record]
     if not wanted:
         return []
     found = load_targets(root)
     entries = []
-    for name, record in wanted:
+    for name, record, purpose in wanted:
         repo = target_repo(found, name.split("/", 1)[0])
         try:
             content = targets.read_blob(repo, record["blob"], found.timeout)
@@ -389,7 +390,7 @@ def baseline_files(root: Path, data: Dict[str, Any], directory: Path, number: in
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
         entries.append({
-            "path": destination.relative_to(target.parent).as_posix(), "source": name, "purpose": "base",
+            "path": destination.relative_to(target.parent).as_posix(), "source": name, "purpose": purpose,
             "sha256": store.sha256_file(destination), "repo": repo.name, "blob": record["blob"], "base_commit": record["base_commit"],
         })
     return entries
@@ -450,7 +451,8 @@ def candidate_diff(package: Path, files: List[Dict[str, str]]) -> Optional[Dict[
     when there is no base to compare with (a request without target repositories).
     """
     bases = {item["path"][len("base/"):]: item for item in files if item["purpose"] == "base"}
-    if not any(item["purpose"] == "candidate" for item in files):
+    deleted = [item for item in files if item["purpose"] == "deleted"]
+    if not any(item["purpose"] == "candidate" for item in files) and not deleted:
         return None
     out = [
         "# 候选成果和 main 的差异。先读这个文件：只列出改动的行，每处带 3 行上下文。",
@@ -478,6 +480,13 @@ def candidate_diff(package: Path, files: List[Dict[str, str]]) -> Optional[Dict[
             out += list(difflib.unified_diff(old_bytes.decode("utf-8").splitlines(), new_bytes.decode("utf-8").splitlines(), f"a/{name}", f"b/{name}", lineterm="", n=3))
         except UnicodeDecodeError:
             out.append("（二进制文件，不显示差异）")
+    for item in deleted:
+        name = item["path"][len("base/"):]
+        out += [f"diff --git a/{name} b/{name}", "deleted file", f"--- a/{name}", "+++ /dev/null"]
+        try:
+            out += ["-" + line for line in (package / item["path"]).read_bytes().decode("utf-8").splitlines()]
+        except UnicodeDecodeError:
+            out.append("（二进制文件，不显示内容）")
     destination = package / "candidate.diff"
     destination.write_text("\n".join(out) + "\n", encoding="utf-8")
     return {"path": "candidate.diff", "source": "（由 dispatch 生成）", "purpose": "diff", "sha256": store.sha256_file(destination)}
@@ -697,15 +706,15 @@ def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]]
 # --- handoff ------------------------------------------------------------------------------------------------
 
 
-def check_target_output(found: targets.Targets, name: str) -> None:
+def check_target_output(found: targets.Targets, name: str, label: str = "--output") -> None:
     """In a request with target repositories every result path is `<repo>/<path in the repo>`, and not a path promote refuses."""
     repo_name, _, rest = name.partition("/")
     if repo_name not in found.repos or not rest:
         known = "、".join(found.names()) or "（没有）"
-        raise CommandError(f"--output `{name}` 的第一段要是仓库名，后面是仓库里的路径，例如 bdtt_repo/src/a.sql。已知的仓库：{known}。")
+        raise CommandError(f"{label} `{name}` 的第一段要是仓库名，后面是仓库里的路径，例如 bdtt_repo/src/a.sql。已知的仓库：{known}。")
     for pattern in found.repos[repo_name].refused_paths:
         if repo_paths.glob_regex(pattern).match(rest):
-            raise CommandError(f"--output `{name}` 属于不能回写的路径（{repo_name} 的 {pattern}）。把它从成果里去掉。")
+            raise CommandError(f"{label} `{name}` 属于不能回写的路径（{repo_name} 的 {pattern}）。把它从成果里去掉。")
 
 
 def parse_kb(items: List[str]) -> List[Dict[str, str]]:
@@ -725,6 +734,7 @@ def submit_handoff(
     status: str,
     summary: str,
     outputs: Optional[List[str]] = None,
+    deletes: Optional[List[str]] = None,
     evidence: Optional[List[str]] = None,
     blockers: Optional[List[str]] = None,
     next_step: str = "",
@@ -737,6 +747,9 @@ def submit_handoff(
     rules = policy(root)
     directory = layout.request_dir(root, request_id)
     outputs, evidence, blockers = outputs or [], evidence or [], [item.strip() for item in (blockers or []) if item.strip()]
+    deletes = deletes or []
+    if deletes and role != "builder":
+        raise CommandError("--delete 只有 builder 能用。reviewer 只评审，不改成果。")
     lines = [line for line in summary.splitlines() if line.strip()]
     if not lines:
         raise CommandError("--summary 不能为空。")
@@ -752,8 +765,8 @@ def submit_handoff(
             raise CommandError(f"第 {number} 轮的 {role} 已经交接过（{data['attempts'][number - 1]['handoffs'].get(role)}），handoff 不能覆盖。")
         if status in ("failed", "blocked") and not blockers:
             raise CommandError(f"status 是 {status} 时，要用 --blocker 写明原因（缺什么、哪里没通过）。")
-        if status == "passed" and role == "builder" and not outputs:
-            raise CommandError("builder 的 status 是 passed 时，要用 --output 列出成果文件。")
+        if status == "passed" and role == "builder" and not outputs and not deletes:
+            raise CommandError("builder 的 status 是 passed 时，要用 --output 列出成果文件（只删文件时用 --delete）。")
         if status == "passed" and role == "reviewer" and not evidence:
             raise CommandError("reviewer 的 status 是 passed 时，要用 --evidence 列出证据文件。")
         base = layout.outputs_dir(directory, number, role)
@@ -767,6 +780,19 @@ def submit_handoff(
                 if not (base / name).is_file():
                     raise CommandError(f"{label} `{item}` 不是文件：{layout.inside(root, base / name)}。成果和证据放在 {layout.inside(root, base)}/ 下，路径相对于它。")
                 clean.append(name)
+        clean_deletes: List[str] = []
+        if deletes:
+            if found is None:
+                raise CommandError("--delete 只用在有目标仓库的请求里。没配置目标仓库时，回写不能删文件。")
+            for item in deletes:
+                name = layout.relative_name(item, "--delete")
+                check_target_output(found, name, "--delete")
+                if name not in data.get("target_files", {}):
+                    raise CommandError(f"--delete `{name}` 不是这个请求从 main 取过的文件。要删的文件要先 `request add-input --request {request_id} --from-target {name}`，在 dispatch builder 之前。")
+                if name in clean_outputs:
+                    raise CommandError(f"`{name}` 同时出现在 --output 和 --delete 里。")
+                if name not in clean_deletes:
+                    clean_deletes.append(name)
         handoff = {
             "schema_version": store.SCHEMA_VERSION,
             "request_id": request_id,
@@ -775,6 +801,7 @@ def submit_handoff(
             "status": status,
             "summary": "\n".join(lines),
             "outputs": clean_outputs,
+            **({"deletes": clean_deletes} if clean_deletes else {}),
             "evidence": clean_evidence,
             "blockers": blockers,
             "next": next_step.strip(),
@@ -813,7 +840,7 @@ def _has_candidates(root: Path, request_id: str, data: Dict[str, Any]) -> bool:
     path = layout.package_dir(layout.request_dir(root, request_id), data["attempt"], "reviewer") / "manifest.json"
     if not path.is_file():
         return False
-    return any(item.get("purpose") == "candidate" for item in store_json(path).get("files", []))
+    return any(item.get("purpose") in ("candidate", "deleted") for item in store_json(path).get("files", []))
 
 
 def set_status(root: Path, request_id: str, status: str, reason: str = "") -> Dict[str, Any]:

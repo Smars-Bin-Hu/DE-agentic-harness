@@ -81,7 +81,7 @@ def cmd_dispatch(args: argparse.Namespace) -> Dict[str, Any]:
 def cmd_handoff_submit(args: argparse.Namespace) -> Dict[str, Any]:
     return ops.submit_handoff(
         repo_root(), args.request, args.role, args.status, args.summary,
-        outputs=args.output, evidence=args.evidence, blockers=args.blocker, next_step=args.next, kb_additions=args.kb_addition,
+        outputs=args.output, deletes=args.delete, evidence=args.evidence, blockers=args.blocker, next_step=args.next, kb_additions=args.kb_addition,
     )
 
 
@@ -193,6 +193,7 @@ def register(subparsers: Any) -> None:
     submit.add_argument("--status", required=True, choices=["passed", "failed", "blocked"])
     submit.add_argument("--summary", required=True)
     submit.add_argument("--output", action="append", default=[], help="a result file, relative to your outputs folder (repeatable)")
+    submit.add_argument("--delete", action="append", default=[], help="a file to delete from a target repository, `<repo>/<path>`; builder only; fetch it with add-input --from-target first (repeatable)")
     submit.add_argument("--evidence", action="append", default=[], help="an evidence file, relative to your outputs folder (repeatable)")
     submit.add_argument("--blocker", action="append", default=[], help="why it failed or is blocked (repeatable)")
     submit.add_argument("--next", default="")

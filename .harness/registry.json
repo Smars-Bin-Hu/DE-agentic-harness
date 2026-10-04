@@ -105,7 +105,8 @@
         ".harness/tests/test_verify.py",
         ".harness/tests/test_targets.py",
         ".harness/tests/test_target_inputs.py",
-        ".harness/tests/test_promote_target.py"
+        ".harness/tests/test_promote_target.py",
+        ".harness/tests/test_promote_delete.py"
       ],
       "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排。请求目录和 promote 不退役"
     },

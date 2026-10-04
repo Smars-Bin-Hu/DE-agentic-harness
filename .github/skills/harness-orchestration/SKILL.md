@@ -18,7 +18,7 @@ specificTo: harness-orchestration
 
 1. **建请求**：`request new --title "<短标题>" --session-id <提示开头规则里的会话 id>`。记下 `request_id`，之后每条命令都带 `--request`。用户给了任务目录就加 `--task .workspace/current_tasks/<任务名>`。
 2. **准备输入**：`request add-input <文件或目录>...` 把需求和必要文件复制进 `init-inputs/`。第一次 dispatch 之后就不能再加。
-   配置了目标仓库时，输出里有 `target_repos`。要改仓库里的文件，用 `--from-target <仓库名>/<路径>`（文件或目录，可重复）取它们 main 上的版本，不要自己复制。builder 的成果路径第一段也是仓库名。分支名用户说了就 `request set-branch --request <id> --branch feature/<名字>`（字母、数字、下划线），promote 之前必须设好。
+   配置了目标仓库时，输出里有 `target_repos`。要改仓库里的文件，用 `--from-target <仓库名>/<路径>`（文件或目录，可重复）取它们 main 上的版本，不要自己复制。builder 的成果路径第一段也是仓库名。要删除或改名的文件也要取（builder 用 `--delete` 声明删除，改名 = 新文件加删除旧文件）。分支名用户说了就 `request set-branch --request <id> --branch feature/<名字>`（字母、数字、下划线），promote 之前必须设好。
 3. **知识简报（可选）**：知识库里有相关内容时，把结论蒸馏成一份文件，每条一行：`- 结论 [来源: 文件路径#章节]`。
    写在请求目录里（例如 `orchestrator/brief-draft.md`），用 `brief set <文件>` 交给 CLI。没有来源的条目会被拒绝。没有相关内容就不写。按知识库自己的索引和 instructions 选文件，不要整篇复制。返工的轮次只补缺的条目，不重写旧的。
 4. **计划**：写 `orchestrator/plan.md`。哪个角色明显不适用，就在这里写理由。

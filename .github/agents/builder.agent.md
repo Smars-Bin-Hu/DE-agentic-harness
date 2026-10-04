@@ -30,6 +30,7 @@ manifest 里的 `brief` 是知识简报，`brief_delta` 是这一轮新增或改
 ```
 
 `--output`、`--evidence` 的路径相对于你的 `outputs/attempt-NNN/`，可以重复写。`failed` 和 `blocked` 必须写 `--blocker`。
+要删除目标仓库里的文件（改名、移动时的旧文件也一样）：它必须是 orchestrator 取过的文件，在输入包 `inputs/` 里能看到。交接时加 `--delete <仓库名>/<路径>`（可以重复），不要在 outputs 里放空文件。
 
 ## 最后一条回复
 

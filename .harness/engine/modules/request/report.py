@@ -104,7 +104,7 @@ def attempts_section(root: Path, directory: Path, data: Dict[str, Any]) -> List[
             found = True
             lines += ["", f"**{role}：{handoff['status']}**", ""]
             lines += [f"> {line}" for line in summary_text(handoff.get("summary", ""))] + [""]
-            for label, key in (("成果", "outputs"), ("证据", "evidence")):
+            for label, key in (("成果", "outputs"), ("删除", "deletes"), ("证据", "evidence")):
                 if handoff.get(key):
                     lines.append(f"- {label}：" + "、".join(handoff[key]))
             for blocker in handoff.get("blockers", []):
