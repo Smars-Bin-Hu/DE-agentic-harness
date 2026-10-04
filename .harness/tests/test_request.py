@@ -71,7 +71,7 @@ class RequestCase(HarnessTestCase):
     def output(self, request_id: str, number: int, role: str, relative: str, text: str = "x\n") -> None:
         path = self.rd(request_id) / role / "outputs" / f"attempt-{number:03d}" / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        path.write_text(text, encoding="utf-8", newline="\n")  # the text as written: Windows must not turn \n into \r\n
 
     def plan_file(self, request_id: str) -> Path:
         return self.rd(request_id) / "orchestrator" / "plan.md"

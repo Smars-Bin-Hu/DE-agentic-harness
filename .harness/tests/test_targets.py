@@ -22,6 +22,19 @@ GIT = shutil.which("git")
 IDENTITY = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
 
 
+def can_make_symlinks() -> bool:
+    """Windows makes a symlink only with Developer Mode on or in an admin shell. macOS and Linux always can."""
+    with tempfile.TemporaryDirectory() as folder:
+        try:
+            os.symlink("target", Path(folder) / "link")
+        except OSError:
+            return False
+        return True
+
+
+SYMLINKS = can_make_symlinks()
+
+
 def run_git(path: Path, *arguments: str) -> str:
     done = subprocess.run(["git", "-C", str(path), *arguments], capture_output=True, text=True, env={**os.environ, **IDENTITY}, check=True)
     return done.stdout.strip()
@@ -35,7 +48,7 @@ def make_repo(path: Path, files: Optional[Dict[str, str]] = None, branch: str = 
     for name, body in (files or {"README.md": "x\n"}).items():
         target = path / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(body, encoding="utf-8")
+        target.write_text(body, encoding="utf-8", newline="\n")  # the text as written: Windows must not turn \n into \r\n
     run_git(path, "add", "-A")
     run_git(path, "commit", "-q", "-m", "first")
     return path
