@@ -8,6 +8,7 @@
 
 | 命令 | 作用 |
 | --- | --- |
+| `--version` | 显示 harness 的版本，例如 `harness 1.0.0`。版本号只写在 `.harness/registry.json` 的 `version`，格式 `主.次.修` |
 | `doctor` | 检查文件、策略、hook 配置、知识库、目标仓库是否一致 |
 | `level status`、`level set` | 看或设会话的 Level（1 或 2）。只有人能设，agent 运行被拒绝 |
 | `request approve-plan` | 批准 L3 请求的 `orchestrator/plan.md`。只能在终端，输入确认码 |

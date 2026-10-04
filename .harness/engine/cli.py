@@ -9,6 +9,7 @@
   admin on|off|status          a person switches admin mode on for one session: it may then change guardrail files (gate module)
   stats, logs prune            numbers from the session logs; delete old logs (observe module)
   eval list|show|check         fixed scenarios, judged from a finished run (evalcheck module)
+  --version                    the harness release (from .harness/registry.json)
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from core.paths import repo_root  # noqa: E402
+from core.registry import harness_version  # noqa: E402
 import doctor  # noqa: E402
 from modules.evalcheck import commands as eval_commands  # noqa: E402
 from modules.gate import commands as gate_commands  # noqa: E402
@@ -29,8 +31,24 @@ from modules.request import commands as request_commands  # noqa: E402
 from modules.task_level import commands as task_level_commands  # noqa: E402
 
 
+class ShowVersion(argparse.Action):
+    """`--version` reads the registry only when it is asked for: a broken registry must not break the other commands (doctor reports it)."""
+
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, help="show the harness version and exit")
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        try:
+            print(f"harness {harness_version(repo_root())}")
+        except Exception as error:
+            print(f"harness: 读不到版本号：{error}", file=sys.stderr)
+            parser.exit(1)
+        parser.exit(0)
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Harness CLI")
+    parser = argparse.ArgumentParser(prog="harness", description="Harness CLI")
+    parser.add_argument("--version", action=ShowVersion)
     commands = parser.add_subparsers(dest="command", required=True)
     check = commands.add_parser("doctor", help="check harness files and config")
     check.set_defaults(handler=None)

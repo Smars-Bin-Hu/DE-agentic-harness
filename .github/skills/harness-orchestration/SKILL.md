@@ -16,6 +16,7 @@ specificTo: harness-orchestration
 
 ## 步骤
 
+0. **先看成果是什么**：L3 的成果只能是目标仓库里的文件。配置了目标仓库时，builder 交接的 `--output` 第一段必须是仓库名，别的路径会被拒绝，builder 白做一轮。用户要的是笔记、报告、计划或知识库更新这类成果时，不要建请求：停下来，建议用户改用 L2 任务模式（技能 `harness-task-level`），由用户切换。
 1. **建请求**：`request new --title "<短标题>" --session-id <提示开头规则里的会话 id>`。记下 `request_id`，之后每条命令都带 `--request`。用户给了任务目录就加 `--task .workspace/current_tasks/<任务名>`。
 2. **准备输入**：`request add-input <文件或目录>...` 把需求和必要文件复制进 `init-inputs/`。第一次 dispatch 之后就不能再加。
    配置了目标仓库时，输出里有 `target_repos`。要改仓库里的文件，用 `--from-target <仓库名>/<路径>`（文件或目录，可重复）取它们 main 上的版本，不要自己复制。builder 的成果路径第一段也是仓库名。要删除或改名的文件也要取（builder 用 `--delete` 声明删除，改名 = 新文件加删除旧文件）。分支名用户说了就 `request set-branch --request <id> --branch feature/<名字>`（字母、数字、下划线），promote 之前必须设好。

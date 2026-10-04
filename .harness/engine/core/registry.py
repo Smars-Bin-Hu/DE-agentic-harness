@@ -13,9 +13,10 @@ STATUSES = ["experimental", "active", "deprecated", "retired"]
 
 REGISTRY_SCHEMA = {
     "type": "object",
-    "required": ["schema_version", "engine", "modules"],
+    "required": ["schema_version", "version", "engine", "modules"],
     "properties": {
         "schema_version": {"type": "integer", "enum": [1]},
+        "version": {"type": "string", "pattern": r"^\d+\.\d+\.\d+$"},
         "engine": {
             "type": "object",
             "required": ["files"],
@@ -45,6 +46,11 @@ def load_registry(root: Path) -> Dict[str, Any]:
     registry = config.read_json(registry_path(root))
     schema.check(registry, REGISTRY_SCHEMA, "registry.json")
     return registry
+
+
+def harness_version(root: Path) -> str:
+    """The harness release, `major.minor.patch`. `registry.json` is its only source."""
+    return load_registry(root)["version"]
 
 
 def modules_for(registry: Dict[str, Any], event_name: str) -> List[str]:

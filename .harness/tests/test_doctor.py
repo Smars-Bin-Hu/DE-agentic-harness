@@ -55,6 +55,34 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertNotIn("[ERROR]", result.stdout)
 
+    def version(self) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(CLI), "--version"],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            env={**os.environ, "HARNESS_ROOT": str(self.root)},
+            check=False,
+        )
+
+    def test_version_prints_the_registry_version(self) -> None:
+        result = self.version()
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, "harness 1.0.0"), result.stderr)
+
+    def test_version_follows_the_registry_and_the_registry_needs_it_in_the_x_y_z_form(self) -> None:
+        self.edit_json(".harness/registry.json", lambda data: data.update(version="2.3.4"))
+        self.assertEqual(self.version().stdout.strip(), "harness 2.3.4")
+        self.edit_json(".harness/registry.json", lambda data: data.update(version="v2"))
+        self.assertEqual(self.version().returncode, 1)
+        self.assertNotEqual(self.doctor().returncode, 0)
+
+    def test_a_broken_registry_does_not_break_the_other_commands(self) -> None:
+        (self.root / ".harness" / "registry.json").write_text("{", encoding="utf-8")
+        self.assertEqual(self.version().returncode, 1)
+        result = self.doctor()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("registry.json", result.stdout)
+
     def test_the_real_repository_passes(self) -> None:
         result = subprocess.run(
             [sys.executable, str(CLI), "doctor"],
