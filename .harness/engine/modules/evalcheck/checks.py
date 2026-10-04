@@ -75,7 +75,9 @@ def row_matches(row: Dict[str, Any], match: Dict[str, Any]) -> bool:
                 return False
         elif key == "target_contains":
             target = row.get("target") or {}
-            if not any(wanted in text for text in list(target.get("paths", [])) + [target.get("command", "")]):
+            # Windows paths hold "\" and tool calls can give either kind: compare with "/" on both sides.
+            wanted_text = wanted.replace("\\", "/")
+            if not any(wanted_text in text.replace("\\", "/") for text in list(target.get("paths", [])) + [target.get("command", "")]):
                 return False
         elif row.get(key) != wanted:
             return False

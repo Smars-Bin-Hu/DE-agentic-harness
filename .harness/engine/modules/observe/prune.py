@@ -33,7 +33,7 @@ def prune(root: Path, days: int, dry_run: bool) -> Dict[str, Any]:
     return {
         "dry_run": dry_run,
         "days": days,
-        "deleted" if not dry_run else "would_delete": [str(path.relative_to(base)) for path in old],
+        "deleted" if not dry_run else "would_delete": [path.relative_to(base).as_posix() for path in old],
         "kept": kept,
         "bytes": freed,
     }

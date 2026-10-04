@@ -58,7 +58,7 @@ class RequestCase(HarnessTestCase):
     def write(self, relative: str, text: str = "x\n") -> Path:
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        path.write_text(text, encoding="utf-8", newline="\n")  # the text as written: Windows must not turn \n into \r\n
         return path
 
     def assignment(self, request_id: str, number: int, role: str) -> Path:

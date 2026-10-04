@@ -10,15 +10,17 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from support import ENGINE, REPO
+from test_targets import SYMLINKS
 
 DOCUMENTS = [REPO / "README.md", *sorted((REPO / "docs").glob("*.md")), REPO / ".workspace" / "README.md"]
 REFERENCE = REPO / "docs" / "04-reference.md"
@@ -213,25 +215,41 @@ class ReferenceCoverageTests(unittest.TestCase):
             self.assertIn(shown, features, path)
 
 
+def shell_command(launcher: Path) -> Optional[List[str]]:
+    """The command that runs a shell launcher. macOS and Linux run the file itself. Windows cannot, so it runs under the
+    bash that comes with Git for Windows (found next to git). None when that bash is not installed."""
+    if os.name != "nt":
+        return [str(launcher)]
+    git = shutil.which("git")
+    bash = Path(git).resolve().parents[1] / "bin" / "bash.exe" if git else None
+    return [str(bash), str(launcher)] if bash and bash.exists() else None
+
+
 class LauncherTests(unittest.TestCase):
     bin = REPO / ".harness" / "bin"
 
-    @unittest.skipIf(os.name == "nt", "the shell launcher is for macOS and Linux")
     def test_the_shell_launcher_runs_the_cli_from_any_folder(self) -> None:
         launcher = self.bin / "harness"
-        self.assertTrue(os.stat(launcher).st_mode & stat.S_IXUSR, "harness must be executable")
+        command = shell_command(launcher)
+        if command is None:
+            self.skipTest("Windows: the shell launcher runs under Git Bash, which is not installed")
+        if os.name != "nt":
+            self.assertTrue(os.stat(launcher).st_mode & stat.S_IXUSR, "harness must be executable")  # Windows keeps no execute bit
         with tempfile.TemporaryDirectory() as folder:
-            done = subprocess.run([str(launcher), "target", "--help"], capture_output=True, text=True, cwd=folder)
+            done = subprocess.run([*command, "target", "--help"], capture_output=True, text=True, cwd=folder)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertIn("list", done.stdout)
-            self.assertEqual(subprocess.run([str(launcher), "no-such-command"], capture_output=True, text=True, cwd=folder).returncode, 2)
+            self.assertEqual(subprocess.run([*command, "no-such-command"], capture_output=True, text=True, cwd=folder).returncode, 2)
 
-    @unittest.skipIf(os.name == "nt", "the shell launcher is for macOS and Linux")
+    @unittest.skipUnless(SYMLINKS, "this account cannot make symlinks (on Windows: turn on Developer Mode or run as admin)")
     def test_the_shell_launcher_works_through_a_link(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             link = Path(folder) / "h"
             os.symlink(self.bin / "harness", link)
-            done = subprocess.run([str(link), "logs", "--help"], capture_output=True, text=True, cwd=folder)
+            command = shell_command(link)
+            if command is None:
+                self.skipTest("Windows: the shell launcher runs under Git Bash, which is not installed")
+            done = subprocess.run([*command, "logs", "--help"], capture_output=True, text=True, cwd=folder)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertIn("prune", done.stdout)
 
