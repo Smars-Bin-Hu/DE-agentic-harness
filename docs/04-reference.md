@@ -10,8 +10,13 @@
 | --- | --- |
 | `doctor` | 检查文件、策略、hook 配置、知识库、目标仓库是否一致 |
 | `level status`、`level set` | 看或设会话的 Level（1 或 2）。只有人能设，agent 运行被拒绝 |
+| `request approve-plan` | 批准 L3 请求的 `orchestrator/plan.md`。只能在终端，输入确认码 |
 | `request approve-promote` | 批准最后一次 `promote --dry-run` 的计划。只能在终端，输入确认码 |
 | `request recover` | promote 中途出错后，把仓库恢复原样。只能在终端，输入确认码 |
+| `task approve-plan` | 批准 L2 任务的 `PLAN.md`。只能在终端，输入确认码 |
+| `task approve-promote` | 批准最后一次 `task promote --dry-run` 的计划。只能在终端，输入确认码 |
+| `task recover` | L2 任务的 promote 中途出错后，把仓库恢复原样。只能在终端，输入确认码 |
+| `task status`、`task report` | 看 L2 任务做到哪一步；重写任务报告 |
 | `approve-command` | 批准 agent 被拒绝的一条 git 命令。只能在终端，输入验证码 |
 | `request list`、`request show` | 看请求列表和某个请求的 `request.json` |
 | `target list`、`target show` | 看目标仓库：路径、base 分支、提交号、工作区是否干净 |
@@ -19,6 +24,18 @@
 | `stats` | 日志汇总：调用数、拒绝数、各模块的拒绝 |
 | `logs prune` | 删除 N 天没写过的会话日志（`--dry-run` 先看） |
 | `eval list`、`eval show`、`eval check` | 固定场景：列出、给提示、判断一次运行 |
+
+### agent 在 L2 任务模式里用
+
+| 命令 | 作用 |
+| --- | --- |
+| `task start` | 进入任务模式：开始、接着做，或在回写过之后开新的一轮。只在 L2 |
+| `task fetch` | 把目标仓库 main 上的文件取到 `DEV/<仓库>/<路径>`；`--overwrite` 丢掉改动重新取 |
+| `task delete` | 声明删除一个取过的文件 |
+| `task diff` | 列出 `DEV/` 的改动，差异全文写到 `CHANGES.diff` |
+| `task set-branch` | 改 feature 分支名（默认 `feature/<任务目录名>`） |
+| `task promote` | 把 `DEV/` 回写到各目标仓库的新分支；`--dry-run` 只列计划，差异写到 `PROMOTE-PLAN.diff` |
+| `task close` | 退出任务模式，写报告 |
 
 ### agent 在 L3 里用
 
@@ -30,11 +47,11 @@
 | `request wait` | 声明在等人，agent 可以结束这一轮 |
 | `request set-status` | 给结论：`accepted`、`hitl`、`abandoned` |
 | `brief set` | 交知识简报 |
-| `attempt new` | 开下一轮 |
+| `attempt new` | 开下一轮。计划没有经人批准（`request approve-plan`）会被拒绝 |
 | `dispatch` | 冻结一个角色的输入包 |
 | `handoff submit` | builder 或 reviewer 交 handoff |
 | `check` | 检查请求目录自洽；`--require-conclusion` 还要求有结论 |
-| `promote` | 把 reviewer 通过的成果回写；`--dry-run` 只列计划 |
+| `promote` | 把 reviewer 通过的成果回写；`--dry-run` 只列计划，差异写到 `promote-plan.diff` |
 
 ## 策略字段
 
@@ -86,7 +103,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `request.schema.json` | `request.json`：状态、轮次、输入、promote 状态、分支、目标仓库 |
+| `request.schema.json` | `request.json`：状态、轮次、输入、计划的批准、promote 状态、分支、目标仓库 |
 | `manifest.schema.json` | 输入包清单：每个文件的路径、用途（input、candidate、base、diff、deleted、previous-attempt）、sha256；目标仓库文件还有仓库名、blob、提交号 |
 | `handoff.schema.json` | builder 和 reviewer 的交接：`status`（passed、failed、blocked）、成果、`deletes`（builder 声明要删除的目标仓库文件，没有就没这个字段）、证据、阻塞、建议 |
 | `templates/assignment.md` | orchestrator 给角色的任务书模板 |
@@ -98,10 +115,10 @@
 | 事件 | 谁处理 |
 | --- | --- |
 | `SessionStart` | task_level（建会话状态） |
-| `UserPromptSubmit` | task_level（读 Level 标记、注入规则）、request |
-| `PreToolUse` | task_level（预算、子 agent）、gate、request（子 agent 要先 dispatch） |
+| `UserPromptSubmit` | task_level（读 Level 标记、注入规则）、request（L2 任务做到哪一步） |
+| `PreToolUse` | task_level（预算、子 agent）、gate（含 L2 任务的写入范围）、request（子 agent 要先 dispatch） |
 | `PostToolUse` | task_level（计数） |
-| `SubagentStart`、`SubagentStop` | request（记录启动、检查 handoff） |
+| `SubagentStart`、`SubagentStop` | request（记录启动、检查 handoff；告诉 L2 任务的 verifier 读差异） |
 | `Stop` | task_level、request（请求没结论、没标等待时拦一次） |
 
 ## 运行时文件
