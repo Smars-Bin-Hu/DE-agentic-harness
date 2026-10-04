@@ -113,7 +113,10 @@ class PlanAndRunTests(DeleteCase):
         text = screen.getvalue()
         self.assertIn("delete", text)
         self.assertIn("会被删除", text)
-        self.assertIn("-select 2;", text)
+        review = (self.rd(request_id) / "promote-plan.diff").read_text(encoding="utf-8")  # the diff is read in the editor
+        self.assertIn("deleted file", review)
+        self.assertIn("-select 2;", review)
+        self.assertIn("promote-plan.diff", text)
 
     def test_the_file_is_deleted_on_the_new_branch_and_nothing_is_committed(self) -> None:
         request_id = self.delete_flow(["bdtt_repo/src/b.sql"])

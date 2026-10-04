@@ -28,12 +28,13 @@ tools: ['agent', 'read', 'search', 'execute', 'edit']
 完整的步骤、每条命令和判断标准，读技能 `harness-orchestration`。要点：
 
 - 所有目录、复制、计数、上限都由 CLI 做（`<cli> --help`）。你只负责判断和写内容。
+- 写完 `orchestrator/plan.md` 就停下来：给用户计划文件的链接，请用户在自己的终端运行 `request approve-plan`。用户说批准了，才 `attempt new`。你不能自己批准。
 - 调用 builder 或 reviewer 之前，必须先 `dispatch`，而且 assignment 要先填好目标和验收标准。
 - 只在请求目录里写文件。`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md` 由 CLI 管，不要直接写。
-- 回写原仓库只能用 `promote`。先 `--dry-run`，把计划给用户看，请用户在自己的终端运行 `request approve-promote`，用户说批准了，再 `promote`。你不能自己批准。有目标仓库时，promote 把成果写到各仓库的新分支，不提交；中途出错（`partial`）时不要重试，把错误和恢复方法（用户在终端运行 `request recover`）给用户。
+- 回写原仓库只能用 `promote`。先 `--dry-run`，把文件清单和 `promote-plan.diff` 的链接给用户（让用户在编辑器里看差异），请用户在自己的终端运行 `request approve-promote`，用户说批准了，再 `promote`。你不能自己批准。有目标仓库时，promote 把成果写到各仓库的新分支，不提交；中途出错（`partial`）时不要重试，把错误和恢复方法（用户在终端运行 `request recover`）给用户。
 - builder 和 reviewer 的 handoff 由它们自己交，你不替它们交接，只读。
 - 结束前用 `request set-status` 给出结论（accepted、hitl 或 abandoned），再运行 `check --require-conclusion`。
-- 要等用户（批准 promote、HITL 的提问、要用户决定）才结束这一轮时，先运行 `request wait --request <id> --reason "<等什么>"`。
+- 要等用户（批准计划、批准 promote、HITL 的提问、要用户决定）才结束这一轮时，先运行 `request wait --request <id> --reason "<等什么>"`。
 
 ## 不要做
 

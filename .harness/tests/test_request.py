@@ -12,11 +12,11 @@ import unittest
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from support import HarnessTestCase, payload
+from support import HarnessTestCase, payload, pre_tool
 
 from core import schema
 from modules.request import brief as brief_module
-from modules.request import layout, promote, store
+from modules.request import layout, planapproval, promote, store
 
 SESSION = "sess-main"
 BRIEF = "# 简报\n- 部署前要先停写 [来源: knowledge-base/deploy.md#停写]\n- 表名用小写 [来源: knowledge-base/naming.md#表]\n"
@@ -73,8 +73,27 @@ class RequestCase(HarnessTestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
+    def plan_file(self, request_id: str) -> Path:
+        return self.rd(request_id) / "orchestrator" / "plan.md"
+
+    def write_plan(self, request_id: str, text: str = "# 计划\n\n写 slugify，再评审。\n") -> None:
+        self.plan_file(request_id).write_text(text, encoding="utf-8")
+
+    def approve_plan(self, request_id: str = "", code: Optional[str] = None, out: Any = None) -> Dict[str, Any]:
+        """A person at a terminal approves plan.md (default: types the right code)."""
+        typed = code if code is not None else (store.sha256_file(self.plan_file(request_id))[:8] if request_id else "")
+        return planapproval.approve(self.root, request_id, reader=lambda _prompt: typed, interactive=True, out=out or io.StringIO())
+
+    def ready_plan(self, request_id: str) -> None:
+        """Write the plan when it is still the template, and approve it when it has no approval."""
+        if "（待填）" in self.plan_file(request_id).read_text(encoding="utf-8"):
+            self.write_plan(request_id)
+        if not planapproval.approved(self.root, request_id, self.request(request_id)):
+            self.approve_plan(request_id)
+
     def attempt(self, request_id: str, approved: Optional[str] = None) -> Dict[str, Any]:
         extra = ["--human-approved", approved] if approved else []
+        self.ready_plan(request_id)
         return self.run_cli("attempt", "new", "--request", request_id, *extra)
 
     def dispatch(self, request_id: str, role: str, *inputs: str, ok: bool = True) -> Any:
@@ -362,6 +381,74 @@ class AttemptTests(RequestCase):
         self.assertIn("已经结束", self.refused("attempt", "new", "--request", request_id))
 
 
+class PlanApprovalTests(RequestCase):
+    """M7-1: a person approves orchestrator/plan.md before the first attempt."""
+
+    def test_no_attempt_while_the_plan_is_the_template(self) -> None:
+        request_id = self.new_request()
+        message = self.refused("attempt", "new", "--request", request_id)
+        self.assertIn("计划还没写完", message)
+        self.assertEqual(self.request(request_id)["attempt"], 0)
+
+    def test_no_attempt_before_the_person_approves_and_the_refusal_says_what_to_do(self) -> None:
+        request_id = self.new_request()
+        self.write_plan(request_id)
+        message = self.refused("attempt", "new", "--request", request_id)
+        self.assertIn("还没有经用户批准", message)
+        self.assertIn(f"[plan.md](.workspace/sandbox/requests/{request_id}/orchestrator/plan.md)", message)
+        self.assertIn("request approve-plan", message)
+        self.assertIn("request wait", message)
+        self.assertEqual(self.request(request_id)["attempt"], 0)
+
+    def test_the_approval_is_bound_to_the_plan_and_the_screen_names_the_file(self) -> None:
+        request_id = self.new_request()
+        self.write_plan(request_id)
+        screen = io.StringIO()
+        with self.assertRaises(layout.CommandError):
+            self.approve_plan(request_id, code="nope", out=screen)
+        self.assertNotIn("plan", self.request(request_id))
+        result = self.approve_plan(request_id, out=screen)
+        self.assertTrue(result["approved"])
+        self.assertIn(f".workspace/sandbox/requests/{request_id}/orchestrator/plan.md", screen.getvalue())
+        self.assertNotIn("写 slugify，再评审", screen.getvalue())  # the plan is read in the editor, not in the terminal
+        self.assertEqual(self.request(request_id)["plan"]["approved_sha256"], store.sha256_file(self.plan_file(request_id)))
+        self.assertEqual(self.run_cli("attempt", "new", "--request", request_id)["attempt"], 1)
+
+    def test_a_changed_plan_needs_a_new_approval_and_an_unchanged_one_does_not(self) -> None:
+        request_id = self.new_request()
+        self.attempt(request_id)
+        self.builder_round(request_id, 1, status="blocked")
+        self.assertEqual(self.run_cli("attempt", "new", "--request", request_id)["attempt"], 2)  # same plan: no new approval
+        self.builder_round(request_id, 2, status="blocked")
+        self.write_plan(request_id, "# 计划\n\n换一个做法。\n")
+        message = self.refused("attempt", "new", "--request", request_id, "--human-approved", "用户同意")
+        self.assertIn("计划在批准之后改过", message)
+        self.approve_plan(request_id)
+        self.assertEqual(self.run_cli("attempt", "new", "--request", request_id, "--human-approved", "用户同意")["attempt"], 3)
+
+    def test_only_a_person_at_a_terminal_can_approve(self) -> None:
+        request_id = self.new_request()
+        self.write_plan(request_id)
+        self.assertIn("只能由用户在自己的终端里手动运行", self.refused("request", "approve-plan", "--request", request_id))
+        with self.assertRaises(layout.CommandError):
+            planapproval.approve(self.root, request_id, reader=lambda _p: "x", interactive=False, out=io.StringIO())
+        for command in (f"python3 .harness/engine/cli.py request approve-plan --request {request_id}", "harness request approve-plan", "harness task approve-plan", "harness task approve-promote"):
+            denied = self.hook(pre_tool(SESSION, "run_in_terminal", {"command": command}))
+            self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny", command)
+
+    def test_without_an_id_the_one_request_waiting_for_its_plan_is_used(self) -> None:
+        with self.assertRaises(layout.CommandError):
+            self.approve_plan()  # nothing waits
+        request_id = self.new_request()
+        with self.assertRaises(layout.CommandError):
+            self.approve_plan()  # the plan is still the template
+        self.write_plan(request_id)
+        code = store.sha256_file(self.plan_file(request_id))[:8]
+        self.assertEqual(self.approve_plan(code=code)["request_id"], request_id)
+        listed = self.run_cli("request", "list")["requests"][0]
+        self.assertTrue(listed["plan_ready"] and listed["plan_approved"])
+
+
 class DispatchTests(RequestCase):
     def test_an_unfilled_assignment_is_refused(self) -> None:
         request_id = self.new_request()
@@ -555,7 +642,7 @@ class ListTests(RequestCase):
         self.assertEqual({r["request_id"] for r in listed}, {first, second})
         self.assertEqual([r["request_id"] for r in self.run_cli("request", "list", "--status", "open")["requests"]], [second])
         self.assertEqual(listed[0]["title"] in ("first", "second"), True)
-        self.assertEqual(set(listed[0]), {"request_id", "title", "status", "attempt", "promote", "waiting_for_approval", "waiting_for", "created_at"})
+        self.assertEqual(set(listed[0]), {"request_id", "title", "status", "attempt", "promote", "waiting_for_approval", "waiting_for", "created_at", "plan_ready", "plan_approved"})
 
     def test_list_with_no_requests_and_with_a_stray_folder(self) -> None:
         self.assertEqual(self.run_cli("request", "list")["requests"], [])
@@ -721,7 +808,7 @@ class PromoteTests(RequestCase):
         self.assertEqual((self.root / "src" / "slug.py").read_text(encoding="utf-8"), "def slugify(s):\n    return s.lower()\n")
         self.assertEqual(self.request(request_id)["promote"]["state"], "dry_run")
 
-    def test_the_approval_screen_still_shows_the_diff(self) -> None:
+    def test_the_approval_screen_names_the_review_file_and_the_file_holds_the_diff(self) -> None:
         request_id = self.new_request()
         self.write("src/slug.py", "def slugify(s):\n    return s.lower()\n")
         self.attempt(request_id)
@@ -730,8 +817,20 @@ class PromoteTests(RequestCase):
         self.run_cli("promote", "--request", request_id, "--dry-run")
         out = io.StringIO()
         plan = self.request(request_id)["promote"]["plan_sha256"]
+        dry = self.run_cli("promote", "--request", request_id, "--dry-run")
+        review = self.rd(request_id) / "promote-plan.diff"
+        self.assertEqual(dry["review_file"], f".workspace/sandbox/requests/{request_id}/promote-plan.diff")
+        self.assertIn("promote-plan.diff", dry["next"])
+        review.write_text("tampered\n", encoding="utf-8")  # the approval writes it again: the person approves the real plan
         promote.approve(self.root, request_id, reader=lambda _p: plan[:8], interactive=True, out=out)
-        self.assertIn("+    return s.lower().replace", out.getvalue())
+        self.assertNotIn("+    return s.lower().replace", out.getvalue())  # the terminal stays short
+        self.assertIn(dry["review_file"], out.getvalue())
+        self.assertIn("modify    src/slug.py  (+1 -1)", out.getvalue())
+        text = review.read_text(encoding="utf-8")
+        self.assertIn("+    return s.lower().replace(' ', '-')", text)
+        self.assertIn("-    return s.lower()", text)
+        denied = self.hook(pre_tool(SESSION, "create_file", {"filePath": str(review), "content": "x"}))
+        self.assertEqual(denied["hookSpecificOutput"]["permissionDecision"], "deny")  # only the CLI writes it
 
     def test_the_real_run_needs_a_matching_dry_run(self) -> None:
         request_id = self.passed_request()
@@ -981,6 +1080,7 @@ class ConcurrencyTests(RequestCase):
 
     def test_attempts_opened_at_once_do_not_skip_or_repeat_a_number(self) -> None:
         request_id = self.new_request()
+        self.ready_plan(request_id)
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(lambda _: self.cli("attempt", "new", "--request", request_id), range(4)))
         self.assertEqual(sum(r.returncode == 0 for r in results), 1)  # the next ones lack a handoff from the first

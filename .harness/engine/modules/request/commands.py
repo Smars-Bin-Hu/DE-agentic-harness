@@ -1,6 +1,6 @@
 """CLI commands of the request module.
 
-  request new|add-input|set-branch|set-status|wait|show|list|approve-promote|recover    the request itself (approve-promote, recover: a person at a terminal)
+  request new|add-input|set-branch|set-status|wait|show|list|approve-plan|approve-promote|recover    the request itself (approve-*, recover: a person at a terminal)
   brief set                                  hand the knowledge brief to the CLI
   attempt new                                open the next attempt
   dispatch                                   build and freeze the input package of one role
@@ -19,7 +19,7 @@ from typing import Any, Dict
 from core import targets
 from core.paths import repo_root
 
-from . import check, ops, promote, report
+from . import check, ops, planapproval, promote, report
 
 
 def _request(parser: argparse.ArgumentParser) -> None:
@@ -44,6 +44,10 @@ def cmd_set_status(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_wait(args: argparse.Namespace) -> Dict[str, Any]:
     return ops.wait(repo_root(), args.request, args.reason)
+
+
+def cmd_approve_plan(args: argparse.Namespace) -> Dict[str, Any]:
+    return planapproval.approve(repo_root(), args.request or "")
 
 
 def cmd_approve_promote(args: argparse.Namespace) -> Dict[str, Any]:
@@ -143,6 +147,10 @@ def register(subparsers: Any) -> None:
     _request(wait_parser)
     wait_parser.add_argument("--reason", required=True, help="what it waits for, e.g. the person's approval of the promote plan")
     wait_parser.set_defaults(handler=cmd_wait)
+
+    approve_plan = commands.add_parser("approve-plan", help="the person approves orchestrator/plan.md before the first attempt (terminal only)")
+    approve_plan.add_argument("--request", default="", help="request id; left out, the only request whose plan waits for approval is used")
+    approve_plan.set_defaults(handler=cmd_approve_plan)
 
     approve = commands.add_parser("approve-promote", help="the person approves the plan of the last promote --dry-run (terminal only)")
     approve.add_argument("--request", default="", help="request id; left out, the only request waiting for approval is used")

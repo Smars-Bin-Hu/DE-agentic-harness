@@ -17,6 +17,10 @@
     ".workspace/sandbox/requests/*/handoffs/**/manifest.json",
     ".workspace/sandbox/requests/*/handoffs/orchestrator/init-inputs/knowledge-brief.md",
     ".workspace/sandbox/requests/*/handoffs/orchestrator/init-inputs/brief-history/**",
+    ".workspace/sandbox/requests/*/promote-plan.diff",
+    ".workspace/current_tasks/*/.task/**",
+    ".workspace/current_tasks/*/PROMOTE-PLAN.diff",
+    ".workspace/current_tasks/*/CHANGES.diff",
     ".workspace/reports/**"
   ],
   "l3_write_root": ".workspace/sandbox/requests/{request_id}",
@@ -69,8 +73,8 @@
         "pattern": "{cmd}mkfs(?:\\.\\w+)?\\b|{cmd}dd\\b[^\\n]*\\bof=/dev/|>\\s*/dev/(?:sd|nvme|disk)"
       },
       {
-        "why": "批准 promote（approve-promote）、恢复中途出错的 promote（recover）和批准 git 命令（approve-command）只能由用户在自己的终端里运行。告诉用户运行这条命令，不要自己运行",
-        "pattern": "\\b(?:cli\\.py|harness(?:\\.cmd)?)\\s+(?:request\\s+(?:approve-promote|recover)|approve-command)\\b"
+        "why": "批准计划（approve-plan）、批准 promote（approve-promote）、恢复中途出错的 promote（recover）和批准 git 命令（approve-command）只能由用户在自己的终端里运行。告诉用户运行这条命令，不要自己运行",
+        "pattern": "\\b(?:cli\\.py|harness(?:\\.cmd)?)\\s+(?:(?:request|task)\\s+(?:approve-plan|approve-promote|recover)|approve-command)\\b"
       }
     ],
     "ask": [

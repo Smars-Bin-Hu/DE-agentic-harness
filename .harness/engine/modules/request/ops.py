@@ -205,7 +205,7 @@ def new_request(root: Path, title: str, session_id: str, surface: str = "vscode"
     result = {
         "request_id": request_id,
         "path": layout.REQUESTS_DIR + "/" + request_id,
-        "next": "request add-input 放入需求和必要文件；写 knowledge-brief 后 brief set；写 orchestrator/plan.md；再 attempt new。",
+        "next": "request add-input 放入需求和必要文件；写 knowledge-brief 后 brief set；写 orchestrator/plan.md；停下来请用户批准计划（`request approve-plan`，用户在终端运行）；批准后再 attempt new。",
     }
     if found.configured:
         result["target_repos"] = found.names()
@@ -245,7 +245,12 @@ def list_requests(root: Path, status: str = "") -> Dict[str, Any]:
             continue  # a folder that is not a request; `check` is the tool for a broken one
         if status and data["status"] != status:
             continue
+        from . import planapproval  # it imports this module
+
+        plan = planapproval.plan_path(root, path.name)
         found.append({
+            "plan_ready": plan.is_file() and PLACEHOLDER not in plan.read_text(encoding="utf-8", errors="replace"),
+            "plan_approved": planapproval.approved(root, path.name, data),
             "request_id": data["request_id"], "title": data["title"], "status": data["status"],
             "attempt": data["attempt"], "promote": data["promote"]["state"],
             "waiting_for_approval": data["status"] == "open" and data["promote"]["state"] == "dry_run" and "approved_plan_sha256" not in data["promote"],
@@ -547,6 +552,9 @@ def new_attempt(root: Path, request_id: str, human_approved: str = "") -> Dict[s
             )
         if number > 1 and not data["attempts"][-1]["handoffs"]:
             raise CommandError(f"第 {number - 1} 轮还没有任何 handoff，不能开下一轮。先让它交接（handoff submit），或 `request set-status abandoned`。")
+        from . import planapproval  # it imports this module
+
+        planapproval.require_approved(root, request_id, data)
         found = load_targets(root) if data.get("target_mode") else None
         for role in layout.ROLES:
             note = target_note(data, found, role) if found else ""
