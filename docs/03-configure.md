@@ -52,10 +52,10 @@ harness 本身不含任何业务内容。接入公司环境时，你加四样东
 
 ## 知识库
 
-`knowledge-base/` 是接入公司知识库的位置，仓库里保持为空。接入后：
+`knowledge-base/` 是接入公司知识库的位置，仓库里保持为空。`.github/instructions/knowledgebase.instructions.md` 是知识库的一个组件，交付时也是空的占位，**必须接入**：它教 agent 怎么按索引读知识库，没有它，agent 只会随便搜。接入步骤：
 
 1. 把知识库放进 `knowledge-base/`。**入口是 `knowledge-base/README.md`**：它是索引，只放主题和相对链接，agent 先读它，再按需往下读，不要一次读全部。
-2. 把讲知识库怎么读、怎么写的 instructions 放进 `.github/instructions/`（例如 `knowledgebase.instructions.md`），frontmatter 写 `applyTo: '**'`。只写 `applyTo: 'knowledge-base/**'` 不够：agent 读到知识库文件之前它不会生效。
+2. 把知识库自带的、讲怎么读怎么写的 instructions 放进 `.github/instructions/knowledgebase.instructions.md`（替换空占位），frontmatter 写 `applyTo: '**'`。只写 `applyTo: 'knowledge-base/**'` 不够：agent 读到知识库文件之前它不会生效。
 3. 运行 `doctor`。它检查：有没有 README、README 里的链接是否都有文件、`.gitignore` 有没有忽略 `knowledge-base/`、instructions 会不会被加载。
 4. 知识库的写作规则只有一个主要来源：知识库自带的 instructions。orchestrator 读知识库后，把结论蒸馏成带来源的“知识简报”（`brief set`），之后每个角色共用。
 

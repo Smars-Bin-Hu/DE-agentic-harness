@@ -37,6 +37,39 @@ README 是仓库的第一目录，只介绍和指路。先从这里找到目标�
 2. 在下面的索引中找到与任务有关的文件。
 3. 只读取需要的指令、技能、策略或测试。
 
+
+## 目录结构
+
+分两部分：harness 本身（含知识库的接入位置），和 harness 之外的目标仓库。
+
+```text
+本仓库（harness）
+├── AGENTS.md                      所有 agent 都要遵守的核心规则
+├── README.md、docs/               说明文档
+├── .github/
+│   ├── copilot-instructions.md    仓库级规则
+│   ├── instructions/              分类规则；其中 knowledgebase.instructions.md 是企业知识库的一部分，必须接入（交付时为空）
+│   ├── skills/                    技能：harness-*、generic-*（企业自己加 domain-*）
+│   ├── agents/                    orchestrator、builder、reviewer、verifier
+│   └── hooks/harness.json         hook 配置
+├── .harness/
+│   ├── engine/                    hook 和命令行（引擎）
+│   ├── policies/                  策略；企业用 *.override.json 覆盖，目标仓库在 target.override.json 里配
+│   ├── contracts/、eval/、tests/  交接格式、固定场景、测试
+│   ├── bin/                       短命令 harness、harness.cmd
+│   └── runtime/                   状态和日志（不进 git）
+├── .workspace/
+│   ├── current_tasks/<任务>/      人放任务材料（REQ、REF、TEST）；promote 的备份写进 DEV
+│   ├── sandbox/requests/<id>/     L3 请求的执行目录（不进 git）
+│   └── reports/                   请求报告（不进 git）
+└── knowledge-base/                企业知识库的接入位置（交付时为空）
+
+harness 之外：目标仓库（企业的代码仓库）
+<repos_root>/                      在 target.override.json 里配置的文件夹
+├── bdtt_repo/                     每个带 .git 的子文件夹是一个目标仓库
+└── b9td_repo/                     harness 只读它们的 main；promote 经人批准后才写到新分支
+```
+
 ## 路径索引
 
 | 路径                                                                                                  | 用途                                         |
@@ -47,7 +80,7 @@ README 是仓库的第一目录，只介绍和指路。先从这里找到目标�
 | [.github/instructions/agents.instructions.md](.github/instructions/agents.instructions.md)               | 智能体文件的编写规则。                       |
 | [.github/instructions/skills.instructions.md](.github/instructions/skills.instructions.md)               | 技能文件的编写规则。                         |
 | [.github/instructions/tools.instructions.md](.github/instructions/tools.instructions.md)                 | 工具配置的编写规则。                         |
-| [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md) | 知识库文件的编写规则。                       |
+| [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md) | 企业知识库自带的 instructions（教 agent 按索引读知识库），**必须接入**。交付时为空，见下面“必须接入的部分”。 |
 | [.github/instructions/workspace.instructions.md](.github/instructions/workspace.instructions.md)         | 在 `.workspace/` 里读写的规则。              |
 | [.github/skills/](.github/skills/)                                                                       | 可重复使用的任务流程和参考资料。             |
 | [.github/agents/](.github/agents/)                                                                       | 自定义智能体：orchestrator（用户可选）、builder、reviewer、verifier。 |
@@ -93,10 +126,8 @@ README 是仓库的第一目录，只介绍和指路。先从这里找到目标�
 
 其他命令（`request new`、`dispatch`、`handoff submit`、`promote` 等）由 orchestrator、builder、reviewer 使用，见 [命令与字段参考](docs/04-reference.md)。
 
-## 目录
 
-- `AGENTS.md`、`.github/`：规则、指令、技能、agent、hook 配置。
-- `.harness/`：引擎（hook 和命令行）、策略、交接格式、固定场景、测试。
-- `.workspace/`：工作区。`sandbox/` 是 L3 执行的唯一路径，`current_tasks/` 放人的任务材料，`reports/` 放请求报告。运行内容不进 git。
-- `knowledge-base/`：企业知识库的接入位置。
-- `docs/`：使用文档。
+## 必须接入的部分
+
+- **目标仓库**：在 `target.override.json` 里写 `repos_root`。没配置时，L3 只能改 harness 自己的仓库。
+- **知识库**：把企业知识库放进 `knowledge-base/`，同时把知识库**自带的 instructions** 放到 [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md)。这个文件交付时是空的占位：它是知识库的一个组件，没有它，agent 不知道怎么按索引读知识库。`doctor` 会提醒。接入方法见 [配置与定制](docs/03-configure.md)。

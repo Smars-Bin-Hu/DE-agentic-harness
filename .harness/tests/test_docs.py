@@ -96,6 +96,22 @@ class LinkTests(unittest.TestCase):
         self.assertEqual(len(names), 5, names)
 
 
+class ReadmeStructureTests(unittest.TestCase):
+    def test_the_readme_has_the_directory_tree_with_both_parts(self) -> None:
+        readme = text(REPO / "README.md")
+        tree = readme[readme.index("## 目录结构"):]
+        for needle in ("knowledge-base/", "knowledgebase.instructions.md", ".harness/", "engine/", ".workspace/", "repos_root", "harness 之外"):
+            self.assertIn(needle, tree, needle)
+
+    def test_the_knowledge_base_instructions_must_be_connected_and_are_not_hidden(self) -> None:
+        readme = text(REPO / "README.md")
+        self.assertIn("(.github/instructions/knowledgebase.instructions.md)", readme)
+        self.assertIn("必须接入", readme[readme.index("## 必须接入的部分"):])
+        configure = text(REPO / "docs" / "03-configure.md")
+        self.assertIn("必须接入", section(configure, "知识库"))
+        self.assertTrue((REPO / ".github" / "instructions" / "knowledgebase.instructions.md").is_file())
+
+
 class CommandTests(unittest.TestCase):
     def test_every_command_a_document_shows_runs(self) -> None:
         wanted: Dict[Tuple[str, ...], str] = {}
