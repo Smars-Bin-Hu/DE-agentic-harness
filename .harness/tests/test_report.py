@@ -45,6 +45,17 @@ class ConcludeWritesTheReportTests(ReportCase):
         self.assertIn("**reviewer：passed**", text)
         self.assertIn("evidence/test.log", text)
 
+    def test_a_knowledge_addition_reads_as_a_sentence_not_as_a_dict(self) -> None:
+        request_id = self.new_request()
+        self.attempt(request_id)
+        self.fill_assignment(request_id, 1, "builder")
+        self.dispatch(request_id, "builder")
+        self.submit(request_id, "builder", "blocked", "--blocker", "need input", "--kb-addition", "knowledge-base/a.md#部署 :: 先停写再迁移")
+        self.run_cli("report", "--request", request_id)
+        text = self.text(request_id)
+        self.assertIn("- 查到的知识：先停写再迁移（来源：knowledge-base/a.md#部署）", text)
+        self.assertNotIn("{'source'", text)
+
     def test_a_failed_round_then_a_pass_shows_both_rounds_and_the_blocker(self) -> None:
         request_id = self.new_request()
         self.attempt(request_id)

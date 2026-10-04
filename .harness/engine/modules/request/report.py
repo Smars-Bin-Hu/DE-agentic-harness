@@ -112,6 +112,8 @@ def attempts_section(root: Path, directory: Path, data: Dict[str, Any]) -> List[
             if handoff.get("next"):
                 lines.append(f"- 建议：{handoff['next']}")
             for addition in handoff.get("kb_additions", []):
+                if isinstance(addition, dict):
+                    addition = f"{addition.get('note', '')}（来源：{addition.get('source', '')}）"
                 lines.append(f"- 查到的知识：{addition}")
         if not found:
             lines += ["", "这一轮没有交接。"]

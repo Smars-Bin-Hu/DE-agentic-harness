@@ -10,6 +10,7 @@ harness 做五件事。每一件都分成“写给 agent 的说明”和“代�
 | L2 | 标准工程任务 | 先短计划；只在你写 `[verify]` 时才让 verifier 复核 |
 | L3 | 复杂、需要独立验证的任务 | orchestrator 编排 builder 和 reviewer |
 
+- 怎么选：需求清楚的中小任务用 L1、L2。L3 更贵，换来独立检查、人批准后才回写、完整留痕。实测数字见 [省时间和省钱](06-cost-optimization.md) 的第九节。
 - 上限和标记在 [task-levels.json](../.harness/policies/task-levels.json)。
 - Level 只控制工作方式，不改文件、网络、环境、生产权限。
 - 只有你能切换。hook 读你的提示原文来识别标记，agent 运行 `level set` 会被拒绝。
