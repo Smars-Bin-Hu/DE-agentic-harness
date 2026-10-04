@@ -36,7 +36,6 @@ Copilot 很会写代码，但在企业里用 VS Code 做复杂任务时，常有
 | [docs/05-design.md](docs/05-design.md) | **为什么这样设计**：组件怎么分层，L1、L2、L3 是什么，哪些事交给代码、哪些交给模型 |
 | [docs/06-cost-optimization.md](docs/06-cost-optimization.md) | **怎么省时间和钱**：按任务大小选做法，只读需要的、只写必要的，早失败、能续做，以及哪里仍然会贵 |
 | [docs/07-prompts.md](docs/07-prompts.md) | **直接复制的提示**：L1、L2、L2 任务模式、L3 各一份模板，写清需求、目标仓库、知识库和在哪一步停下等你批准 |
-| [docs/08-windows-check.md](docs/08-windows-check.md) | **第一次放到 Windows 电脑上**：11 项检查，可以直接复制的 PowerShell 命令和提示，查路径、换行、终端批准、短命令和 hook |
 
 ## 必须接入的部分
 
