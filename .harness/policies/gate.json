@@ -5,6 +5,7 @@
     ".github/hooks/**",
     ".harness/policies/**",
     ".harness/engine/**",
+    ".harness/bin/**",
     ".harness/registry.json",
     ".harness/runtime/**",
     ".vscode/settings.json"
@@ -69,7 +70,7 @@
       },
       {
         "why": "批准 promote（approve-promote）、恢复中途出错的 promote（recover）和批准 git 命令（approve-command）只能由用户在自己的终端里运行。告诉用户运行这条命令，不要自己运行",
-        "pattern": "\\bcli\\.py\\s+(?:request\\s+(?:approve-promote|recover)|approve-command)\\b"
+        "pattern": "\\b(?:cli\\.py|harness(?:\\.cmd)?)\\s+(?:request\\s+(?:approve-promote|recover)|approve-command)\\b"
       }
     ],
     "ask": [

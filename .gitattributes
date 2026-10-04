@@ -1,0 +1,3 @@
+# The Windows launcher needs CRLF line endings, the macOS/Linux one needs LF.
+.harness/bin/harness.cmd text eol=crlf
+.harness/bin/harness text eol=lf

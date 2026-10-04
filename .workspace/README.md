@@ -22,6 +22,7 @@ agent 要遵守的写法见 [workspace.instructions.md](../.github/instructions/
 - 所有 Level：guardrail 文件不能改。
 - L3：编辑类工具只能写当前请求目录。写到别处会被拒绝，回写原仓库用 `promote`：先 `--dry-run`，用户在自己的终端运行 `request approve-promote` 批准，再 `promote`。
 - 所有 Level：`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md` 和 `reports/` 下的报告只由 CLI 写，agent 直接写会被拒绝。
+- 所有 Level：任何 `.git` 文件夹和目标仓库的 `refused_paths` 不能写（含终端写法）。配置了目标仓库后，agent 的 git 写命令要人批准，`push` 等永远不能批准，见 [docs/02-features.md](../docs/02-features.md)。
 - gate 不管读取。skills、指令、知识库、contract 谁都能读。
 
 ## 管得住什么，管不住什么
@@ -29,7 +30,7 @@ agent 要遵守的写法见 [workspace.instructions.md](../.github/instructions/
 | 能管住 | 管不住 |
 | --- | --- |
 | agent 用编辑类工具改 guardrail 文件，或在 L3 写到请求目录之外 | 终端命令可以写任何路径。gate 只拦常见写法（重定向、`rm`、`mv`、`sed -i`、`cp` 到 guardrail 路径等），拦不住所有写法 |
-| 常见的危险终端命令：删根目录、`curl \| sh`、`git push` 等（拒绝或要人确认） | 子 agent 的调用也会触发 hook，但 hook 分不清是主 agent 还是子 agent。子 agent 的写入范围和主 agent 一样 |
+| 常见的危险终端命令：删根目录、`curl \| sh` 等（拒绝或要人确认）；git 写命令（要人批准，部分永远拒绝） | 子 agent 的调用也会触发 hook，但 hook 分不清是主 agent 还是子 agent。子 agent 的写入范围和主 agent 一样 |
 | 同一个拒绝反复出现时，把拒绝理由换成"停止重试" | hook 只能拒绝，杀不掉一个一直重试的 agent。熔断靠那句话让它收尾 |
 | 大小写、`..`、绝对路径、Windows 的 `\` 这些不同写法 | 间接写法，例如先 `cd` 进目录再用相对名字删除，或在脚本文件里写好再运行 |
 

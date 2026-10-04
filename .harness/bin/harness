@@ -1,0 +1,16 @@
+#!/bin/sh
+# Short command for people (macOS/Linux): harness <command> ...
+# Same as: python3 .harness/engine/cli.py <command> ...  Works from any folder, also through a link in PATH.
+self=$0
+while [ -h "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+here=$(cd "$(dirname "$self")" && pwd)
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "$here/../engine/cli.py" "$@"
+fi
+exec python "$here/../engine/cli.py" "$@"

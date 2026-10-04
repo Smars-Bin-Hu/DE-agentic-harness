@@ -10,6 +10,7 @@ CORE_GUARDRAILS = (
     ".github/hooks/**",
     ".harness/policies/**",
     ".harness/engine/**",
+    ".harness/bin/**",  # the short commands: a changed launcher could run anything under the name `harness`
     ".harness/registry.json",
     ".harness/runtime/**",
     ".vscode/settings.json",  # it holds chat.useHooks: an agent that turns it off turns every hook off

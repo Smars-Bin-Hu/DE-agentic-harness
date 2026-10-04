@@ -11,7 +11,8 @@
       ".harness/engine/adapters/tool_kinds.json",
       ".github/hooks/harness.json",
       ".harness/eval/fixtures/hooks/vscode/",
-      ".harness/tests/test_breaker.py"
+      ".harness/tests/test_breaker.py",
+      ".harness/tests/test_docs.py"
     ]
   },
   "modules": {
@@ -58,6 +59,8 @@
       "files": [
         ".harness/policies/gate.json",
         ".harness/engine/modules/gate/",
+        ".harness/bin/harness",
+        ".harness/bin/harness.cmd",
         ".harness/tests/test_gate.py",
         ".harness/tests/test_gate_git.py",
         ".harness/tests/test_gate_approval.py",
