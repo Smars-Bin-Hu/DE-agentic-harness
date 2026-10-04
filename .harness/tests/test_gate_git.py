@@ -103,13 +103,33 @@ class GateGitTests(HarnessTestCase):
         self.assertEqual(self.decision(self.edit(f"{self.repos}/bdtt_repo/.git/config")), "deny")
         self.assertEqual(self.edit(f"{self.repos}/bdtt_repo/src/a.sql"), {})
 
-    def test_other_files_in_a_target_repository_are_not_blocked(self) -> None:
+    def test_the_working_tree_of_a_target_repository_is_written_by_promote_only(self) -> None:
+        """M7-4: no Level edits a file of a target repository directly. The reason names the way that works."""
         for path in (
             f"{self.repos}/bdtt_repo/src/a.sql", f"{self.repos}/bdtt_repo/.gitignore", f"{self.repos}/bdtt_repo/.github/workflows/ci.yml",
-            f"{self.repos}/bdtt_repo/.gitattributes", f"{self.repos}/bdtt_repo/x.git/y",
+            f"{self.repos}/bdtt_repo/.gitattributes", f"{self.repos}/bdtt_repo/x.git/y", f"{self.repos}/BDTT_REPO/new/file.sql",
         ):
             with self.subTest(path):
-                self.assertEqual(self.edit(path), {})
+                output = self.edit(path)
+                self.assertEqual(self.decision(output), "deny")
+                self.assertIn("只能由 promote 写", self.reason(output))
+        self.assertIn("task fetch", self.reason(self.edit(f"{self.repos}/bdtt_repo/src/a.sql")))
+        self.assertEqual(self.pre("read_file", {"filePath": f"{self.repos}/bdtt_repo/src/a.sql"}), {})  # reading stays free
+        self.assertEqual(self.edit(f"{self.repos}/not_a_repo.txt"), {})  # beside the repositories, not in one
+        self.enter_l3()
+        self.assertIn("请求目录", self.reason(self.edit(f"{self.repos}/bdtt_repo/src/a.sql")))
+
+    def test_terminal_writes_into_a_target_working_tree_are_denied(self) -> None:
+        repo = f"{self.repos}/bdtt_repo"
+        for command in (
+            f"echo x > {repo}/.gitignore", f"cp a {repo}/.github/x.yml", f"rm {repo}/src/a.sql.bak", f"sed -i '' 's/1/2/' {repo}/src/a.sql",
+            f"mv {repo}/src/a.sql {repo}/src/b.sql", f"mkdir -p {repo}/new", f"printf x | tee {repo}/src/a.sql",
+            f"python3 -c \"open('{repo}/src/a.sql','w').write('x')\"",
+        ):
+            with self.subTest(command):
+                output = self.term(command)
+                self.assertEqual(self.decision(output), "deny")
+                self.assertIn("只能由 promote 写", self.reason(output))
 
     def test_reads_of_a_git_folder_are_not_blocked(self) -> None:
         self.assertEqual(self.pre("read_file", {"filePath": f"{self.repos}/bdtt_repo/.git/config"}), {})
@@ -124,9 +144,8 @@ class GateGitTests(HarnessTestCase):
         self.assertIn("refused_paths", self.reason(output))
         self.assertEqual(self.decision(self.edit(f"{self.repos}/bdtt_repo/key.pem")), "deny")
         self.assertEqual(self.decision(self.edit(f"{self.repos}/BDTT_REPO/.GITHUB/Workflows/ci.yml")), "deny")
-        # another repository keeps its own list
-        self.assertEqual(self.edit(f"{self.repos}/b9td_repo/.github/workflows/ci.yml"), {})
-        self.assertEqual(self.edit(f"{self.repos}/bdtt_repo/src/a.sql"), {})
+        # another repository keeps its own list: there the path is refused as any other file of a working tree
+        self.assertNotIn("refused_paths", self.reason(self.edit(f"{self.repos}/b9td_repo/.github/workflows/ci.yml")))
 
     def test_a_root_wide_refused_path_applies_to_every_repository(self) -> None:
         self.override({"repos_root": str(self.repos), "refused_paths": [".git/**", "secrets/**"]})
@@ -153,8 +172,8 @@ class GateGitTests(HarnessTestCase):
         repo = f"{self.repos}/bdtt_repo"
         for command in (
             f"cat {repo}/.git/config", f"ls {repo}/.git", f"git -C {repo} status", f"git -C {repo} log --oneline", f"git -C {repo} diff",
-            f"echo x > {repo}/.gitignore", f"cp a {repo}/.github/x.yml", f"rm {repo}/src/a.sql.bak", f"cp {repo}/.git/config /tmp/c",
-            f"rg 'rm -rf .git' {repo}/src", "git status",
+            f"cp {repo}/.git/config /tmp/c", f"cp {repo}/src/a.sql /tmp/a.sql", f"cat {repo}/src/a.sql", f"grep -rn select {repo}/src",
+            f"rg 'rm -rf .git' {repo}/src", "git status", f"git -C {repo} show main:src/a.sql",
         ):
             with self.subTest(command):
                 self.assertNotEqual(self.decision(self.term(command)), "deny")
@@ -164,9 +183,8 @@ class GateGitTests(HarnessTestCase):
         repo = f"{self.repos}/bdtt_repo"
         self.assertEqual(self.decision(self.term(f"echo x > {repo}/.github/workflows/ci.yml")), "deny")
         self.assertEqual(self.decision(self.term(f"rm {repo}/.github/workflows/ci.yml")), "deny")
+        self.assertIn("不许写的路径", self.reason(self.term(f"echo x > {repo}/.github/workflows/ci.yml")))
         self.assertNotEqual(self.decision(self.term(f"cat {repo}/.github/workflows/ci.yml")), "deny")
-        self.assertNotEqual(self.decision(self.term(f"echo x > {repo}/src/a.sql")), "deny")
-        self.assertNotEqual(self.decision(self.term(f"echo x > {self.repos}/b9td_repo/.github/workflows/ci.yml")), "deny")
 
     def test_windows_spelling_of_a_target_path_in_a_command(self) -> None:
         self.assertEqual(self.decision(self.term("del C:\\repos\\bdtt_repo\\.git\\index")), "deny")

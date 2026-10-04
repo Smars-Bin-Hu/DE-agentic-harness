@@ -40,6 +40,36 @@ def target_refused_file(repo: str, relative: str, pattern: str) -> str:
     )
 
 
+def target_tree_file(repo: str, relative: str, level: int) -> str:
+    how = (
+        "在请求目录里改，再用 promote 回写（需要用户批准）。"
+        if level == 3
+        else f"用任务模式：`{cli_command()} task fetch <仓库名>/<路径>` 把文件取到任务目录的 DEV/ 下，在那里改，再用 `task promote` 回写（需要用户批准）。没有任务目录时，停下来告诉用户。"
+    )
+    return f"`{repo}/{relative}` 在目标仓库 {repo} 的工作区里。目标仓库只能由 promote 写，任何 Level 都不能直接改。{how}"
+
+
+def target_tree_terminal(why: str) -> str:
+    return (
+        f"这条终端命令会直接改目标仓库工作区里的文件（{why}）。目标仓库只能由 promote 写。"
+        "不要换个命令重试。把文件取到 DEV/ 或请求目录里改，再用 promote 回写。"
+    )
+
+
+def task_plan_first(relative: str, task: str) -> str:
+    return (
+        f"任务 {task} 的计划还没有经用户批准（或批准之后改过），现在只能写 `{task}/PLAN.md`，你要写的是 `{relative}`。"
+        f"写好 PLAN.md 后停下来：给用户 [PLAN.md]({task}/PLAN.md) 的链接，请用户在自己的终端运行 `{cli_command()} task approve-plan`。用户说批准了，再继续。"
+    )
+
+
+def task_outside_dev(relative: str, task: str) -> str:
+    return (
+        f"任务 {task} 只能在 `{task}/DEV/` 下写文件（计划在 `{task}/PLAN.md`），你要写的是 `{relative}`。"
+        f"改成在 DEV/ 下写；目标仓库的文件先用 `{cli_command()} task fetch <仓库名>/<路径>` 取进来。"
+    )
+
+
 def outside_request(relative: str, request_id: str, request_root: str) -> str:
     return (
         f"L3 请求 {request_id} 只能在 {request_root}/ 下写入，你要写的是 `{relative}`。"

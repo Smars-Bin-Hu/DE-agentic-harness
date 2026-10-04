@@ -110,6 +110,12 @@ def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", c
             f"当前会话 id：{session_id}。orchestrator 运行 `request new` 时，--session-id 原样用它。"
             f"skills 和 agent 文件里的命令前缀 `<cli>` 就是 `{cli_command()}`。"
         )
+    if level == 2:
+        lines.append(
+            "用户指定了 `.workspace/current_tasks/<任务>` 并要你产出或修改文件时，先运行 "
+            f"`{cli_command()} task start --task <任务目录> --session-id <当前会话 id>` 进入任务模式：先写 PLAN.md 并等用户批准，之后只在任务的 DEV/ 下写。"
+            "只是问答、RCA、出方案、不改文件时，不用开任务。目标仓库的文件任何时候都不能直接改。"
+        )
     if level < 3:
         # The prompt starts at L1 or L2 for every agent. Without this line an orchestrator reads the rules above and stops.
         lines.append(

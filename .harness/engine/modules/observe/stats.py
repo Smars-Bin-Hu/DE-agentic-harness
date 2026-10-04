@@ -84,6 +84,7 @@ def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[
     asked: Dict[str, int] = {}
     blocked: Dict[str, int] = {}
     budget_denials = 0
+    task_prompts = 0
     verifier: Dict[str, int] = {}
     subagents: Dict[str, int] = {}
     by_event: Dict[str, List[float]] = {}
@@ -93,6 +94,8 @@ def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[
         level = f"L{row.get('level', 1)}"
         if event == "UserPromptSubmit" and not row.get("from_subagent") and not row.get("continuation"):
             bump(prompts, level)
+            if row.get("kind") == "task":
+                task_prompts += 1  # a prompt of an L2 session that is in task mode
         elif event == "PreToolUse":
             bump(tool_calls, level)
         elif event == "SubagentStart":
@@ -130,6 +133,7 @@ def collect(root: Path, session_id: str = "", surface: str = "", days: Optional[
         "sessions": len(sessions),
         "calls": len(rows),
         "prompts_by_level": prompts,
+        "task_mode_prompts": task_prompts,
         "tool_calls_by_level": tool_calls,
         "denied_by_module": refused,
         "budget_denials": budget_denials,

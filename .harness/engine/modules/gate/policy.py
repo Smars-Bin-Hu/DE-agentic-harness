@@ -112,6 +112,14 @@ class Compiled:
             (re.compile(expand(rule["pattern"], target_guard), re.IGNORECASE), rule["why"])
             for rule in policy["terminal"]["guardrail_write"]
         ]
+        # The working tree of a target repository is written by promote only (M7-4). A git command is not judged here:
+        # git writes have their own rule (approve-command).
+        trees = [f"{repo_paths.normal(str(path))}/**" for _name, path, _refused in (repos or [])]
+        tree_guard = repo_paths.command_regex(trees).pattern if trees else ""
+        self.tree_writes = [
+            (re.compile(expand(rule["pattern"], tree_guard), re.IGNORECASE), rule["why"])
+            for rule in policy["terminal"]["guardrail_write"] if not rule["pattern"].startswith(COMMAND_PLACEHOLDER + "git")
+        ] if trees else []
 
     def guardrail_match(self, relative: str) -> str:
         """The guardrail pattern a repo-relative path falls under, or an empty string."""
@@ -129,6 +137,13 @@ class Compiled:
 
     def request_root(self, request_id: str) -> str:
         return self.l3_write_root.replace(REQUEST_PLACEHOLDER, request_id).strip("/")
+
+    def repo_of(self, absolute: str) -> Optional[Tuple[str, str]]:
+        """`(repo name, repo-relative path)` when an absolute path is inside the working tree of a target repository."""
+        for name, path, _patterns in self.repos:
+            for relative in repo_paths.inside(absolute, path):
+                return name, relative
+        return None
 
     def refused_match(self, absolute: str) -> Optional[Tuple[str, str, str]]:
         """`(repo name, repo-relative path, pattern)` when an absolute path falls under a target repository's refused_paths."""

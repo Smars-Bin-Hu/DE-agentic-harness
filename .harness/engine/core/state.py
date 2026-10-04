@@ -289,7 +289,7 @@ def claim_child(root: Path, surface: str, event: HookEvent) -> Optional[Dict[str
                 entry["awaiting_child"] = False
                 entry["child_session_id"] = event.session_id
                 break
-        claimed.update(parent_session_id=parent["session_id"], level=parent["level"], active_request=parent["active_request"])
+        claimed.update(parent_session_id=parent["session_id"], level=parent["level"], active_request=parent["active_request"], active_task=parent.get("active_task"))
 
     with state_lock(path):
         parent_state = read_state(path, surface, parent_id)

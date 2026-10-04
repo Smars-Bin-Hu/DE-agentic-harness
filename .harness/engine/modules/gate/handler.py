@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from core import repo_paths, targets
+from core import repo_paths, targets, tasks
 from core.context import Context
 from core.events import Decision, HookEvent
 
@@ -42,6 +42,9 @@ def check_write(event: HookEvent, ctx: Context, compiled: Compiled) -> Optional[
             hit = compiled.refused_match(absolute)
             if hit:
                 return Decision(permission="deny", reason=rules.target_refused_file(*hit))
+            tree = compiled.repo_of(absolute)
+            if tree:
+                return Decision(permission="deny", reason=rules.target_tree_file(tree[0], tree[1], ctx.level))
         readings = repo_paths.repo_relative(raw, ctx.root, event.cwd)
         for relative in (item for item in readings if item is not None):
             pattern = compiled.guardrail_match(relative)
@@ -59,7 +62,29 @@ def check_write(event: HookEvent, ctx: Context, compiled: Compiled) -> Optional[
                     else rules.outside_repo_in_request(request_id, request_root)
                 )
                 outside = Decision(permission="deny", reason=reason)
-    return outside
+    return outside or check_task_write(event, ctx)
+
+
+def check_task_write(event: HookEvent, ctx: Context) -> Optional[Decision]:
+    """Task L2 (M7-4): before the person approves PLAN.md only PLAN.md is written; after it, only files under DEV/."""
+    task = ctx.state.get("active_task")
+    if not task or ctx.level == 3:
+        return None
+    data = tasks.read(ctx.root, task)
+    if data is None or data.get("status") != "open":
+        return None  # a task that is gone or closed binds nobody
+    approved = tasks.plan_approved(ctx.root, task, data)
+    plan, dev = f"{task}/{tasks.PLAN_NAME}", f"{task}/{tasks.DEV_NAME}"
+    for raw in event.paths:
+        for relative in repo_paths.repo_relative(raw, ctx.root, event.cwd):
+            shown = relative if relative is not None else raw
+            if relative is not None and relative.lower() == plan.lower():
+                continue
+            if not approved:
+                return Decision(permission="deny", reason=rules.task_plan_first(shown, task), facts={"kind": "task-plan"})
+            if relative is None or not _within(relative, dev) or relative.lower() == dev.lower():
+                return Decision(permission="deny", reason=rules.task_outside_dev(shown, task), facts={"kind": "task-scope"})
+    return None
 
 
 def _within(relative: str, folder: str) -> bool:
@@ -77,6 +102,9 @@ def check_terminal(event: HookEvent, ctx: Context, compiled: Compiled, policy: d
     why = terminal.git_write(event.command, compiled)
     if why:
         return Decision(permission="deny", reason=rules.git_folder_terminal(why))
+    why = terminal.tree_write(event.command, compiled)
+    if why:
+        return Decision(permission="deny", reason=rules.target_tree_terminal(why))
     git = gitcmd.classify(event.command) if guard_git else gitcmd.Verdict()
     if git.kind == gitcmd.NEVER:
         return Decision(permission="deny", reason=rules.git_never(git.why, gitcmd.collapse(event.command)))

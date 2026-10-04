@@ -106,9 +106,10 @@
         ".harness/tests/test_targets.py",
         ".harness/tests/test_target_inputs.py",
         ".harness/tests/test_promote_target.py",
-        ".harness/tests/test_promote_delete.py"
+        ".harness/tests/test_promote_delete.py",
+        ".harness/tests/test_task.py"
       ],
-      "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排。请求目录和 promote 不退役"
+      "retire_when": "Copilot 原生支持带隔离目录和交接文件的多 agent 编排，以及“计划批准后才执行”。请求目录、任务模式的 DEV/ 和 promote 不退役"
     },
     "observe": {
       "status": "active",

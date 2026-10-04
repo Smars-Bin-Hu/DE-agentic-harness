@@ -52,5 +52,7 @@
 - 删除、覆盖或执行难以恢复的操作前，必须确认目标和范围。
 - guardrail 文件任何 Level 都不能改，hook 会拒绝。清单见
   [.harness/policies/gate.json](.harness/policies/gate.json)。需要改时，告诉用户。
-- L3 只在当前请求目录 `.workspace/sandbox/requests/<id>/` 下写入。
+- 目标仓库里的文件任何 Level 都不能直接改，只能经用户批准的 promote 写入。
+- L2 的任务模式只写任务目录的 `PLAN.md` 和 `DEV/`；计划要用户在终端批准后才能动手。
+- L3 只在当前请求目录 `.workspace/sandbox/requests/<id>/` 下写入。计划要用户在终端批准后才能开第一轮。
   目录约定见 [workspace.instructions.md](.github/instructions/workspace.instructions.md)。

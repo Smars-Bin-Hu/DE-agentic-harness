@@ -19,6 +19,24 @@ Task Level 是用户为会话选的工作模式。它控制工作方式和探索
    - 子 agent 被拒：自己完成，或建议用户切换 Level。
 5. 不要绕开预算。不要用终端命令代替被拒绝的搜索，也不要改 state 文件。
 
+## L2 的任务模式
+
+用户指定了任务目录 `.workspace/current_tasks/<任务>`，并要你产出或修改文件时用。只是问答、RCA、出方案、不改文件时不用，照常做。
+`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。下面省略命令前的 `<cli>`。
+
+1. **开始**：`task start --task .workspace/current_tasks/<任务> --session-id <提示开头规则里的会话 id>`。它建好 `DEV/`。以前做过的任务会接着做；上一轮已经回写过，就开新的一轮。
+2. **读**：任务目录的 `REQ/`、`REF/`；知识库先读 `knowledge-base/README.md` 再按索引读需要的；目标仓库只读（main 上的版本用 `git -C <仓库> show main:<路径>`，大文件只读需要的部分）。
+3. **写计划，然后停下**：把计划写到 `<任务>/PLAN.md`：要改哪些文件、每个文件怎么改、怎么验收、用了知识库的哪些结论、不改什么。写完用两三句话告诉用户要点，给出链接 `[PLAN.md](.workspace/current_tasks/<任务>/PLAN.md)`，请用户**在自己的终端**运行 `task approve-plan`。你不能自己运行它。不要把计划全文贴进对话。
+4. **用户说批准了，再动手**。批准前只能写 `PLAN.md`；批准后只能写 `<任务>/DEV/`。计划改了要重新批准。
+5. **取文件**：目标仓库的文件用 `task fetch <仓库名>/<路径>...` 取到 `DEV/<仓库名>/<路径>`（和仓库里的路径一样）。在那里改。新文件直接建在 `DEV/<仓库名>/<路径>`。要删除的文件先取，再 `task delete <仓库名>/<路径>`。改名是新文件加删除旧文件。只改计划里列的文件，不顺手改别的。
+6. **自查**：`task diff` 列出每个文件的增删行数，差异全文在 `CHANGES.diff`。用户写了 `[verify]` 就调用 verifier。
+7. **回写**（配置了目标仓库时）：`task promote --dry-run`。把文件清单告诉用户，给出输出里 `review_file`（`PROMOTE-PLAN.diff`）的链接，请用户**在自己的终端**运行 `task approve-promote`。用户说批准了，再 `task promote`。它在每个仓库里从 main 新建分支（默认 `feature/<任务目录名>`），写入文件，**不提交**。
+   中途出错时不要重试：把错误原样给用户，请用户在终端运行 `task recover`。
+8. **结束**：`task close`。输出里的 `report` 是报告路径，告诉用户。
+
+目标仓库里的文件任何 Level 都不能直接改，编辑工具和常见的终端写法都会被拒绝。不用 `rm` 清理文件。
+随时用 `task status` 看做到哪一步。
+
 ## L2 的复核
 
 复核默认关闭，由用户开启。每条提示开头的规则会写明本条提示开没开。
@@ -37,7 +55,7 @@ Task Level 是用户为会话选的工作模式。它控制工作方式和探索
 ## 三个 Level
 
 - **L1，确定任务**：目标、修改点和验证方式都清楚。不写计划，只读必要的内容，直接动手。不用子 agent。
-- **L2，标准工程任务**：要看几个相关文件、写短计划。只探索相关区域。子 agent 只允许 verifier，而且只在用户写了 `[verify]` 时。
+- **L2，标准工程任务**：要看几个相关文件、写短计划。只探索相关区域。子 agent 只允许 verifier，而且只在用户写了 `[verify]` 时。用户指定了任务目录并要改文件时，走任务模式。
 - **L3，复杂或编排任务**：跨子系统、复杂 RCA、需要独立验证。由用户切到 orchestrator 进入，不能用标记进入。
 
 具体数字（搜索次数、工具调用次数、子 agent 次数）只在 `.harness/policies/task-levels.json`。
