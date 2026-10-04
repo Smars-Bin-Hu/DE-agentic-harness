@@ -91,12 +91,21 @@ class LinkTests(unittest.TestCase):
         for doc in (REPO / "docs").glob("*.md"):
             self.assertTrue(f"docs/{doc.name}" in readme, doc.name)
 
-    def test_the_five_docs_exist(self) -> None:
+    def test_the_six_docs_exist(self) -> None:
         names = sorted(item.name for item in (REPO / "docs").glob("*.md"))
-        self.assertEqual(len(names), 5, names)
+        self.assertEqual(len(names), 6, names)
 
 
 class ReadmeStructureTests(unittest.TestCase):
+    def test_the_readme_only_introduces_and_points_at_the_docs(self) -> None:
+        readme = text(REPO / "README.md")
+        self.assertTrue(readme.startswith("# GitHub Copilot Agentic Harness for DE Team"))
+        self.assertEqual(re.findall(r"^## (.+)$", readme, re.M), ["文档", "必须接入的部分", "目录结构", "路径索引"])
+        intro = readme[readme.index("\n"):readme.index("## 文档")]
+        self.assertIn("常有这些麻烦", intro)
+        self.assertIn("这个 harness 的做法", intro)
+        self.assertGreater(len(intro), 600)
+
     def test_the_readme_has_the_directory_tree_with_both_parts(self) -> None:
         readme = text(REPO / "README.md")
         tree = readme[readme.index("## 目录结构"):]
@@ -120,7 +129,7 @@ class CommandTests(unittest.TestCase):
                 words = command_words(span)
                 if words:
                     wanted.setdefault(tuple(words), document.name)
-        self.assertGreater(len(wanted), 8)
+        self.assertGreater(len(wanted), 5)
         missing = [f"{' '.join(words)} (in {name})" for words, name in sorted(wanted.items()) if not runs(list(words))]
         self.assertEqual(missing, [])
 

@@ -15,6 +15,7 @@ tools: ['read', 'search', 'execute', 'edit']
 
 调用消息和系统给你的提示里写着你的 `assignment.md` 路径。先读它和同目录的 `manifest.json`。
 候选成果在 `candidate/` 目录里。`brief` 是知识简报。
+目标仓库的请求还有 `candidate.diff`：成果和 main 的差异，只列改动的行。先读它，要运行或要更多上下文时，再读 `candidate/` 和 `base/` 里的完整文件。
 
 ## 怎么做
 
@@ -30,6 +31,10 @@ tools: ['read', 'search', 'execute', 'edit']
 
 `--evidence` 写相对于你的 `outputs/attempt-NNN/` 的路径（例如 `verification.txt`），不要写完整路径。`passed` 必须有 `--evidence`；`failed` 和 `blocked` 必须写 `--blocker`，要写清楚哪里不符合，让 builder 能直接修。
 在 brief 之外查到的结论，写进 `--kb-addition "来源 :: 一句话结论"`。
+
+## 最后一条回复
+
+交接成功后，最后一条回复只写一行：`已交接：<状态>，handoff 在 <路径>`。不要重复摘要、证据和问题的内容，orchestrator 会读 handoff。
 
 ## 不要做
 

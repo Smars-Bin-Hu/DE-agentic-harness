@@ -31,6 +31,10 @@ manifest 里的 `brief` 是知识简报，`brief_delta` 是这一轮新增或改
 
 `--output`、`--evidence` 的路径相对于你的 `outputs/attempt-NNN/`，可以重复写。`failed` 和 `blocked` 必须写 `--blocker`。
 
+## 最后一条回复
+
+交接成功后，最后一条回复只写一行：`已交接：<状态>，handoff 在 <路径>`。不要重复摘要、成果和证据的内容，orchestrator 会读 handoff。
+
 ## 不要做
 
 - 不改 assignment、manifest、handoff，也不改 `request.json`。它们是只读的，由 CLI 管。

@@ -1,42 +1,47 @@
-# 数据工程智能体框架
+# GitHub Copilot Agentic Harness for DE Team
 
-这个仓库是给 GitHub Copilot 用的轻量 harness：用 hook 和命令行强制关键规则，用 agents、skills 和 instructions 指导模型做事。
-它和知识库解耦。企业接入自己的知识库、技能和目标仓库后，就能让 Copilot 按这套流程执行团队任务。
+Copilot 很会写代码，但在企业里用 VS Code 做复杂任务时，常有这些麻烦：
 
-README 是仓库的第一目录，只介绍和指路。先从这里找到目标文件，再读需要的内容，不要一次加载全部规则。
+- **规则只是请求**：写在提示词里的规则，模型可以不照做。它会改到不该改的文件、跑危险命令，或者直接动 `.git`。
+- **多 agent 流程每次不一样**：让它自己调子 agent，可能跳过评审、自己评自己；状态只在对话里，上下文一压缩就丢。
+- **说“完成”没有证据**：改了什么、谁评审过、为什么返工，事后很难查。
+- **确认弹窗靠不住**：“Allow in this Session”点一次就关掉了，等于没有确认。
+- **改企业的代码仓库有风险**：文件多、不能整个复制；回写时可能误提交、误推送。
+- **成本不好控**：小任务也走重流程，上下文被整文件和长回复占满。
 
-## 它做什么
+这个 harness 的做法：
 
-- **Task Level**：L1、L2、L3 三种工作方式，由用户切换。
-- **gate**：拦截改 guardrail 文件、L3 越界写、`.git` 和危险终端命令。
-- **L3 多 agent 协作**：orchestrator 调度 builder 和 reviewer，输入、交接、返工都留在请求目录里。
-- **目标仓库**：从各仓库的 main 取要改的文件，人批准后写到新分支，不提交。
-- **git 批准**：agent 的 git 写命令要人在终端批准，`push` 等永远不能批准。
-- **可观测**：会话日志、统计、请求报告、固定场景检查。
+- **用代码强制规则**：hook 和命令行在每次工具调用前检查，越界写、`.git`、危险命令直接拒绝。说明只负责教模型，不负责拦。
+- **按任务大小选做法**：L1、L2、L3 三档，由你切换。小任务不走重流程。
+- **把多 agent 流程固定下来**：orchestrator、builder、reviewer 分工。输入冻结、交接留文件、没有评审通过不能回写，上下文丢了也能续做。
+- **关键动作由人批准**：回写仓库、git 写命令，要你在自己的终端里确认；`push` 这类永远不能批准。
+- **安全地改企业仓库**：只取要改的文件，改完写到新分支且不提交，留有备份和恢复命令。
+- **看得见、能复盘**：每个会话有日志，每个请求有报告，固定场景可以重复检查。
+- **省时间和钱**：命令代替模型做确定的事，只读需要的、只写必要的，子 agent 只回一行。
+
+它和知识库解耦：接入你们自己的知识库、技能和代码仓库，就能按这套流程做团队的日常任务。
+
+给 agent：[AGENTS.md](AGENTS.md) 已自动加载。需要找文件时，只读下面的“路径索引”一节。不要通读本文件，不要读 `docs/`。
 
 ## 文档
 
-| 文档 | 内容 |
+从上往下读，或者直接跳到你要的那一篇。
+
+| 文档 | 你会看到什么 |
 | --- | --- |
-| [docs/01-quickstart.md](docs/01-quickstart.md) | 快速开始：检查、短命令、配置目标仓库、跑第一个 L3 请求 |
-| [docs/02-features.md](docs/02-features.md) | 核心功能：Level、gate、L3 请求、目标仓库、git 批准、可观测 |
-| [docs/03-configure.md](docs/03-configure.md) | 配置与定制：override、目标仓库、知识库、技能、模型 |
-| [docs/04-reference.md](docs/04-reference.md) | 命令与字段参考：命令、策略字段、交接格式、hook 事件、运行时文件 |
-| [docs/05-design.md](docs/05-design.md) | 设计思想：为什么这样做 |
+| [docs/01-quickstart.md](docs/01-quickstart.md) | **想马上跑起来**：环境要求（Python 3.9+，不用 `pip install`）、`doctor` 自检、`harness` 短命令、配置目标仓库、跑通第一个 L3 请求 |
+| [docs/02-features.md](docs/02-features.md) | **它到底能做什么**：三档 Level 按任务大小选做法；gate 拦住越界写和危险命令；orchestrator、builder、reviewer 多 agent 协作；人批准的 promote 和 git 命令；日志、统计、报告 |
+| [docs/03-configure.md](docs/03-configure.md) | **接入你们自己的东西**：用 override 改配置而不动默认值，配置目标仓库，接入知识库和 domain 技能，给每个角色选模型 |
+| [docs/04-reference.md](docs/04-reference.md) | **查表用**：全部命令和常用命令、策略字段、交接格式、hook 事件、运行时文件 |
+| [docs/05-design.md](docs/05-design.md) | **为什么这样设计**：组件怎么分层，L1、L2、L3 是什么，哪些事交给代码、哪些交给模型 |
+| [docs/06-cost-optimization.md](docs/06-cost-optimization.md) | **怎么省时间和钱**：按任务大小选做法，只读需要的、只写必要的，早失败、能续做，以及哪里仍然会贵 |
 
-## 开始之前
+## 必须接入的部分
 
-- Python 3.9 或更新。只用标准库，不需要 `pip install`。
-- macOS/Linux 用 `python3`，Windows 用 `python`。
-- 第一条命令：`<cli> doctor`（`<cli>` 在 macOS/Linux 是 `python3 .harness/engine/cli.py`，Windows 是 `python .harness/engine/cli.py`），最后一行 `{"errors": 0}` 就是配置一致。
-- 短命令：`.harness/bin/harness doctor`。怎么放进 PATH 见 [快速开始](docs/01-quickstart.md)。
+harness 本身是通用的，不带任何业务内容。**下面两样不接入，它没法面向你们的日常需求工作**：
 
-## 阅读顺序
-
-1. 先读 [AGENTS.md](AGENTS.md)，了解所有任务都要遵守的短规则。
-2. 在下面的索引中找到与任务有关的文件。
-3. 只读取需要的指令、技能、策略或测试。
-
+- **企业知识库**：把知识库放进 `knowledge-base/`，同时把知识库**自带的 instructions** 放到 [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md)。这个文件交付时是空的占位：它是知识库的一个组件，没有它，agent 不知道怎么按索引读知识库。`doctor` 会提醒。接入方法见 [配置与定制](docs/03-configure.md)。
+- **目标仓库**：在 `target.override.json` 里写 `repos_root`，指向放着你们代码仓库的文件夹。harness 面向的是没有入口、不能在本机运行的数据工程 pipeline 代码库（按 domain 或功能存放大量 Python、SQL、`.json`、`.sh`、PowerShell 文件）。没配置时，L3 只能改 harness 自己的仓库，改不了你们的代码。
 
 ## 目录结构
 
@@ -72,62 +77,19 @@ harness 之外：目标仓库（企业的代码仓库）
 
 ## 路径索引
 
-| 路径                                                                                                  | 用途                                         |
-| ----------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [AGENTS.md](AGENTS.md)                                                                                   | 所有智能体都要遵守的核心规则和安全边界。     |
-| [.github/copilot-instructions.md](.github/copilot-instructions.md)                                       | GitHub Copilot 的仓库级规则。                |
-| [.github/instructions/](.github/instructions/)                                                           | 按文件类型或任务范围加载的细分规则。         |
-| [.github/instructions/agents.instructions.md](.github/instructions/agents.instructions.md)               | 智能体文件的编写规则。                       |
-| [.github/instructions/skills.instructions.md](.github/instructions/skills.instructions.md)               | 技能文件的编写规则。                         |
-| [.github/instructions/tools.instructions.md](.github/instructions/tools.instructions.md)                 | 工具配置的编写规则。                         |
-| [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md) | 企业知识库自带的 instructions（教 agent 按索引读知识库），**必须接入**。交付时为空，见下面“必须接入的部分”。 |
-| [.github/instructions/workspace.instructions.md](.github/instructions/workspace.instructions.md)         | 在 `.workspace/` 里读写的规则。              |
-| [.github/skills/](.github/skills/)                                                                       | 可重复使用的任务流程和参考资料。             |
-| [.github/agents/](.github/agents/)                                                                       | 自定义智能体：orchestrator（用户可选）、builder、reviewer、verifier。 |
-| [.github/skills/harness-task-level/](.github/skills/harness-task-level/)                                 | Task Level 的使用流程和参考。                |
-| [.github/skills/harness-orchestration/](.github/skills/harness-orchestration/)                           | L3 请求的完整流程：orchestrator 每一步用哪条命令。 |
-| [.github/hooks/harness.json](.github/hooks/harness.json)                                                 | 唯一的 hook 配置。所有事件进同一个入口。     |
-| [.harness/registry.json](.harness/registry.json)                                                         | 模块注册表：开关、订阅的事件、文件清单。     |
-| [.harness/policies/task-levels.json](.harness/policies/task-levels.json)                                 | Task Level 1、2、3 的机器可读规则。          |
-| [.harness/policies/gate.json](.harness/policies/gate.json)                                               | 闸门规则：guardrail 文件、L3 写入范围、危险命令、熔断。 |
-| [.harness/policies/orchestration.json](.harness/policies/orchestration.json)                               | L3 请求的上限：轮数、brief 大小、handoff 摘要行数。 |
-| [.harness/policies/observe.json](.harness/policies/observe.json)                                         | 日志：每个会话一个文件，记录多长的文字，capture 开关。 |
-| [.harness/policies/agents.json](.harness/policies/agents.json)                                           | 模型系列：回退只能在同一系列，builder 和 reviewer 不同系列。 |
-| `.harness/policies/<名>.override.json`                                                                     | 企业覆盖：只写要改的项。对象逐项合并，数组整体替换，`"<键>+": [...]` 表示追加。`doctor` 列出改了哪些项，核心 guardrail 删不掉。 |
-| [.harness/contracts/](.harness/contracts/)                                                               | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板。 |
-| [.harness/engine/hook.py](.harness/engine/hook.py)                                                       | hook 入口：识别运行时，分发给模块，合并结果。 |
-| [.harness/engine/cli.py](.harness/engine/cli.py)                                                         | 命令入口。命令清单见下面的“常用命令”。 |
-| [.harness/bin/](.harness/bin/)                                                                           | 给人用的短命令：`harness`（macOS/Linux）、`harness.cmd`（Windows）。 |
-| [.harness/engine/modules/](.harness/engine/modules/)                                                     | 可插拔模块：`task_level`、`gate`、`request`、`observe`、`evalcheck`。 |
-| [.harness/engine/adapters/](.harness/engine/adapters/)                                                   | 运行时差异：payload 解析、输出格式、工具名表。 |
-| [.harness/eval/scenarios/](.harness/eval/scenarios/)                                                     | 固定场景：`scenario.md`（怎么跑、人看什么）和 `expect.json`（程序检查什么）。 |
-| [.harness/eval/fixtures/](.harness/eval/fixtures/)                                                       | 真实 hook 输入的录制样本，用于回放测试。     |
-| [.harness/tests/](.harness/tests/)                                                                       | 全部测试。`python -m unittest discover -s .harness/tests`（macOS/Linux 用 `python3`） |
-| [.workspace/README.md](.workspace/README.md)                                                             | 工作区目录约定，以及 gate 管得住和管不住什么。 |
-| [knowledge-base/](knowledge-base/)                                                                       | 接入企业知识库的位置。交付时为空。           |
-| [docs/](docs/)                                                                                           | 使用文档：快速开始、核心功能、配置与定制、命令与字段参考、设计思想。 |
-
-## 常用命令
-
-`<cli>` 在 macOS/Linux 是 `python3 .harness/engine/cli.py`，Windows 是 `python .harness/engine/cli.py`，也可以用短命令 `harness`。每条命令的全部参数用 `--help` 看。
-
-| 命令 | 作用 |
+| 路径 | 用途 |
 | --- | --- |
-| `<cli> doctor` | 检查配置是否一致 |
-| `<cli> level status`、`level set` | 看或设 Level（只有用户能设） |
-| `<cli> target list` | 列出目标仓库 |
-| `<cli> request list`、`request show` | 看请求 |
-| `<cli> request approve-promote` | 批准回写（用户在终端运行） |
-| `<cli> request recover` | promote 中途出错后恢复（用户在终端运行） |
-| `<cli> approve-command` | 批准 agent 被拒绝的 git 命令（用户在终端运行） |
-| `<cli> report` | 重写请求报告 |
-| `<cli> stats`、`logs prune` | 看日志汇总、清理旧日志 |
-| `<cli> eval list`、`eval show`、`eval check` | 固定场景 |
-
-其他命令（`request new`、`dispatch`、`handoff submit`、`promote` 等）由 orchestrator、builder、reviewer 使用，见 [命令与字段参考](docs/04-reference.md)。
-
-
-## 必须接入的部分
-
-- **目标仓库**：在 `target.override.json` 里写 `repos_root`。没配置时，L3 只能改 harness 自己的仓库。
-- **知识库**：把企业知识库放进 `knowledge-base/`，同时把知识库**自带的 instructions** 放到 [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md)。这个文件交付时是空的占位：它是知识库的一个组件，没有它，agent 不知道怎么按索引读知识库。`doctor` 会提醒。接入方法见 [配置与定制](docs/03-configure.md)。
+| [AGENTS.md](AGENTS.md)、[.github/copilot-instructions.md](.github/copilot-instructions.md) | 核心规则和安全边界；仓库级规则 |
+| [.github/instructions/](.github/instructions/) | 分类规则：[agents](.github/instructions/agents.instructions.md)、[skills](.github/instructions/skills.instructions.md)、[tools](.github/instructions/tools.instructions.md)、[workspace](.github/instructions/workspace.instructions.md)（`.workspace/` 的读写规则） |
+| [.github/skills/harness-task-level/](.github/skills/harness-task-level/)、[.github/skills/harness-orchestration/](.github/skills/harness-orchestration/) | Task Level 的使用流程；L3 请求的每一步用哪条命令 |
+| [.github/agents/](.github/agents/) | 自定义智能体：orchestrator（用户可选）、builder、reviewer、verifier |
+| [.github/hooks/harness.json](.github/hooks/harness.json) | 唯一的 hook 配置，所有事件进同一个入口 |
+| [.harness/registry.json](.harness/registry.json) | 模块注册表：开关、订阅的事件、文件清单 |
+| [.harness/policies/](.harness/policies/) | 策略：task-levels、gate、orchestration、observe、agents、target。覆盖写在同名 `.override.json`，规则见 [配置与定制](docs/03-configure.md) |
+| [.harness/contracts/](.harness/contracts/) | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板 |
+| [.harness/engine/](.harness/engine/) | [hook.py](.harness/engine/hook.py)（hook 入口）、[cli.py](.harness/engine/cli.py)（命令入口）、modules/（task_level、gate、request、observe、evalcheck）、adapters/（运行时差异） |
+| [.harness/bin/](.harness/bin/) | 给人用的短命令：`harness`（macOS/Linux）、`harness.cmd`（Windows） |
+| [.harness/eval/](.harness/eval/) | 固定场景（scenarios/）和真实 hook 输入的录制样本（fixtures/） |
+| [.harness/tests/](.harness/tests/) | 全部测试：`<cli>` 换成 `python -m unittest discover -s .harness/tests`（macOS/Linux 用 `python3`） |
+| [.workspace/README.md](.workspace/README.md) | 工作区目录约定，以及 gate 管得住和管不住什么 |
+| [knowledge-base/](knowledge-base/) | 接入企业知识库的位置，交付时为空 |

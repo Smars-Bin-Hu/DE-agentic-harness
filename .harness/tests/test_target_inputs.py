@@ -5,6 +5,7 @@ The repositories are real git repositories made with `git init` in a temporary f
 
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -346,6 +347,41 @@ class StagedFilesTests(TargetCase):
         self.assertIn("candidate/bdtt_repo/src/a.sql:candidate", purposes)
         self.assertTrue(self.check(request_id)["ok"])
 
+    def test_the_reviewer_gets_a_diff_against_main_and_is_told_to_read_it_first(self) -> None:
+        request_id = self.staged_request()
+        self.run_cli("dispatch", "--request", request_id, "--role", "builder")
+        self.output(request_id, 1, "builder", "bdtt_repo/src/a.sql", "select 1;\nselect 2;\n")
+        self.output(request_id, 1, "builder", "bdtt_repo/src/new.sql", "select 3;\n")
+        self.submit(request_id, "builder", "passed", "--output", "bdtt_repo/src/a.sql", "--output", "bdtt_repo/src/new.sql")
+        self.fill_assignment(request_id, 1, "reviewer")
+        self.dispatch(request_id, "reviewer")
+        package = self.package(request_id, "reviewer")
+        diff = (package / "candidate.diff").read_text(encoding="utf-8")
+        self.assertIn("diff --git a/bdtt_repo/src/a.sql b/bdtt_repo/src/a.sql", diff)
+        self.assertIn("--- a/bdtt_repo/src/a.sql", diff)
+        self.assertIn("+select 2;", diff)
+        self.assertNotIn("+select 1;", diff)  # an unchanged line is context, not a change
+        self.assertIn("--- /dev/null\n+++ b/bdtt_repo/src/new.sql\n+select 3;", diff)  # a new file is all additions
+        self.assertTrue((package / "candidate.diff").stat().st_mode & 0o200 == 0)  # read-only like the rest of the package
+        entry = next(item for item in self.manifest(request_id, "reviewer")["files"] if item["purpose"] == "diff")
+        self.assertEqual(entry["path"], "candidate.diff")
+        self.assertEqual(entry["sha256"], hashlib.sha256((package / "candidate.diff").read_bytes()).hexdigest())
+        self.assertTrue(self.check(request_id)["ok"])
+        self.assertIn("candidate.diff", self.assignment(request_id, 1, "reviewer").read_text(encoding="utf-8"))
+
+    def test_the_diff_says_so_when_a_file_is_the_same_as_main_and_when_it_is_binary(self) -> None:
+        request_id = self.staged_request()
+        self.run_cli("dispatch", "--request", request_id, "--role", "builder")
+        self.output(request_id, 1, "builder", "bdtt_repo/src/a.sql", "select 1;\n")
+        path = self.rd(request_id) / "builder" / "outputs" / "attempt-001" / "bdtt_repo" / "src" / "blob.bin"
+        path.write_bytes(bytes(range(256)))
+        self.submit(request_id, "builder", "passed", "--output", "bdtt_repo/src/a.sql", "--output", "bdtt_repo/src/blob.bin")
+        self.fill_assignment(request_id, 1, "reviewer")
+        self.dispatch(request_id, "reviewer")
+        diff = (self.package(request_id, "reviewer") / "candidate.diff").read_text(encoding="utf-8")
+        self.assertIn("（和 main 上的版本一样，没有改动）", diff)
+        self.assertIn("（二进制文件，不显示内容）", diff)
+
     def test_a_request_without_targets_gets_no_base_folder(self) -> None:
         (self.root / ".harness" / "policies" / "target.override.json").unlink()
         request_id = self.new_request("plain")
@@ -458,6 +494,7 @@ class TextTests(TargetCase):
         request_id = self.target_request()
         self.attempt(request_id)
         text = self.assignment(request_id, 1, "reviewer").read_text(encoding="utf-8")
+        self.assertIn("`candidate.diff`", text)
         self.assertIn("`candidate/<仓库名>/<路径>`", text)
         self.assertIn("`base/<仓库名>/<路径>`", text)
 

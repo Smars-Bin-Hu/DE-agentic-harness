@@ -98,10 +98,17 @@ def make_plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, An
 
 
 def shown(result: Dict[str, Any]) -> Dict[str, Any]:
-    """The plan as the CLI prints it: each file once (the per-repository copies in `repos` are for the run)."""
-    if "repos" not in result:
-        return result
-    return {**result, "repos": [{key: value for key, value in repo.items() if key != "files"} for repo in result["repos"]]}
+    """The plan as the CLI prints it, for the agent: each file once, with its line counts but without the diff.
+
+    The person sees the diff on the approval screen (`approve-promote`) and in the backup patch; a copy here only costs the agent tokens.
+    The per-repository copies in `repos` are for the run.
+    """
+    out = dict(result)
+    if "files" in out:
+        out["files"] = [{key: value for key, value in item.items() if key != "diff"} for item in out["files"]]
+    if "repos" in out:
+        out["repos"] = [{key: value for key, value in repo.items() if key != "files"} for repo in out["repos"]]
+    return out
 
 
 def approve_command(request_id: str) -> str:

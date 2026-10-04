@@ -28,14 +28,14 @@ specificTo: harness-orchestration
 8. **读 builder 的 handoff**：在 `handoffs/builder/attempt-NNN/handoff.json`。
    - `passed`：继续。
    - `failed` 或 `blocked`：看 `blockers`。能修就 `attempt new` 返工；缺的东西要用户给，就进 HITL。
-9. **填 reviewer 的 assignment，派发 reviewer**：`dispatch --role reviewer`。CLI 把 builder 列出的成果复制到 `candidate/`。然后调用 reviewer 子 agent。
+9. **派发 reviewer**：`dispatch --role reviewer`。reviewer 的 assignment 不用填：CLI 把 builder 的目标和验收标准抄过去（输出里有 `assignment_copied_from_builder`）；reviewer 要不同的验收标准，才在派发前自己填。CLI 把 builder 列出的成果复制到 `candidate/`；目标仓库的请求还会生成 `candidate.diff`（成果和 main 的差异）。然后调用 reviewer 子 agent。
 10. **读 reviewer 的 handoff**：
     - `passed`：去第 12 步。
     - `failed`：问题明确、能修，就读 `kb_additions`，需要的话在 brief 里补增量（再 `brief set`），`attempt new`，回到第 6 步。
     - `blocked`：缺什么就补什么；补不了就进 HITL。
 11. **上限**：`attempt new` 到了上限会被拒绝。先 `request wait --request <id> --reason "等用户决定要不要继续"`，再问用户要不要继续。用户同意，才加 `--human-approved "<原因>"`。用户不同意，或要改需求，就进 HITL。
 12. **回写**：
-    1. `promote --request <id> --dry-run`，列出要写的文件和差异。
+    1. `promote --request <id> --dry-run`，列出要写的文件和每个文件增删的行数（不带差异，差异用户在批准屏幕上看）。
     2. 先 `request wait --request <id> --reason "等用户批准 promote"`。把计划给用户看，原样给出这条命令，请用户**在自己的终端**运行：`request approve-promote --request <id>`，看计划，输入确认码。你不能自己运行它。
     3. 用户说批准了，再 `promote --request <id>`。
     4. 请求有目标仓库时，`promote` 在每个仓库里从 main 新建请求的分支，把成果写进去，**不提交**。先检查所有仓库（工作区干净、分支名没被占、main 上的文件没变），任何一个不通过，什么都不写，信息里列出所有问题；照着做，或告诉用户，再 `promote --dry-run`。成果和补丁备份在任务目录的 `DEV/`。提交由用户自己做。

@@ -87,7 +87,7 @@
 | 文件 | 内容 |
 | --- | --- |
 | `request.schema.json` | `request.json`：状态、轮次、输入、promote 状态、分支、目标仓库 |
-| `manifest.schema.json` | 输入包清单：每个文件的路径、sha256；目标仓库文件还有仓库名、blob、提交号 |
+| `manifest.schema.json` | 输入包清单：每个文件的路径、用途（input、candidate、base、diff、previous-attempt）、sha256；目标仓库文件还有仓库名、blob、提交号 |
 | `handoff.schema.json` | builder 和 reviewer 的交接：`status`（passed、failed、blocked）、成果、证据、阻塞、建议 |
 | `templates/assignment.md` | orchestrator 给角色的任务书模板 |
 

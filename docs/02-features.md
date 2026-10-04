@@ -38,17 +38,18 @@ gate 不是沙盒：终端命令可以用 gate 看不出的写法写任何路径
 - **orchestrator** 计划、准备输入、调度、判断。**builder** 做成果。**reviewer** 独立验证，只看 builder 交上来的成果，不看过程（这条靠说明，没有硬拦截）。
 - 每一轮（attempt）：orchestrator 填 assignment → `dispatch` 冻结输入包 → 调用子 agent → 子 agent 交 handoff。没有 `dispatch` 就调用子 agent 会被拒绝。
 - reviewer 判 `passed`、`failed` 或 `blocked`。失败可以返工，轮数上限在 [orchestration.json](../.harness/policies/orchestration.json)。超过上限要你同意。
+- 目标仓库的请求里，reviewer 的输入包多一份 `candidate.diff`（成果和 main 的差异，只有改动的行），让它先读差异，不用把整个文件读两遍。reviewer 的任务书默认抄 builder 的目标和验收标准，不用写两遍。
 - 需要你决定时，orchestrator 运行 `request wait` 再结束这一轮；无法继续时进 HITL（人在回路）。
 - 结束时必须有结论（`accepted`、`hitl`、`abandoned`），`check` 检查请求目录自洽，并自动写报告。
 - 目录和文件的格式见 [04-reference.md](04-reference.md) 的 contracts 一节。
 
 ## 目标仓库：多个仓库，从 main 取文件，promote 回写
 
-适用于公司的代码仓库不在 harness 里、文件很多不可能整个复制的场景。
+适用于公司的代码仓库不在 harness 里、文件很多不可能整个复制的场景。典型的是数据工程 pipeline 代码库：没有入口、不能在本机运行，按 domain 或功能存放大量 Python、SQL、`.json` 配置、`.sh` 和 PowerShell 脚本。详见 [配置与定制](03-configure.md) 的“适用的代码库”。
 
 - **取文件**：`request add-input --from-target <仓库>/<路径>` 用 `git` 读本地 main 分支（不动工作区），复制进沙箱。沙箱里路径第一段是仓库名。同一请求里每个仓库的提交在第一次读时固定。
 - **分支**：每个请求有一个 `feature/<名字>` 分支名，所有被改的仓库用同一个。
-- **promote**：先对每个仓库做检查：工作区干净、分支名没被占、main 上要改的文件没变、新文件在 main 上还不存在。所有仓库都通过才写。然后你在终端批准，再对每个仓库 `git switch -c <分支> <main>`，写文件，**不提交**。
+- **promote**：`--dry-run` 给 agent 的输出只有文件清单和增删行数；差异你在批准时的终端屏幕上看。先对每个仓库做检查：工作区干净、分支名没被占、main 上要改的文件没变、新文件在 main 上还不存在。所有仓库都通过才写。然后你在终端批准，再对每个仓库 `git switch -c <分支> <main>`，写文件，**不提交**。
 - **备份**：成果和补丁备份在任务目录的 `DEV/`（`DEV/<仓库>/<路径>` 和 `<请求 id>.patch`）。
 - **中途出错**：不自动回滚。请求进入 `partial`，你在终端运行 `request recover` 恢复。
 - 没配置目标仓库时，请求沿用 harness 自己的仓库：成果的路径就是仓库里的路径，promote 同样要你批准；guardrail 路径和 `.workspace/` 不能回写。

@@ -715,9 +715,23 @@ class PromoteTests(RequestCase):
         self.assertTrue(result["dry_run"])
         entry = result["files"][0]
         self.assertEqual((entry["path"], entry["action"], entry["added"], entry["removed"]), ("src/slug.py", "modify", 1, 1))
-        self.assertTrue(any(line.startswith("+    return s.lower().replace") for line in entry["diff"]))
+        self.assertNotIn("diff", entry)  # the agent gets the counts; the person sees the diff on the approval screen
+        plan = promote.make_plan(self.root, request_id, self.request(request_id))
+        self.assertTrue(any(line.startswith("+    return s.lower().replace") for line in plan["files"][0]["diff"]))
         self.assertEqual((self.root / "src" / "slug.py").read_text(encoding="utf-8"), "def slugify(s):\n    return s.lower()\n")
         self.assertEqual(self.request(request_id)["promote"]["state"], "dry_run")
+
+    def test_the_approval_screen_still_shows_the_diff(self) -> None:
+        request_id = self.new_request()
+        self.write("src/slug.py", "def slugify(s):\n    return s.lower()\n")
+        self.attempt(request_id)
+        self.builder_round(request_id, 1, body="def slugify(s):\n    return s.lower().replace(' ', '-')\n")
+        self.reviewer_round(request_id, 1)
+        self.run_cli("promote", "--request", request_id, "--dry-run")
+        out = io.StringIO()
+        plan = self.request(request_id)["promote"]["plan_sha256"]
+        promote.approve(self.root, request_id, reader=lambda _p: plan[:8], interactive=True, out=out)
+        self.assertIn("+    return s.lower().replace", out.getvalue())
 
     def test_the_real_run_needs_a_matching_dry_run(self) -> None:
         request_id = self.passed_request()
@@ -971,6 +985,56 @@ class ConcurrencyTests(RequestCase):
             results = list(pool.map(lambda _: self.cli("attempt", "new", "--request", request_id), range(4)))
         self.assertEqual(sum(r.returncode == 0 for r in results), 1)  # the next ones lack a handoff from the first
         self.assertEqual(self.request(request_id)["attempt"], 1)
+
+
+class ReviewerAssignmentTests(RequestCase):
+    """The reviewer's goal and acceptance criteria default to the builder's; the diff file is only for target repositories."""
+
+    def test_the_reviewer_assignment_defaults_to_the_builders_goal_and_criteria(self) -> None:
+        request_id = self.new_request()
+        self.attempt(request_id)
+        self.builder_round(request_id, 1)
+        before = self.assignment(request_id, 1, "reviewer").read_text(encoding="utf-8")
+        self.assertIn("（待填）", before)
+        result = self.dispatch(request_id, "reviewer")
+        self.assertTrue(result["assignment_copied_from_builder"])
+        text = self.assignment(request_id, 1, "reviewer").read_text(encoding="utf-8")
+        self.assertNotIn("（待填）", text)
+        self.assertIn("写 slugify。", text)
+        self.assertIn("slugify('A b') 返回 'a-b'", text)
+        self.assertIn("## 先读什么", text)  # the rest of the template is untouched
+
+    def test_a_reviewer_assignment_the_orchestrator_filled_is_not_overwritten(self) -> None:
+        request_id = self.new_request()
+        self.attempt(request_id)
+        self.builder_round(request_id, 1)
+        path = self.assignment(request_id, 1, "reviewer")
+        path.write_text(path.read_text(encoding="utf-8").replace("## 目标\n\n（待填）", "## 目标\n\n只看命名").replace("## 验收标准\n\n（待填）", "## 验收标准\n\n- 函数叫 slugify"), encoding="utf-8")
+        result = self.dispatch(request_id, "reviewer")
+        self.assertNotIn("assignment_copied_from_builder", result)
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("只看命名", text)
+        self.assertNotIn("写 slugify。", text)
+
+    def test_only_the_section_still_empty_is_copied(self) -> None:
+        request_id = self.new_request()
+        self.attempt(request_id)
+        self.builder_round(request_id, 1)
+        path = self.assignment(request_id, 1, "reviewer")
+        path.write_text(path.read_text(encoding="utf-8").replace("## 目标\n\n（待填）", "## 目标\n\n只看命名"), encoding="utf-8")
+        self.dispatch(request_id, "reviewer")
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("只看命名", text)
+        self.assertIn("slugify('A b') 返回 'a-b'", text)
+        self.assertNotIn("（待填）", text)
+
+    def test_a_request_without_target_repositories_gets_no_diff_file(self) -> None:
+        request_id = self.new_request()
+        self.attempt(request_id)
+        self.builder_round(request_id, 1)
+        self.reviewer_round(request_id, 1)
+        package = self.rd(request_id) / "handoffs" / "orchestrator" / "attempt-001" / "to-reviewer"
+        self.assertFalse((package / "candidate.diff").exists())
 
 
 if __name__ == "__main__":

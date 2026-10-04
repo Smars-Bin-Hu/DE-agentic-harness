@@ -6,6 +6,7 @@ A package that was dispatched, and a handoff that was submitted, are made read-o
 
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import shutil
@@ -161,7 +162,7 @@ def target_note(data: Dict[str, Any], found: Optional[targets.Targets] = None, r
     known = f"可用的仓库：{names}。" if names else ""
     if role == "reviewer":
         return (
-            "- 这个请求改的是目标仓库里的文件。评审对象在 `candidate/<仓库名>/<路径>`，改动前 main 上的版本在 `base/<仓库名>/<路径>`（新文件没有），用它们对比。"
+            "- 这个请求改的是目标仓库里的文件。先读 `candidate.diff`（成果和 main 的差异，只有改动的行）；需要完整内容时读 `candidate/<仓库名>/<路径>`，改动前 main 上的版本在 `base/<仓库名>/<路径>`（新文件没有）。"
             f"{known}"
         )
     return (
@@ -441,6 +442,73 @@ def set_brief(root: Path, request_id: str, source: str) -> Dict[str, Any]:
 # --- attempts, dispatch ----------------------------------------------------------------------------------
 
 
+def candidate_diff(package: Path, files: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+    """Reviewer, request with target repositories: `candidate.diff`, what the builder changed against main.
+
+    The reviewer reads this first instead of every candidate file and its main version side by side, which is most of the
+    reviewer's input. Only the changed lines are shown, each with a few lines around it. Returns the manifest entry, or None
+    when there is no base to compare with (a request without target repositories).
+    """
+    bases = {item["path"][len("base/"):]: item for item in files if item["purpose"] == "base"}
+    if not any(item["purpose"] == "candidate" for item in files):
+        return None
+    out = [
+        "# 候选成果和 main 的差异。先读这个文件：只列出改动的行，每处带 3 行上下文。",
+        "# 需要完整内容（运行、看更多上下文）时，读 candidate/<路径>；改动前的版本在 base/<路径>。",
+    ]
+    for item in files:
+        if item["purpose"] != "candidate":
+            continue
+        name = item["path"][len("candidate/"):]
+        new_bytes = (package / item["path"]).read_bytes()
+        out.append(f"diff --git a/{name} b/{name}")
+        if name not in bases:
+            out.append("--- /dev/null")
+            out.append(f"+++ b/{name}")
+            try:
+                out += ["+" + line for line in new_bytes.decode("utf-8").splitlines()]
+            except UnicodeDecodeError:
+                out.append("（二进制文件，不显示内容）")
+            continue
+        old_bytes = (package / bases[name]["path"]).read_bytes()
+        if old_bytes == new_bytes:
+            out.append("（和 main 上的版本一样，没有改动）")
+            continue
+        try:
+            out += list(difflib.unified_diff(old_bytes.decode("utf-8").splitlines(), new_bytes.decode("utf-8").splitlines(), f"a/{name}", f"b/{name}", lineterm="", n=3))
+        except UnicodeDecodeError:
+            out.append("（二进制文件，不显示差异）")
+    destination = package / "candidate.diff"
+    destination.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return {"path": "candidate.diff", "source": "（由 dispatch 生成）", "purpose": "diff", "sha256": store.sha256_file(destination)}
+
+
+def fill_reviewer_assignment(directory: Path, number: int) -> bool:
+    """The reviewer's goal and acceptance criteria default to the builder's: the same text written twice only costs output.
+
+    Fills only the sections still "（待填）". Returns whether anything was copied.
+    """
+    reviewer = layout.package_dir(directory, number, "reviewer") / "assignment.md"
+    builder = layout.package_dir(directory, number, "builder") / "assignment.md"
+    if not reviewer.is_file() or not builder.is_file():
+        return False
+    text, source = reviewer.read_text(encoding="utf-8"), builder.read_text(encoding="utf-8")
+    changed = False
+    for heading in ("## 目标", "## 验收标准"):
+        have, mine = section_body(source, heading), section_body(text, heading)
+        if mine == PLACEHOLDER and have and have != PLACEHOLDER:
+            text = text.replace(f"{heading}\n\n{PLACEHOLDER}", f"{heading}\n\n{have}", 1)
+            changed = True
+    if changed:
+        write_text(reviewer, text)
+    return changed
+
+
+def section_body(text: str, heading: str) -> str:
+    parts = text.split(heading, 1)
+    return parts[1].split("\n## ", 1)[0].strip() if len(parts) == 2 else ""
+
+
 def assignment_text(root: Path, request_id: str, number: int, role: str, directory: Path, note: str = "") -> str:
     template = (root / ".harness" / "contracts" / "templates" / "assignment.md").read_text(encoding="utf-8")
     outputs = layout.inside(root, layout.outputs_dir(directory, number, role)) or ""
@@ -486,7 +554,7 @@ def new_attempt(root: Path, request_id: str, human_approved: str = "") -> Dict[s
     return {
         "attempt": number,
         "assignments": [f"{base}/to-{role}/assignment.md" for role in layout.ROLES],
-        "next": "填好 to-builder/assignment.md（目标和验收标准，去掉“（待填）”），再 dispatch --role builder。",
+        "next": "填好 to-builder/assignment.md（目标和验收标准，去掉“（待填）”），再 dispatch --role builder。reviewer 的任务书不用填：dispatch reviewer 时会抄 builder 的目标和验收标准（要不同的才自己填）。",
     }
 
 
@@ -567,6 +635,7 @@ def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]]
                 raise CommandError(f"builder 这一轮的 handoff 是 {status}，没有成果可评审。用 `attempt new` 开下一轮让它返工，或 `request set-status hitl`。")
         package = layout.package_dir(directory, number, role)
         assignment = package / "assignment.md"
+        copied = fill_reviewer_assignment(directory, number) if role == "reviewer" else False
         check_assignment(assignment, role)
         files: List[Dict[str, str]] = []
         try:
@@ -579,6 +648,9 @@ def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]]
             if role == "reviewer":
                 files += candidate_files(root, directory, number, package / "candidate")
                 files += baseline_files(root, data, directory, number, package / "base")
+                diff = candidate_diff(package, files) if data.get("target_mode") else None
+                if diff:
+                    files.append(diff)
             brief_path = layout.brief_file(directory)
             version = data["brief"]["version"]
             delta: List[str] = []
@@ -617,6 +689,7 @@ def dispatch(root: Path, request_id: str, role: str, inputs: Optional[List[str]]
         "files": len(files),
         "brief_version": version,
         "brief_delta": len(delta),
+        **({"assignment_copied_from_builder": True} if copied else {}),
         "next": f"调用 {role} 子 agent，让它先读 {layout.inside(root, assignment)}。",
     }
 

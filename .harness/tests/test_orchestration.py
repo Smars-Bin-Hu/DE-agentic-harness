@@ -266,6 +266,16 @@ class AgentFileTests(unittest.TestCase):
                        "--human-approved", "hitl", "你不能自己运行"):
             self.assertIn(needle, text)
 
+    def test_the_roles_are_told_to_keep_the_last_reply_short_and_the_reviewer_to_read_the_diff(self) -> None:
+        for name in ("builder", "reviewer"):
+            text = (REPO / ".github" / "agents" / f"{name}.agent.md").read_text(encoding="utf-8")
+            self.assertIn("## 最后一条回复", text, name)
+            self.assertIn("已交接", text, name)
+        self.assertIn("candidate.diff", (REPO / ".github" / "agents" / "reviewer.agent.md").read_text(encoding="utf-8"))
+        skill = (REPO / ".github" / "skills" / "harness-orchestration" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("assignment_copied_from_builder", skill)
+        self.assertIn("candidate.diff", skill)
+
     def test_there_is_no_l3_entry_skill(self) -> None:
         self.assertFalse((REPO / ".github" / "skills" / "l3").exists())  # L3 starts from the dropdown (B8 decision)
 
