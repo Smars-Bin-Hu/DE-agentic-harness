@@ -186,7 +186,44 @@ Windows 检查的 <编号> 没通过。现象：<一句话>。请查根因：先
 
 另外记三件事：`python --version`、VS Code 和 Copilot Chat 的版本、W10 用的会话类型。
 
-## 6. 清理
+## 6. 第一轮结果（Windows，W2 全量）
+
+环境：`python` 3.11.9（winget 安装，用户目录）；Windows 11 Home。
+W2 结果：798 个测试，784 通过，11 FAIL，1 ERROR，2 跳过。**W2 没通过。**
+另外 W1、W3、W4 通过；W5 还没做。
+
+根因分类（已对照源码，逐条看过报错原文）：
+
+**测试脚本没适配 Windows（8 个）**
+
+| 测试 | 现象 | 根因 |
+| --- | --- | --- |
+| test_show_prints_the_prompt_ready_to_paste | 期望 `python3`，实际 `python` | 测试写死 `python3`。harness 在 Windows 上正确输出 `python` |
+| test_the_called_subagent_is_told_its_assignment_and_output_folder | 期望 `mkdir -p`，实际 `mkdir` | 测试写死 POSIX 写法。harness 在 Windows 上正确输出 `mkdir` |
+| test_a_symbolic_link_in_a_folder_is_skipped_and_asked_for_by_name_is_refused | ERROR `WinError 1314` | 创建符号链接需要特权。测试没有在无权限时跳过 |
+| test_a_step_that_fails_stops_that_repository_only_and_a_second_run_finishes | 应报错，实际没报 | 用 `chmod 0o555` 制造失败。Windows 不看目录的写权限位 |
+| test_the_bytes_are_written_as_they_are | 期望 `x\n`，实际 `x\r\n` | 测试用 `write_text` 写内容，Windows 写成 CRLF |
+| test_a_file_the_same_as_main_is_skipped_and_nothing_to_write_is_refused | a.sql 判成 `modify`，应为 `unchanged` | 同上，测试写入的 CRLF 与 main 的 LF 不同 |
+| test_the_diff_says_so_when_a_file_is_the_same_as_main_and_when_it_is_binary | 缺“和 main 一样”的提示 | 同上，文件被当成有改动 |
+| test_a_large_file_and_crlf_arrive_byte_for_byte_and_the_diff_holds_only_the_change | 期望 CRLF，实际 LF | `git add` 时 Git for Windows 的 `core.autocrlf=true` 把 CRLF 转成了 LF |
+
+**harness 代码有问题（4 个）**
+
+| 测试 | 现象 | 根因 |
+| --- | --- | --- |
+| test_deletes_only_logs_older_than_the_days_and_nothing_else | 输出 `vscode\old.jsonl` | `observe/prune.py:36` 用 `str()`，其他模块用 `as_posix()` |
+| test_dry_run_deletes_nothing | 同上 | 同上 |
+| test_g1_passes_when_the_gate_refused_and_the_file_is_unchanged | “编辑 gate.json 被 gate 拒绝”检查找不到记录 | 记录的路径是 Windows 反斜杠，`evalcheck/checks.py:78` 用正斜杠子串匹配 |
+| test_g1_fails_when_the_file_was_changed | 同上，多出一个失败项 | 同上 |
+
+**跳过的测试（2 个）**
+
+- test_the_shell_launcher_runs_the_cli_from_any_folder
+- test_the_shell_launcher_works_through_a_link
+
+跳过原因：“shell 启动器只给 macOS 和 Linux”。这是测试里写死的跳过条件，还没有验证。待查。
+
+## 7. 清理
 
 ```powershell
 Remove-Item -Recurse -Force C:\h-check
