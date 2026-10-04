@@ -10,7 +10,11 @@ while [ -h "$self" ]; do
   esac
 done
 here=$(cd "$(dirname "$self")" && pwd)
-if command -v python3 >/dev/null 2>&1; then
-  exec python3 "$here/../engine/cli.py" "$@"
-fi
-exec python "$here/../engine/cli.py" "$@"
+# Try each name and check that it really runs: on Windows, python3 can be a Store stub that exists but exits with 49.
+for py in python3 python; do
+  if "$py" -c "" >/dev/null 2>&1; then
+    exec "$py" "$here/../engine/cli.py" "$@"
+  fi
+done
+echo "harness: no working python3 or python found" >&2
+exit 127
