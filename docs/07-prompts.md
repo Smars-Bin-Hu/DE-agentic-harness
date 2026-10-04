@@ -66,7 +66,7 @@ Level 切换后一直有效，直到你再切。L3 不用标记：在 agent 下�
 说明：
 
 - 不想复核就去掉 `[verify]`。
-- 分支名默认是 `feature/<任务名>`。要别的，加一句：`分支名用 feature/<名字>`（字母、数字、下划线）。
+- 分支名默认是 `feature/<任务名>`，任务名里的 `-` 会变成 `_`。要别的，加一句：`分支名用 feature/<名字>`（字母、数字、下划线）。
 - 两次批准都在你自己的终端：`<cli> task approve-plan`、`<cli> task approve-promote`。批准完回对话说“批准了”。
 - 只要成果、不回写仓库：把第 3 步改成“做完 task diff，然后 task close”。
 

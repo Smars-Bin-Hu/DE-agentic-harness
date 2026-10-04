@@ -64,7 +64,7 @@ admin 模式的会话能改 engine 和策略，所以它的底线不是硬的：
 - **只写 `DEV/`**：批准之前，编辑类工具只能写 `PLAN.md`；批准之后只能写 `<任务>/DEV/`。
 - **取文件**：`task fetch <仓库>/<路径>` 从本地 main 读文件（不动工作区），放到 `DEV/<仓库>/<路径>`，路径和仓库里一样。几 MB 的大文件按字节原样复制。
 - **差异**：`task diff` 把成果和取文件时的版本对比，写成 `CHANGES.diff`。verifier 读差异，不读全文。
-- **回写要你批准**：`task promote --dry-run` 把完整差异写成 `PROMOTE-PLAN.diff`，你在编辑器里看，在终端运行 `task approve-promote`。检查、新分支（默认 `feature/<任务名>`）、不提交、出错恢复，都和 L3 的 promote 一样。
+- **回写要你批准**：`task promote --dry-run` 把完整差异写成 `PROMOTE-PLAN.diff`，你在编辑器里看，在终端运行 `task approve-promote`。检查、新分支（默认 `feature/<任务名>`，任务名里的 `-` 变成 `_`）、不提交、出错恢复，都和 L3 的 promote 一样。
 - **删除和改名**：`task delete <仓库>/<路径>` 声明删除（文件要先取过）。改名是新文件加删除旧文件。
 - **多轮**：接着做沿用原来的批准。回写过之后再 `task start`，开新的一轮：上一轮的成果移到 `DEV_r<轮数>/`，计划移到 `PLAN_r<轮数>.md`，要新计划、新批准。
 - **报告**：`task close` 写 `.workspace/reports/task-<任务名>.md`：计划全文、两次批准的时间、取了哪些文件、改动的增删行数、verifier 结论、被拒绝的调用。

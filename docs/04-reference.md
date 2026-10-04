@@ -36,7 +36,7 @@
 | `task fetch` | 把目标仓库 main 上的文件取到 `DEV/<仓库>/<路径>`；`--overwrite` 丢掉改动重新取 |
 | `task delete` | 声明删除一个取过的文件 |
 | `task diff` | 列出 `DEV/` 的改动，差异全文写到 `CHANGES.diff` |
-| `task set-branch` | 改 feature 分支名（默认 `feature/<任务目录名>`） |
+| `task set-branch` | 改 feature 分支名。格式是 `feature/` 加字母、数字、下划线（最长 60 个字符），不能有 `-`、`.`、`/`。默认取任务目录名，其中不合格的字符变成 `_`（`my-task` 变成 `feature/my_task`）；任务开新一轮时加 `_r2`、`_r3` |
 | `task promote` | 把 `DEV/` 回写到各目标仓库的新分支；`--dry-run` 只列计划，差异写到 `PROMOTE-PLAN.diff` |
 | `task close` | 退出任务模式，写报告 |
 
