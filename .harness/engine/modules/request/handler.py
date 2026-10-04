@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from core import tasks
 from core.context import Context
 from core.events import Decision, HookEvent
 from core.paths import cli_command, mkdir_command
@@ -98,7 +99,55 @@ def target_repo_names(root: Any, request_id: str) -> str:
         return ""
 
 
+def open_task(ctx: Context) -> Optional[Dict[str, Any]]:
+    """The open L2 task of this session, or None. Never raises: this only adds a hint."""
+    return tasks.open_of(ctx.root, ctx.state)
+
+
+def prompt_marker(ctx: Context) -> str:
+    """The verifier marker the user wrote in this prompt (`on`, `off` or ``), as task_level read it just before this module."""
+    return ((ctx.state["modules"].get("task_level") or {}).get("prompt") or {}).get("verify", "")
+
+
+def keep_verify(ctx: Context, data: Dict[str, Any]) -> Dict[str, Any]:
+    """A verifier marker in a prompt of an open task becomes the task's standing choice, so later prompts need not repeat it."""
+    marker = prompt_marker(ctx)
+    if marker not in ("on", "off") or marker == tasks.verify_choice(data):
+        return data
+    from . import task as task_ops
+
+    return task_ops.set_verify(ctx.root, data["task"], marker)
+
+
+def task_text(ctx: Context, data: Dict[str, Any]) -> str:
+    """Injected with every user prompt while a task is open: where the task stands, so the rules need not be read again."""
+    from . import task as task_ops  # the CLI side of the task; imported late, a hook call rarely needs it
+
+    name = data["task"]
+    choice = tasks.verify_choice(data)
+    review = {
+        "on": f"\n这个任务开启了 verifier 复核，后面的提示不用再写标记：{name}/{tasks.DEV_NAME}/ 改完之后、`task promote --dry-run` 之前调用一次 verifier。写 {tasks.PLAN_NAME} 不用复核。",
+        "off": "\n这个任务关闭了 verifier 复核。",
+    }.get(choice, "")
+    return (
+        f"任务模式（L2）：任务目录 {name}，第 {data['round']} 轮。{task_ops.next_step(ctx.root, name, data)}{review}\n"
+        f"编辑工具只能写 {name}/{tasks.PLAN_NAME} 和（计划批准后）{name}/{tasks.DEV_NAME}/。目标仓库只能用 `{cli_command()} task promote` 回写，"
+        "先 --dry-run，用户在终端批准。approve-plan、approve-promote、recover 只能由用户运行。不用 `rm` 清理文件。"
+    )
+
+
+def verifier_text(data: Dict[str, Any]) -> str:
+    name = data["task"]
+    return (
+        f"这次复核的是任务 {name}。先运行 `{cli_command()} task diff --task {name}`，读输出里的 diff_file（{name}/{tasks.CHANGES_NAME}：成果和 main 的差异）。"
+        f"再读 {name}/REQ/ 里的需求和 {name}/{tasks.PLAN_NAME}。成果在 {name}/{tasks.DEV_NAME}/，不在 git 仓库里，不要用 git diff。大文件只读差异。"
+    )
+
+
 def on_subagent_start(event: HookEvent, ctx: Context) -> Optional[Decision]:
+    task_data = open_task(ctx)
+    if task_data is not None and event.agent_type.strip().lower() == "verifier":
+        return Decision(context=verifier_text(task_data))
     request_id = ctx.state.get("active_request")
     role = event.agent_type.strip().lower()
     if not request_id or role not in ROLES:
@@ -121,5 +170,8 @@ def handle(event: HookEvent, ctx: Context) -> Optional[Decision]:
     if event.event == "SubagentStop":
         return verify.on_subagent_stop(event, ctx)
     if event.event == "UserPromptSubmit":
+        task_data = None if (event.from_subagent or event.continuation) else open_task(ctx)
+        if task_data is not None:
+            return Decision(context=task_text(ctx, keep_verify(ctx, task_data)), facts={"kind": "task"})
         return verify.on_user_prompt(event, ctx)
     return None

@@ -1,6 +1,6 @@
 """CLI commands of the request module.
 
-  request new|add-input|set-branch|set-status|wait|show|list|approve-promote|recover    the request itself (approve-promote, recover: a person at a terminal)
+  request new|add-input|set-branch|set-status|wait|show|list|approve-plan|approve-promote|recover    the request itself (approve-*, recover: a person at a terminal)
   brief set                                  hand the knowledge brief to the CLI
   attempt new                                open the next attempt
   dispatch                                   build and freeze the input package of one role
@@ -9,6 +9,8 @@
   check                                      does the request folder agree with itself
   promote                                    copy the reviewed result back into the repository (ask in the gate)
   target list|show                           the target repositories (policy target.json): where they are, what their base branch is
+  task start|status|fetch|delete|diff|set-branch|promote|close|report      the L2 task (task.py)
+  task approve-plan|approve-promote|recover  a person at a terminal
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from typing import Any, Dict
 from core import targets
 from core.paths import repo_root
 
-from . import check, ops, promote, report
+from . import check, ops, planapproval, promote, report, task, task_report
 
 
 def _request(parser: argparse.ArgumentParser) -> None:
@@ -44,6 +46,10 @@ def cmd_set_status(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_wait(args: argparse.Namespace) -> Dict[str, Any]:
     return ops.wait(repo_root(), args.request, args.reason)
+
+
+def cmd_approve_plan(args: argparse.Namespace) -> Dict[str, Any]:
+    return planapproval.approve(repo_root(), args.request or "")
 
 
 def cmd_approve_promote(args: argparse.Namespace) -> Dict[str, Any]:
@@ -110,7 +116,41 @@ def cmd_target_show(args: argparse.Namespace) -> Dict[str, Any]:
     return targets.summary(found.get(args.repo), found.timeout)
 
 
+def register_task(subparsers: Any) -> None:
+    parser = subparsers.add_parser("task", help="the L2 task: one agent, a task folder, a plan and a promote the person approves")
+    commands = parser.add_subparsers(dest="task_command", required=True)
+
+    def add(name: str, text: str, handler: Any, required: bool = False) -> argparse.ArgumentParser:
+        item = commands.add_parser(name, help=text)
+        item.add_argument("--task", required=required, default="", help="the task folder under .workspace/current_tasks/ (or just its name); left out, the one open task")
+        item.set_defaults(handler=handler)
+        return item
+
+    start = add("start", "enter task mode for a task folder (L2 only); starts, resumes, or opens a new round after a promote", lambda a: task.start(repo_root(), a.task, a.session_id, a.surface, a.branch), required=True)
+    start.add_argument("--session-id", required=True, help="the session id written at the top of the prompt rules")
+    start.add_argument("--surface", default="vscode", choices=["vscode", "cli"])
+    start.add_argument("--branch", default="", help="feature/<name>; default feature/<task folder name>")
+    add("status", "where the task stands and what comes next", lambda a: task.status(repo_root(), a.task))
+    add("approve-plan", "the person approves PLAN.md (terminal only)", lambda a: task.approve_plan(repo_root(), a.task))
+    fetch = add("fetch", "copy files of a target repository's base branch into DEV/<repo>/<path>", lambda a: task.fetch(repo_root(), a.task, a.paths, a.overwrite))
+    fetch.add_argument("paths", nargs="+", help="<repo>/<path>: a file or a folder")
+    fetch.add_argument("--overwrite", action="store_true", help="take the base version again over a file already changed in DEV/")
+    delete = add("delete", "a fetched file is to be deleted in the repository", lambda a: task.delete(repo_root(), a.task, a.paths))
+    delete.add_argument("paths", nargs="+", help="<repo>/<path>")
+    add("diff", "what DEV/ changes against the fetched versions; writes CHANGES.diff", lambda a: task.diff(repo_root(), a.task))
+    branch = add("set-branch", "set the feature branch name", lambda a: task.set_branch(repo_root(), a.task, a.branch))
+    branch.add_argument("--branch", required=True)
+    promote_parser = add("promote", "write DEV/ onto a new branch of each target repository", lambda a: task.run_promote(repo_root(), a.task, a.dry_run))
+    promote_parser.add_argument("--dry-run", action="store_true")
+    add("approve-promote", "the person approves the plan of the last task promote --dry-run (terminal only)", lambda a: task.approve_promote(repo_root(), a.task))
+    add("recover", "the person puts the repositories back after a task promote stopped halfway (terminal only)", lambda a: task.recover(repo_root(), a.task))
+    close = add("close", "leave task mode and write the report", lambda a: task.close(repo_root(), a.task, a.reason))
+    close.add_argument("--reason", default="")
+    add("report", "write .workspace/reports/task-<name>.md", lambda a: task_report.generate(repo_root(), a.task))
+
+
 def register(subparsers: Any) -> None:
+    register_task(subparsers)
     request = subparsers.add_parser("request", help="the L3 request")
     commands = request.add_subparsers(dest="request_command", required=True)
 
@@ -143,6 +183,10 @@ def register(subparsers: Any) -> None:
     _request(wait_parser)
     wait_parser.add_argument("--reason", required=True, help="what it waits for, e.g. the person's approval of the promote plan")
     wait_parser.set_defaults(handler=cmd_wait)
+
+    approve_plan = commands.add_parser("approve-plan", help="the person approves orchestrator/plan.md before the first attempt (terminal only)")
+    approve_plan.add_argument("--request", default="", help="request id; left out, the only request whose plan waits for approval is used")
+    approve_plan.set_defaults(handler=cmd_approve_plan)
 
     approve = commands.add_parser("approve-promote", help="the person approves the plan of the last promote --dry-run (terminal only)")
     approve.add_argument("--request", default="", help="request id; left out, the only request waiting for approval is used")

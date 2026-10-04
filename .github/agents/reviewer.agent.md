@@ -42,3 +42,4 @@ tools: ['read', 'search', 'execute', 'edit']
 - 不改 assignment、manifest、handoff、`request.json`。
 - 不写你的 `outputs/` 目录之外的文件。不调用子 agent。
 - 同一个工具调用被拒绝两次，就不再试，交接 `blocked`，写明缺什么。
+- 不用 `rm` 清理临时文件。留着就行，删除命令会让用户多确认一次。

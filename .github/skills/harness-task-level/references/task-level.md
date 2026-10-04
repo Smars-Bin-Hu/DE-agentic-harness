@@ -12,7 +12,7 @@ Task Level 控制自主程度、计划、探索范围、委派和预算。它从
 | --- | --- |
 | `/l1`、`[L1]` | 切到 L1 |
 | `/l2`、`[L2]` | 切到 L2 |
-| `[verify]` | 写在提示里任何位置，本条提示开启 verifier 复核（L2） |
+| `[verify]` | 写在提示里任何位置，本条提示开启 verifier 复核（L2）。任务模式里对整个任务有效 |
 | `[no-verify]` | 写在提示里任何位置，本条提示关闭 verifier 复核。和 `[verify]` 同时写时，以它为准 |
 
 - 切换后一直有效，直到用户再次切换或新开会话。
@@ -41,7 +41,7 @@ Task Level 控制自主程度、计划、探索范围、委派和预算。它从
 
 ## L2 的 verifier 复核
 
-- 开关：默认关闭。默认值是 policy 里 L2 `verification.enabled`；用户用 `[verify]`、`[no-verify]` 只改本条提示。
+- 开关：默认关闭。默认值是 policy 里 L2 `verification.enabled`；用户用 `[verify]`、`[no-verify]` 只改本条提示。任务模式例外：标记记在任务上，后面的提示不用再写；写 PLAN.md 的那一步不要求复核。
   团队想默认开，用 override 把 `enabled` 改成 `true`。
 - 关闭时：不放行 verifier 和其他子 agent（拒绝理由里写明怎么开启），Stop 不检查，规则里不要求复核。
 - 开启时 verifier 可以独立搜索和读取知识库，不限制范围。这是第二次独立判断，费用由开启的人接受。

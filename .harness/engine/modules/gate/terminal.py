@@ -68,6 +68,15 @@ def git_write(command: str, compiled: Compiled) -> Optional[str]:
     return None
 
 
+def tree_write(command: str, compiled: Compiled) -> Optional[str]:
+    """Why this command writes into the working tree of a target repository (named by its full path), or None."""
+    text = normalize(command)
+    for regex, why in compiled.tree_writes:
+        if regex.search(text):
+            return why
+    return None
+
+
 def check(command: str, compiled: Compiled) -> Optional[Verdict]:
     """`("deny", why)`, `("ask", why)` or None. Deny rules come first."""
     if not command.strip():

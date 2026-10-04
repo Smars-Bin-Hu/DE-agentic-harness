@@ -16,6 +16,10 @@ CORE_GUARDRAILS = (
     ".vscode/settings.json",  # it holds chat.useHooks: an agent that turns it off turns every hook off
 )
 
+# What stays closed in admin mode. The session state and the approvals live in the runtime folder: a session that could
+# write it could make itself admin or forge a person's approval.
+ADMIN_LOCKED = (".harness/runtime/**",)
+
 
 def listed(policy: Dict[str, Any]) -> List[str]:
     """What the gate policy lists itself (guardrail_paths and extra_guardrail_paths)."""
@@ -25,6 +29,11 @@ def listed(policy: Dict[str, Any]) -> List[str]:
 def guardrail_paths(policy: Dict[str, Any]) -> List[str]:
     """The core guardrails, then the policy's own. The core ones are always there."""
     return list(dict.fromkeys(list(CORE_GUARDRAILS) + listed(policy)))
+
+
+def admin_locked(policy: Dict[str, Any]) -> List[str]:
+    """The guardrails an admin session still cannot write: the core ones, then the policy's own (`admin_locked_paths`)."""
+    return list(dict.fromkeys(list(ADMIN_LOCKED) + list(policy.get("admin_locked_paths", []))))
 
 
 def missing_core(policy: Dict[str, Any]) -> List[str]:

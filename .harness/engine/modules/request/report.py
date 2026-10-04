@@ -68,7 +68,7 @@ def head_section(data: Dict[str, Any], limit: int) -> List[str]:
         f"- 更新：{data['updated_at']}",
         f"- 会话：{data.get('session_id', '')}（{data.get('surface', '')}）",
         f"- 轮数：{data['attempt']} / 上限 {limit}",
-    ] + ([f"- 任务目录：{data['task']}"] if data.get("task") else []) + ([f"- 分支：{data['branch']}"] if data.get("branch") else []) + [
+    ] + ([f"- 计划：由人批准于 {data['plan']['approved_at']}"] if (data.get("plan") or {}).get("approved_at") else ["- 计划：没有人的批准"]) + ([f"- 任务目录：{data['task']}"] if data.get("task") else []) + ([f"- 分支：{data['branch']}"] if data.get("branch") else []) + [
         f"- 目标仓库：{name}，{item['base_ref']} 在 {item['base_commit'][:12]}" for name, item in data.get("targets", {}).items()
     ] + ([f"- 在等人：{data['waiting']['reason']}"] if data.get("waiting") else []) + [
         "",

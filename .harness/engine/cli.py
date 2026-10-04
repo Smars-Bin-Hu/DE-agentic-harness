@@ -6,6 +6,7 @@
   request, brief, attempt, dispatch, handoff, check, promote   the L3 request (request module)
   target list|show             the target repositories (request module)
   approve-command              a person approves a git command the gate refused (gate module)
+  admin on|off|status          a person switches admin mode on for one session: it may then change guardrail files (gate module)
   stats, logs prune            numbers from the session logs; delete old logs (observe module)
   eval list|show|check         fixed scenarios, judged from a finished run (evalcheck module)
 """

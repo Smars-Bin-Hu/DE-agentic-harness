@@ -17,7 +17,9 @@ applyTo: '.github/agents/**/*.agent.md'
 
 ## 谁能直接选
 
-- 用户直接选的 agent 只有两个：默认 agent 和 orchestrator。
+- 用户直接选的 agent 只有三个：默认 agent、orchestrator 和 admin。
+- admin 不能当子 agent：它不在任何 Level 的 `subagents.allowed` 里，hook 会拒绝。它的写权限不来自 agent 文件，
+  来自用户在终端运行的 `admin on`（hook 看不到主 agent 是谁）。
 - 其他 agent 都只当子 agent 用，写 `user-invocable: false`。
   这个字段只让它不出现在下拉列表，**拦不住被当子 agent 调用**。能不能调用，由 hook 按 Level 判断。
 - 不写 `disable-model-invocation: true`，同样拦不住调用。
@@ -36,6 +38,7 @@ applyTo: '.github/agents/**/*.agent.md'
 | agent | 用途 | 谁能调用 |
 | --- | --- | --- |
 | orchestrator | L3 的编排员：建请求、派发、判断、验收。用户在下拉列表里选 | 用户 |
+| admin | harness 的管理员：二开 harness、读报告和日志、查根因。用户先在终端开 admin 模式，才能改 guardrail 文件 | 用户 |
 | builder | L3 的执行者：按 assignment 产出成果并自测 | orchestrator（hook 要求先 dispatch） |
 | reviewer | L3 的独立评审员：按验收标准验证候选成果 | orchestrator（hook 要求先 dispatch） |
 | verifier | L2 交付前复核，不改文件。默认关闭，用户写 `[verify]` 才开 | 默认 agent（hook 只在开启时放行） |
@@ -44,6 +47,7 @@ applyTo: '.github/agents/**/*.agent.md'
 
 - orchestrator 和 reviewer 要推理和判断，用强模型。builder 按 assignment 执行，有验收标准和 reviewer 把关，用普通模型。
 - **builder 和 reviewer 必须是不同系列**，减少同类错误。`model` 的回退列表只能在同一系列里回退。
+  admin 例外（`agents.json` 的 `any_series`）：它不参与评审，强模型不可用时可以跨系列回退。
   系列的划分在 `.harness/policies/agents.json`，`python .harness/engine/cli.py doctor` 会检查（macOS/Linux 把 `python` 换成 `python3`）。
 - 模型名以本机 Copilot 下拉列表里的显示名为准。不同的会话类型能选的模型不一样（例如有的会话没有 Opus），换环境后重新确认。
 

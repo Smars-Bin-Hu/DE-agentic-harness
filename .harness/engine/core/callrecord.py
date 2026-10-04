@@ -42,6 +42,7 @@ def build(
     level: int,
     parent_session_id: Optional[str],
     denial: Optional[Dict[str, Any]],
+    admin: bool = False,
 ) -> Dict[str, Any]:
     outcome = outcome_of(decision)
     record: Dict[str, Any] = {
@@ -59,6 +60,8 @@ def build(
     }
     if event.tool_kind:
         record["tool_kind"] = event.tool_kind
+    if admin:
+        record["admin"] = True  # the call ran in admin mode: guardrail files were open to it
     if parent_session_id:
         record["parent_session_id"] = parent_session_id
     if outcome in ("deny", "ask", "block"):

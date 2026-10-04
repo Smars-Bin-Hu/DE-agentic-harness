@@ -257,6 +257,7 @@ class DoctorTests(unittest.TestCase):
 
     def test_a_knowledge_base_without_instructions_is_a_warning(self) -> None:
         self.kb({"README.md": "# KB\n- [a](a/x.md)\n", "a/x.md": "text\n"})
+        self.kb_instructions("")  # the copy of this repository's file may have content while a knowledge base is plugged in
         result = self.doctor()
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("没有讲知识库的指令文件", result.stdout)

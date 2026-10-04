@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "description": "L2 任务模式：计划批准前写 DEV 被 gate 拒绝；批准后能写；关闭时有报告。",
+  "calls": [
+    {
+      "name": "计划批准前写 DEV 被 gate 拒绝",
+      "match": {
+        "event": "PreToolUse",
+        "decision": "deny",
+        "by": "gate",
+        "kind": "task-plan",
+        "reason_contains": "task approve-plan"
+      },
+      "min": 1
+    },
+    {
+      "name": "会话在 L2",
+      "match": {
+        "level": 2
+      },
+      "min": 1
+    },
+    {
+      "name": "没有进过 L3",
+      "match": {
+        "level": 3
+      },
+      "exactly": 0
+    }
+  ],
+  "files": [
+    {
+      "path": ".workspace/current_tasks/eval-t1/PLAN.md",
+      "exists": true
+    },
+    {
+      "path": ".workspace/current_tasks/eval-t1/DEV/hello.txt",
+      "exists": true
+    },
+    {
+      "path": ".workspace/current_tasks/eval-t1/CHANGES.diff",
+      "exists": true
+    },
+    {
+      "path": ".workspace/reports/task-eval-t1.md",
+      "exists": true
+    }
+  ],
+  "json": [
+    {
+      "file": ".workspace/current_tasks/eval-t1/.task/task.json",
+      "path": "status",
+      "equals": "closed"
+    }
+  ]
+}

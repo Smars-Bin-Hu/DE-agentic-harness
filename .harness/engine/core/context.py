@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from . import config
-from .state import effective_level
+from .state import admin_on, effective_level
 
 
 class Context:
@@ -26,3 +26,7 @@ class Context:
     @property
     def level(self) -> int:
         return effective_level(self.state)
+
+    @property
+    def admin(self) -> bool:
+        return admin_on(self.state)

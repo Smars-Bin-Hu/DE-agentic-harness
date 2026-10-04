@@ -22,8 +22,12 @@ specificTo: harness-orchestration
 3. **知识简报**：先用读文件的工具打开 `knowledge-base/README.md`（不要用搜索或列目录判断有没有：被 git 忽略的目录搜不到）。README 只是占位说明、没有索引，才算知识库为空。用户的提示里写了知识库路径，就以它为准。
    知识库有内容时，把和本任务有关的结论蒸馏成一份文件，每条一行：`- 结论 [来源: 文件路径#章节]`。写在请求目录里（例如 `orchestrator/brief-draft.md`），用 `brief set <文件>` 交给 CLI。没有来源的条目会被拒绝。按知识库自己的索引和 instructions 选文件，不要整篇复制。返工的轮次只补缺的条目，不重写旧的。
    不论写不写 brief，都要在第 4 步的 `plan.md` 里用一句话写明知识库的结论：用了哪些文件，或者为什么都无关。
-4. **计划**：写 `orchestrator/plan.md`。哪个角色明显不适用，就在这里写理由。
-5. **开一轮**：`attempt new`。它建好两个角色的输入包，里面各有一份 `assignment.md` 模板。
+4. **计划，等用户批准**：写 `orchestrator/plan.md`：要改哪些文件、怎么改、验收看什么、知识库结论。哪个角色明显不适用，也写理由。写完就停：
+   1. `request wait --request <id> --reason "等用户批准计划"`。
+   2. 用两三句话告诉用户计划的要点，给出链接 `[plan.md](.workspace/sandbox/requests/<id>/orchestrator/plan.md)`，让用户在编辑器里打开看。不要把计划全文贴进对话。
+   3. 请用户**在自己的终端**运行 `request approve-plan --request <id>`，输入确认码。你不能自己运行它。
+   用户要改计划，就改完再请用户批准。计划在批准之后改过，要重新批准。
+5. **开一轮**：用户说批准了，再 `attempt new`（没有批准会被拒绝）。它建好两个角色的输入包，里面各有一份 `assignment.md` 模板。计划没变的返工轮不用重新批准。
 6. **填 builder 的 assignment**：目标和验收标准必填，去掉所有“（待填）”。验收标准要具体到 reviewer 能照着验证。
 7. **派发 builder**：`dispatch --role builder [--input <文件>]... [--from-target <仓库名>/<路径>]...`。包随即变成只读。然后调用 builder 子 agent。没有 dispatch 就调用会被拒绝。
 8. **读 builder 的 handoff**：在 `handoffs/builder/attempt-NNN/handoff.json`。
@@ -36,8 +40,8 @@ specificTo: harness-orchestration
     - `blocked`：缺什么就补什么；补不了就进 HITL。
 11. **上限**：`attempt new` 到了上限会被拒绝。先 `request wait --request <id> --reason "等用户决定要不要继续"`，再问用户要不要继续。用户同意，才加 `--human-approved "<原因>"`。用户不同意，或要改需求，就进 HITL。
 12. **回写**：
-    1. `promote --request <id> --dry-run`，列出要写的文件和每个文件增删的行数（不带差异，差异用户在批准屏幕上看）。
-    2. 先 `request wait --request <id> --reason "等用户批准 promote"`。把计划给用户看，原样给出这条命令，请用户**在自己的终端**运行：`request approve-promote --request <id>`，看计划，输入确认码。你不能自己运行它。
+    1. `promote --request <id> --dry-run`，列出要写的文件和每个文件增删的行数。完整差异写在输出的 `review_file`（请求目录下的 `promote-plan.diff`）。
+    2. 先 `request wait --request <id> --reason "等用户批准 promote"`。把文件清单给用户看，给出 `review_file` 的链接，让用户在编辑器里打开看差异（不要把差异贴进对话）。原样给出这条命令，请用户**在自己的终端**运行：`request approve-promote --request <id>`，输入确认码。你不能自己运行它。
     3. 用户说批准了，再 `promote --request <id>`。
     4. 请求有目标仓库时，`promote` 在每个仓库里从 main 新建请求的分支，把成果写进去，**不提交**。先检查所有仓库（工作区干净、分支名没被占、main 上的文件没变），任何一个不通过，什么都不写，信息里列出所有问题；照着做，或告诉用户，再 `promote --dry-run`。成果和补丁备份在任务目录的 `DEV/`。提交由用户自己做。
     5. promote 中途出错（`promote.state` 是 `partial`）：不要重试，不要 `set-status`。把错误里的“已写好、出错、没动”和恢复方法原样给用户：请用户**在自己的终端**运行 `request recover --request <id>`（你不能自己运行它）；恢复后再 `promote --dry-run`，请用户重新批准。
@@ -46,7 +50,7 @@ specificTo: harness-orchestration
 
 ## 等用户
 
-要把问题交给用户、结束这一轮时（批准 promote、HITL 的提问、要用户决定），先运行 `request wait --request <id> --reason "<等什么>"`，再结束。
+要把问题交给用户、结束这一轮时（批准计划、批准 promote、HITL 的提问、要用户决定），先运行 `request wait --request <id> --reason "<等什么>"`，再结束。
 请求还是 open 又没标等待，你结束时会被拦一次，理由里有这两条路。用户的下一条提示到达时，等待标记自动清除。
 
 ## 进入 HITL
@@ -78,4 +82,5 @@ specificTo: harness-orchestration
 
 - 不自己写 builder 的成果，不改 reviewer 的结论。
 - 不调用 builder、reviewer 之外的子 agent。
-- 不自己批准 promote。
+- 不自己批准计划和 promote。
+- 不用 `rm` 清理请求目录里的临时文件。留着就行，删除命令会让用户多确认一次。

@@ -27,6 +27,14 @@ from .layout import CommandError
 DIFF_PREVIEW_LINES = 40
 ALWAYS_REFUSED = (".git/**",)
 PROBLEMS_SHOWN = 6
+# Words of the refusals that differ between an L3 request and an L2 task (the task module passes its own).
+REQUEST_HINTS = {
+    "fetch": "用 `--from-target {key}` 取过再改。",
+    "refetch": "重新取文件，重新走一轮。",
+    "set_branch": "先 `request set-branch --request <id> --branch feature/<名字>`。",
+    "rename_branch": "换一个分支名（`request set-branch`），或先处理掉那个分支。",
+    "drop": "把它从成果里去掉，重新评审。",
+}
 
 
 def _lines(blob: bytes) -> int:
@@ -59,9 +67,11 @@ def _names_in(repo: targets.Repo, commit: str, folder: str, timeout: int) -> Lis
     return found
 
 
-def _file_problem(repo: targets.Repo, commit: str, relative: str, key: str, data: Dict[str, Any], timeout: int) -> Tuple[str, str, Optional[bytes]]:
+def _file_problem(
+    repo: targets.Repo, commit: str, relative: str, key: str, target_files: Dict[str, Any], timeout: int, hints: Dict[str, str],
+) -> Tuple[str, str, Optional[bytes]]:
     """(problem, "", None) or ("", blob of the base branch or "", its bytes). "" blob means a new file."""
-    recorded = data.get("target_files", {}).get(key)
+    recorded = target_files.get(key)
     listed = targets.tracked_files(repo, commit, relative, timeout)
     exact = [item for item in listed if item[2] == relative]
     if listed and not exact:
@@ -71,11 +81,11 @@ def _file_problem(repo: targets.Repo, commit: str, relative: str, key: str, data
         if mode not in targets.REGULAR_FILE_MODES:
             return f"`{key}` 在 {repo.base_ref} 上不是普通文件（符号链接或子模块）。", "", None
         if recorded is None:
-            return f"`{key}` 在 {repo.base_ref} 上已经有了，但这个请求没有从 {repo.base_ref} 取过它，不知道成果是基于哪一版改的。用 `--from-target {key}` 取过再改。", "", None
+            return f"`{key}` 在 {repo.base_ref} 上已经有了，但这个请求没有从 {repo.base_ref} 取过它，不知道成果是基于哪一版改的。" + hints["fetch"].format(key=key), "", None
         if recorded["blob"] != blob:
             return (
                 f"`{key}` 在 {repo.base_ref} 上变了：这个请求取走它时是 {recorded['blob'][:10]}，现在是 {blob[:10]}。"
-                "成果是基于旧版本改的，直接回写会丢掉别人的改动。重新取文件，重新走一轮。"
+                "成果是基于旧版本改的，直接回写会丢掉别人的改动。" + hints["refetch"]
             ), "", None
         return "", blob, targets.read_blob(repo, blob, timeout)
     if recorded is not None:
@@ -106,21 +116,41 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     candidates = [item for item in manifest["files"] if item["purpose"] in ("candidate", "deleted")]
     if not candidates:
         raise CommandError("reviewer 评审的输入包里没有成果文件，没有东西可回写。")
-    found = ops.load_targets(root)
-    problems: List[str] = []
-    branch = data.get("branch", "")
-    if not branch:
-        problems.append("请求还没有分支名。先 `request set-branch --request <id> --branch feature/<名字>`。")
-    elif not targets.valid_branch(branch):
-        problems.append(f"分支名 `{branch}` 不合规（`feature/` 加字母、数字、下划线）。用 `request set-branch` 改。")
-    by_repo: Dict[str, List[Dict[str, Any]]] = {}
+    items: List[Dict[str, Any]] = []
     for item in candidates:
         source = package / item["path"]
         if not source.is_file() or store.sha256_file(source) != item["sha256"]:
             raise CommandError(f"评审过的文件 `{item['path']}` 被改动或丢了（和 manifest 的 sha256 不一致）。重新走一轮评审。")
         key = layout.relative_name(item["path"].split("/", 1)[1], "成果路径")  # drop the leading `candidate/` (or `base/`)
-        name, _, relative = key.partition("/")
-        by_repo.setdefault(name, []).append({"key": key, "relative": relative, "source": source, "sha256": item["sha256"], "delete": item["purpose"] == "deleted"})
+        items.append({"key": key, "source": source, "sha256": item["sha256"], "delete": item["purpose"] == "deleted"})
+    branch = data.get("branch", "")
+    repos, files = plan_files(root, items, data.get("target_files", {}), branch, REQUEST_HINTS)
+    return {"request_id": request_id, "attempt": number, "branch": branch, "repos": repos, "files": files, "plan_sha256": plan_digest(branch, repos, files)}
+
+
+def plan_digest(branch: str, repos: List[Dict[str, Any]], files: List[Dict[str, Any]]) -> str:
+    return store.sha256_text(json.dumps([
+        branch, [[r["name"], r["base_commit"]] for r in repos], [[f["path"], f["action"], f["sha256"]] for f in files],
+    ]))
+
+
+def plan_files(
+    root: Path, items: List[Dict[str, Any]], target_files: Dict[str, Any], branch: str, hints: Dict[str, str],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Check every repository and file of a result. `items`: {key `<repo>/<path>`, source file, sha256, delete}.
+
+    Returns (repos, files) when everything passes; raises CommandError listing every problem otherwise. Nothing is written.
+    """
+    found = ops.load_targets(root)
+    problems: List[str] = []
+    if not branch:
+        problems.append("还没有分支名。" + hints["set_branch"])
+    elif not targets.valid_branch(branch):
+        problems.append(f"分支名 `{branch}` 不合规（`feature/` 加字母、数字、下划线）。" + hints["set_branch"])
+    by_repo: Dict[str, List[Dict[str, Any]]] = {}
+    for item in items:
+        name, _, relative = item["key"].partition("/")
+        by_repo.setdefault(name, []).append({**item, "relative": relative})
     repos: List[Dict[str, Any]] = []
     files: List[Dict[str, Any]] = []
     for name in sorted(by_repo):
@@ -140,7 +170,7 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
                     shown = "、".join(dirty[:PROBLEMS_SHOWN]) + (f" 等 {len(dirty)} 个" if len(dirty) > PROBLEMS_SHOWN else "")
                     mine.append(f"工作区不干净（{shown}）。先提交、stash 或丢弃这些改动，再 promote。")
                 if branch and targets.valid_branch(branch) and targets.git(repo, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", timeout=timeout, allow_failure=True).strip():
-                    mine.append(f"分支 `{branch}` 已经存在。换一个分支名（`request set-branch`），或先处理掉那个分支。")
+                    mine.append(f"分支 `{branch}` 已经存在。" + hints["rename_branch"])
         except targets.TargetError as error:
             problems.append(f"{name}：{error}")
             continue
@@ -149,26 +179,29 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
             key, relative = item["key"], item["relative"]
             refused = [pattern for pattern in list(ALWAYS_REFUSED) + list(repo.refused_paths) if repo_paths.glob_regex(pattern).match(relative)]
             if refused:
-                mine.append(f"成果里有 `{key}`，它属于不能回写的路径（{refused[0]}）。把它从成果里去掉，重新评审。")
+                mine.append(f"成果里有 `{key}`，它属于不能回写的路径（{refused[0]}）。" + hints["drop"])
                 continue
             if not commit:
                 continue
             try:
-                problem, blob, old_bytes = _file_problem(repo, commit, relative, key, data, timeout)
+                problem, blob, old_bytes = _file_problem(repo, commit, relative, key, target_files, timeout, hints)
             except targets.TargetError as error:
                 mine.append(str(error))
                 continue
             if problem:
                 mine.append(problem)
                 continue
-            new_bytes = item["source"].read_bytes()
             entry: Dict[str, Any] = {"path": key, "repo": name, "relative": relative, "sha256": item["sha256"]}
             if item["delete"]:
                 if old_bytes is None:
                     mine.append(f"`{key}` 在 {repo.base_ref} 上不存在，没有东西可删。")
                     continue
                 entry.update(action="delete", base_blob=blob, **_diff(old_bytes, b"", key))
-            elif old_bytes is None:
+                entries.append(entry)
+                continue
+            new_bytes = item["source"].read_bytes()
+            entry["source"] = str(item["source"])
+            if old_bytes is None:
                 entry.update(action="create", added=_lines(new_bytes), removed=0, diff=[])
             elif old_bytes == new_bytes:
                 entry.update(action="unchanged", added=0, removed=0, diff=[])
@@ -186,10 +219,7 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
             files += entries
     if problems:
         raise CommandError("现在不能 promote，没有写任何东西。先解决这些，再重新 --dry-run：\n" + "\n".join(f"- {text}" for text in problems))
-    digest = store.sha256_text(json.dumps([
-        branch, [[r["name"], r["base_commit"]] for r in repos], [[f["path"], f["action"], f["sha256"]] for f in files],
-    ]))
-    return {"request_id": request_id, "attempt": number, "branch": branch, "repos": repos, "files": files, "plan_sha256": digest}
+    return repos, files
 
 
 # --- the real run ---------------------------------------------------------------------------------
@@ -200,9 +230,9 @@ def dev_root(root: Path, data: Dict[str, Any], request_id: str) -> Path:
     return (root / task / "DEV") if task else layout.request_dir(root, request_id) / "DEV"
 
 
-def full_patch(root: Path, result: Dict[str, Any], package: Path) -> str:
-    """The same, with the complete diff (the plan keeps only a preview)."""
-    out: List[str] = [f"# request {result['request_id']}, branch {result['branch']}"]
+def full_patch(root: Path, result: Dict[str, Any], header: str = "") -> str:
+    """The whole change as one unified diff (the plan keeps only a preview). Also what a person reads before approving."""
+    out: List[str] = [header or f"# request {result.get('request_id', '')}, branch {result['branch']}"]
     found = ops.load_targets(root)
     for repo in result["repos"]:
         out.append(f"# repository {repo['name']}: {repo['base_ref']} at {repo['base_commit']}")
@@ -213,11 +243,11 @@ def full_patch(root: Path, result: Dict[str, Any], package: Path) -> str:
         if item["action"] == "delete":
             out += ["deleted file", f"--- a/{item['path']}", "+++ /dev/null"]
             try:
-                out += ["-" + line for line in (package / "base" / item["path"]).read_bytes().decode("utf-8").splitlines()]
+                out += ["-" + line for line in old_content(found, item).decode("utf-8").splitlines()]
             except UnicodeDecodeError:
                 out.append("（二进制文件，不显示内容）")
             continue
-        new_bytes = (package / "candidate" / item["path"]).read_bytes()
+        new_bytes = Path(item["source"]).read_bytes()
         if item["action"] == "create":
             out.append("--- /dev/null")
             out.append(f"+++ b/{item['path']}")
@@ -226,27 +256,33 @@ def full_patch(root: Path, result: Dict[str, Any], package: Path) -> str:
             except UnicodeDecodeError:
                 out.append("（二进制文件，不显示内容）")
             continue
-        repo = found.repos[item["repo"]]
-        old_bytes = targets.read_blob(repo, item["base_blob"], found.timeout)
         try:
-            before, after = old_bytes.decode("utf-8").splitlines(), new_bytes.decode("utf-8").splitlines()
+            before, after = old_content(found, item).decode("utf-8").splitlines(), new_bytes.decode("utf-8").splitlines()
             out += list(difflib.unified_diff(before, after, f"a/{item['path']}", f"b/{item['path']}", lineterm="", n=3))
         except UnicodeDecodeError:
             out.append("（二进制文件，不显示差异）")
     return "\n".join(out) + "\n"
 
 
-def save_dev(root: Path, data: Dict[str, Any], request_id: str, result: Dict[str, Any], package: Path) -> Dict[str, str]:
-    base = dev_root(root, data, request_id)
+def old_content(found: targets.Targets, item: Dict[str, Any]) -> bytes:
+    """The version of a modified or deleted file on the base branch, read by its blob."""
+    return targets.read_blob(found.repos[item["repo"]], item["base_blob"], found.timeout)
+
+
+def save_dev(root: Path, base: Path, patch_name: str, result: Dict[str, Any], header: str = "") -> Dict[str, str]:
+    """Back the result up under `base` (a DEV folder) before any repository is touched. A source already there is left alone."""
     try:
+        found = ops.load_targets(root)
         for item in result["files"]:
             if item["action"] == "delete":  # keep the file that goes away, apart from the results
-                ops.copy_file(package / "base" / item["path"], base / "_deleted" / item["path"])
-            else:
-                ops.copy_file(package / "candidate" / item["path"], base / item["path"])
-        patch = base / f"{request_id}.patch"
+                destination = base / "_deleted" / item["path"]
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(old_content(found, item))
+            elif Path(item["source"]).resolve() != (base / item["path"]).resolve():
+                ops.copy_file(Path(item["source"]), base / item["path"])
+        patch = base / patch_name
         patch.parent.mkdir(parents=True, exist_ok=True)
-        patch.write_text(full_patch(root, result, package), encoding="utf-8")
+        patch.write_text(full_patch(root, result, header), encoding="utf-8")
     except (OSError, targets.TargetError) as error:
         raise CommandError(f"备份到 DEV 目录失败（{error}）。仓库一个都没有改。") from error
     return {"dev": layout.inside(root, base) or str(base), "patch": layout.inside(root, patch) or str(patch)}
@@ -332,7 +368,7 @@ def prune_empty_folders(top: Path, folder: Path) -> None:
         folder = folder.parent
 
 
-def write_repo(root: Path, found: targets.Targets, repo: Dict[str, Any], branch: str, package: Path, written: List[Dict[str, Any]]) -> bool:
+def write_repo(root: Path, found: targets.Targets, repo: Dict[str, Any], branch: str, written: List[Dict[str, Any]]) -> bool:
     """Make the branch and write the files of one repository. Returns whether the branch was made; fills `written`."""
     handle = found.repos[repo["name"]]
     targets.git(handle, "switch", "-c", branch, handle.base_ref, timeout=found.timeout)
@@ -350,39 +386,45 @@ def write_repo(root: Path, found: targets.Targets, repo: Dict[str, Any], branch:
             if destination.exists():
                 raise OSError(f"`{item['relative']}` 没有被删掉")
             continue
-        ops.copy_file(package / "candidate" / item["path"], destination)
+        ops.copy_file(Path(item["source"]), destination)
         if store.sha256_file(destination) != item["sha256"]:
             raise OSError(f"写入后 `{item['relative']}` 的内容和成果不一致")
     return True
 
 
 def run(root: Path, data: Dict[str, Any], request_id: str, result: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+    """An L3 request: write the planned result. See `run_result`."""
+    recover = f"{cli_command()} request recover --request {request_id}"
+    return run_result(root, result, dev_root(root, data, request_id), f"{request_id}.patch", data["promote"], recover)
+
+
+def run_result(
+    root: Path, result: Dict[str, Any], base: Path, patch_name: str, approval: Dict[str, Any], recover: str, header: str = "",
+) -> Tuple[Dict[str, Any], str]:
     """Write the planned result. Returns (promote record, message). `message` is empty on success; otherwise the run failed
     halfway, the record is `partial`, and the message tells the person what to do."""
-    directory = layout.request_dir(root, request_id)
-    package = layout.package_dir(directory, data["attempt"], "reviewer")
     found = ops.load_targets(root)
-    saved = save_dev(root, data, request_id, result, package)
+    saved = save_dev(root, base, patch_name, result, header)
     branch = result["branch"]
     done: List[str] = []
     for index, repo in enumerate(result["repos"]):
         written: List[Dict[str, Any]] = []
         switched = False
         try:
-            switched = write_repo(root, found, repo, branch, package, written)
+            switched = write_repo(root, found, repo, branch, written)
         except (OSError, targets.TargetError, CommandError) as error:
             # `switch -c` may have worked before the failure: ask git, do not guess
             try:
                 switched = switched or targets.current_branch(found.repos[repo["name"]], found.timeout) == branch
             except targets.TargetError:
                 switched = False
-            return partial_record(data, result, saved, done, repo, written, switched, error, result["repos"][index + 1:]), "partial"
+            return partial_record(result, saved, done, repo, written, switched, error, result["repos"][index + 1:], recover), "partial"
         done.append(repo["name"])
     record = {
         "state": "done",
         "plan_sha256": result["plan_sha256"],
-        "approved_plan_sha256": data["promote"]["approved_plan_sha256"],
-        "approved_at": data["promote"]["approved_at"],
+        "approved_plan_sha256": approval["approved_plan_sha256"],
+        "approved_at": approval["approved_at"],
         "at": utc_now(),
         "branch": branch,
         "repos": {repo["name"]: {"path": repo["path"], "base_commit": repo["base_commit"], "current_branch": repo["current_branch"]} for repo in result["repos"]},
@@ -393,8 +435,8 @@ def run(root: Path, data: Dict[str, Any], request_id: str, result: Dict[str, Any
 
 
 def partial_record(
-    data: Dict[str, Any], result: Dict[str, Any], saved: Dict[str, str], done: List[str],
-    failed: Dict[str, Any], written: List[Dict[str, Any]], switched: bool, error: Exception, rest: List[Dict[str, Any]],
+    result: Dict[str, Any], saved: Dict[str, str], done: List[str],
+    failed: Dict[str, Any], written: List[Dict[str, Any]], switched: bool, error: Exception, rest: List[Dict[str, Any]], recover: str,
 ) -> Dict[str, Any]:
     branch = result["branch"]
     by_name = {repo["name"]: repo for repo in result["repos"]}
@@ -404,7 +446,8 @@ def partial_record(
     steps += recovery_steps(failed, branch, switched, written)
     return {
         "state": "partial",
-        "request_id": result["request_id"],
+        "request_id": result.get("request_id", ""),
+        "recover_command": recover,
         "plan_sha256": result["plan_sha256"],
         "at": utc_now(),
         "branch": branch,
@@ -429,8 +472,9 @@ def partial_message(record: Dict[str, Any]) -> str:
         f"- 成果和补丁已经备份在 {record['dev']}。",
     ]
     if record["recovery"]:
-        lines.append(f"把仓库恢复成原样：请用户在自己的终端运行 `{cli_command()} request recover --request {record['request_id']}`（看清要做的事，输入确认码，它逐条运行）。")
+        recover = record.get("recover_command") or f"{cli_command()} request recover --request {record['request_id']}"
+        lines.append(f"把仓库恢复成原样：请用户在自己的终端运行 `{recover}`（看清要做的事，输入确认码，它逐条运行）。")
         lines.append("也可以自己逐条运行下面的命令：")
         lines += [f"    {command}" for command in record["recovery"]]
-    lines.append("恢复后，让 agent 重新 `promote --dry-run`，用户再批准。不要自己用 set-status 结束请求。")
+    lines.append("恢复后，让 agent 重新 `promote --dry-run`，用户再批准。不要自己结束请求或任务。")
     return "\n".join(lines)

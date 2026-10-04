@@ -83,6 +83,7 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         denial = call_safely(root, "breaker", breaker.apply, root, state, event, decision, ctx.level)  # a refusal stays a refusal
         state_module.track_after(state, event, decision)
         level = ctx.level
+        admin = ctx.admin
         parent_session_id = state.get("parent_session_id")
     record = callrecord.build(
         event,
@@ -94,6 +95,7 @@ def process(raw: str, root: Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         level=level,
         parent_session_id=parent_session_id,
         denial=denial,
+        admin=admin,
     )
     return adapter.render(event, decision), record
 

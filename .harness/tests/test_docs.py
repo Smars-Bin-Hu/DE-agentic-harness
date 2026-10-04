@@ -24,7 +24,7 @@ DOCUMENTS = [REPO / "README.md", *sorted((REPO / "docs").glob("*.md")), REPO / "
 REFERENCE = REPO / "docs" / "04-reference.md"
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 LOCAL_FOLDER = re.compile(r"(?<![~\w])\.local/")
-SUBCOMMANDS = {"level", "request", "target", "logs", "eval", "brief", "attempt", "handoff"}
+SUBCOMMANDS = {"level", "request", "target", "logs", "eval", "brief", "attempt", "handoff", "admin"}
 CLI = ENGINE / "cli.py"
 
 
@@ -91,9 +91,9 @@ class LinkTests(unittest.TestCase):
         for doc in (REPO / "docs").glob("*.md"):
             self.assertTrue(f"docs/{doc.name}" in readme, doc.name)
 
-    def test_the_six_docs_exist(self) -> None:
+    def test_the_seven_docs_exist(self) -> None:
         names = sorted(item.name for item in (REPO / "docs").glob("*.md"))
-        self.assertEqual(len(names), 6, names)
+        self.assertEqual(len(names), 7, names)
 
 
 class ReadmeStructureTests(unittest.TestCase):

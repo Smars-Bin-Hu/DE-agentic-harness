@@ -110,6 +110,12 @@ def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", c
             f"当前会话 id：{session_id}。orchestrator 运行 `request new` 时，--session-id 原样用它。"
             f"skills 和 agent 文件里的命令前缀 `<cli>` 就是 `{cli_command()}`。"
         )
+    if level == 2:
+        lines.append(
+            "用户指定了 `.workspace/current_tasks/<任务>` 并要你产出或修改文件时，先运行 "
+            f"`{cli_command()} task start --task <任务目录> --session-id <当前会话 id>` 进入任务模式：先写 PLAN.md 并等用户批准，之后只在任务的 DEV/ 下写。"
+            "只是问答、RCA、出方案、不改文件时，不用开任务。目标仓库的文件任何时候都不能直接改。"
+        )
     if level < 3:
         # The prompt starts at L1 or L2 for every agent. Without this line an orchestrator reads the rules above and stops.
         lines.append(
@@ -117,6 +123,23 @@ def prompt_rules(policy: Dict[str, Any], level: int, ignored_marker: str = "", c
             "会话由此进入 L3。这不算自己切换 Level，不要因为这里写着 L1 或 L2 而停下。其他 agent 不要运行它。"
         )
     return "\n".join(lines)
+
+
+def admin_rules(locked: List[str], session_id: str) -> str:
+    """Injected instead of the Level rules while the session is in admin mode."""
+    cli = cli_command()
+    return "\n".join([
+        "admin 模式：已开（用户在自己的终端批准的）。这个会话用来二开和排查 harness。Task Level 不适用：没有搜索和工具调用预算，Level 标记不起作用。",
+        f"可以改 harness 的文件，包括 guardrail 文件。仍然不能改：{'、'.join(f'`{item}`' for item in locked)}（只读）、CLI 生成的文件（报告、request.json 等）、`.git`、目标仓库。",
+        "不能调用子 agent，不能开 L3 请求或 L2 任务。批准类命令（approve-plan、approve-promote、recover、approve-command、admin on）只能由用户运行。git 写命令和危险命令的规则不变。",
+        f"改了 `.harness/engine/`、策略或 hook 配置后，运行 `{cli} doctor` 和测试，都通过再交给用户。工具调用被拒绝时，照拒绝理由里的下一步做。",
+        f"当前会话 id：{session_id}。`<cli>` 就是 `{cli}`。做完后提醒用户运行 `{cli} admin off --session-id {session_id}`。",
+    ])
+
+
+def admin_subagent_denied(target: str, generic: bool) -> str:
+    called = GENERIC_AGENT if generic else target
+    return f"admin 模式不允许子 agent（你调用的是：{called}）。请自己完成。"
 
 
 def search_denied(policy: Dict[str, Any], level: int, limit: int) -> str:

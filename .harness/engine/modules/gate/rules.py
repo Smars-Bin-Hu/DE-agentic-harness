@@ -8,14 +8,28 @@ from core.paths import cli_command
 def guardrail_file(relative: str, pattern: str) -> str:
     return (
         f"`{relative}` 是 guardrail 文件（{pattern}），所有 Level 都不能改。"
-        "不要改它，也不要用终端命令绕过。需要改它时，停下来告诉用户要改什么，由用户自己改。"
+        "不要改它，也不要用终端命令绕过。需要改它时，停下来告诉用户要改什么，由用户自己改，或由用户切到 admin agent 改。"
+    )
+
+
+def admin_locked_file(relative: str, pattern: str) -> str:
+    return (
+        f"`{relative}` 在 admin 模式下也不能改（{pattern}）：这里放着会话状态、批准记录和日志，只能读。"
+        "不要用终端命令绕过。确实要清理或修复它时，停下来告诉用户，由用户自己做。"
+    )
+
+
+def admin_locked_terminal(why: str) -> str:
+    return (
+        f"这条终端命令会改 admin 模式下也不能改的文件（{why}），例如 `.harness/runtime/` 里的会话状态、批准记录和日志。"
+        "不要换个命令重试。确实要清理或修复它时，停下来告诉用户，由用户自己做。"
     )
 
 
 def guardrail_terminal(why: str) -> str:
     return (
         f"这条终端命令会改 guardrail 文件（{why}）。guardrail 文件所有 Level 都不能改。"
-        "不要换个命令重试。需要改它时，停下来告诉用户要改什么，由用户自己改。"
+        "不要换个命令重试。需要改它时，停下来告诉用户要改什么，由用户自己改，或由用户切到 admin agent 改。"
     )
 
 
@@ -37,6 +51,36 @@ def target_refused_file(repo: str, relative: str, pattern: str) -> str:
     return (
         f"`{repo}/{relative}` 属于目标仓库 {repo} 不许写的路径（{pattern}，见 target.json 的 refused_paths）。"
         "任何 Level 都不能改它。需要改它时，停下来告诉用户，由用户自己改。"
+    )
+
+
+def target_tree_file(repo: str, relative: str, level: int) -> str:
+    how = (
+        "在请求目录里改，再用 promote 回写（需要用户批准）。"
+        if level == 3
+        else f"用任务模式：`{cli_command()} task fetch <仓库名>/<路径>` 把文件取到任务目录的 DEV/ 下，在那里改，再用 `task promote` 回写（需要用户批准）。没有任务目录时，停下来告诉用户。"
+    )
+    return f"`{repo}/{relative}` 在目标仓库 {repo} 的工作区里。目标仓库只能由 promote 写，任何 Level 都不能直接改。{how}"
+
+
+def target_tree_terminal(why: str) -> str:
+    return (
+        f"这条终端命令会直接改目标仓库工作区里的文件（{why}）。目标仓库只能由 promote 写。"
+        "不要换个命令重试。把文件取到 DEV/ 或请求目录里改，再用 promote 回写。"
+    )
+
+
+def task_plan_first(relative: str, task: str) -> str:
+    return (
+        f"任务 {task} 的计划还没有经用户批准（或批准之后改过），现在只能写 `{task}/PLAN.md`，你要写的是 `{relative}`。"
+        f"写好 PLAN.md 后停下来：给用户 [PLAN.md]({task}/PLAN.md) 的链接，请用户在自己的终端运行 `{cli_command()} task approve-plan`。用户说批准了，再继续。"
+    )
+
+
+def task_outside_dev(relative: str, task: str) -> str:
+    return (
+        f"任务 {task} 只能在 `{task}/DEV/` 下写文件（计划在 `{task}/PLAN.md`），你要写的是 `{relative}`。"
+        f"改成在 DEV/ 下写；目标仓库的文件先用 `{cli_command()} task fetch <仓库名>/<路径>` 取进来。"
     )
 
 

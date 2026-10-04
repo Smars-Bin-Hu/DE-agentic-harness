@@ -5,6 +5,8 @@ Only the files the reviewer saw (to-reviewer/candidate/) are copied, and only wh
 `request approve-promote`: it works only in a terminal the person types in (stdin and stdout are a TTY) and asks them to
 type a code from the plan. A tool-call dialog cannot be the guard, because "Allow in this Session" switches it off.
 The gate also denies an agent that tries to run `approve-promote`.
+The person reads the change in the editor, not in the terminal: `--dry-run` writes the whole diff to `promote-plan.diff` in
+the request folder (a file only the CLI writes), and the approval screen only lists the files and names that file.
 A request with target repositories is planned and written by `promote_target.py`: the result goes onto a new branch of each
 repository (never committed), and nothing is written unless every repository passes its checks.
 """
@@ -17,7 +19,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core import config, repo_paths
+from core import approval, config, repo_paths
 from core.guardrails import guardrail_paths
 from core.paths import cli_command, utc_now
 
@@ -26,6 +28,7 @@ from .layout import CommandError
 
 DIFF_PREVIEW_LINES = 40
 ALWAYS_REFUSED = (".git/**", ".workspace/**")
+REVIEW_FILE = "promote-plan.diff"
 
 
 def refused_patterns(root: Path) -> List[Tuple[str, Any]]:
@@ -62,7 +65,7 @@ def plan(root: Path, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         if layout.inside(root, target) is None:
             raise CommandError(f"成果路径 `{target_name}` 指向仓库之外。")
         new_bytes = source.read_bytes()
-        entry: Dict[str, Any] = {"path": target_name, "sha256": item["sha256"]}
+        entry: Dict[str, Any] = {"path": target_name, "sha256": item["sha256"], "source": str(source)}
         if not target.exists():
             entry.update(action="create", added=_lines(new_bytes), removed=0, diff=[])
         else:
@@ -105,10 +108,40 @@ def shown(result: Dict[str, Any]) -> Dict[str, Any]:
     """
     out = dict(result)
     if "files" in out:
-        out["files"] = [{key: value for key, value in item.items() if key != "diff"} for item in out["files"]]
+        out["files"] = [{key: value for key, value in item.items() if key not in ("diff", "source")} for item in out["files"]]
     if "repos" in out:
         out["repos"] = [{key: value for key, value in repo.items() if key != "files"} for repo in out["repos"]]
     return out
+
+
+def review_text(root: Path, result: Dict[str, Any], targeted: bool) -> str:
+    """The whole change as one unified diff, for the person to read in the editor before approving."""
+    if targeted:
+        return promote_target.full_patch(root, result)
+    out = [f"# request {result['request_id']}，第 {result['attempt']} 轮：回写到本仓库"]
+    for item in result["files"]:
+        if item["action"] == "unchanged":
+            continue
+        name = item["path"]
+        out.append(f"diff --git a/{name} b/{name}")
+        new_bytes = Path(item["source"]).read_bytes()
+        try:
+            after = new_bytes.decode("utf-8").splitlines()
+            if item["action"] == "create":
+                out += ["--- /dev/null", f"+++ b/{name}"] + ["+" + line for line in after]
+            else:
+                before = (root / name).read_bytes().decode("utf-8").splitlines()
+                out += list(difflib.unified_diff(before, after, f"a/{name}", f"b/{name}", lineterm="", n=3))
+        except UnicodeDecodeError:
+            out.append("（二进制文件，不显示差异）")
+    return "\n".join(out) + "\n"
+
+
+def write_review(root: Path, request_id: str, result: Dict[str, Any], targeted: bool) -> str:
+    """Write `promote-plan.diff` into the request folder. Returns its repository-relative path."""
+    path = layout.request_dir(root, request_id) / REVIEW_FILE
+    ops.write_text(path, review_text(root, result, targeted))
+    return layout.inside(root, path) or str(path)
 
 
 def approve_command(request_id: str) -> str:
@@ -142,10 +175,10 @@ def approve(
     """
     out = out or sys.stdout
     request_id = request_id or waiting_request(root)
-    if interactive is None:
-        interactive = sys.stdin.isatty() and sys.stdout.isatty()
-    if not interactive:
-        raise CommandError("approve-promote 只能由用户在自己的终端里手动运行，要打字确认。agent 不能运行它，管道和脚本也不行。")
+    try:
+        approval.require_person("approve-promote", interactive)
+    except approval.Refused as error:
+        raise CommandError(str(error)) from error
     data = store.read_request(root, request_id)
     store.require_open(data)
     if data["promote"]["state"] != "dry_run":
@@ -153,6 +186,7 @@ def approve(
     result = make_plan(root, request_id, data)
     if result["plan_sha256"] != data["promote"]["plan_sha256"]:
         raise CommandError("成果或仓库在 dry-run 之后变了。让 agent 重新运行 promote --dry-run，再来批准。")
+    review = write_review(root, request_id, result, bool(data.get("target_mode")))  # written again now: it is what gets approved
     print(f"请求 {request_id}，第 {result['attempt']} 轮。将回写这些文件：", file=out)
     for repo in result.get("repos", []):
         print(f"  仓库 {repo['name']}（{repo['path']}）：从 {repo['base_ref']}（{repo['base_commit'][:12]}）新建分支 {result['branch']}，写入文件，不提交。", file=out)
@@ -160,12 +194,11 @@ def approve(
         print("  注意：标着 delete 的文件会被删除。", file=out)
     for item in result["files"]:
         print(f"  {item['action']:9} {item['path']}  (+{item['added']} -{item['removed']})", file=out)
-        for line in item["diff"][:12]:
-            print(f"      {line}", file=out)
-    code = code_of(result["plan_sha256"])
-    answer = (reader or input)(f"确认回写，输入 {code}（其他任何输入都是取消）：").strip()
-    if answer != code:
-        raise CommandError("没有批准。什么都没有写。")
+    print(f"完整差异在这个文件里，先在编辑器里打开看：{review}", file=out)
+    try:
+        approval.ask("确认回写", result["plan_sha256"], "没有批准。什么都没有写。", reader)
+    except approval.Refused as error:
+        raise CommandError(str(error)) from error
     with store.locked(root, request_id) as locked:
         store.require_open(locked)
         again = make_plan(root, request_id, locked)
@@ -173,7 +206,7 @@ def approve(
             raise CommandError("你确认的时候计划变了。让 agent 重新运行 promote --dry-run，再来批准。")
         locked["promote"]["approved_plan_sha256"] = result["plan_sha256"]
         locked["promote"]["approved_at"] = utc_now()
-    return {"approved": True, "plan_sha256": result["plan_sha256"], "files": len(result["files"]), "next": "告诉 agent 可以运行 promote 了。"}
+    return {"approved": True, "plan_sha256": result["plan_sha256"], "files": len(result["files"]), "review_file": review, "next": "告诉 agent 可以运行 promote 了。"}
 
 
 def partial_request(root: Path) -> str:
@@ -200,10 +233,10 @@ def recover(
     """
     out = out or sys.stdout
     request_id = request_id or partial_request(root)
-    if interactive is None:
-        interactive = sys.stdin.isatty() and sys.stdout.isatty()
-    if not interactive:
-        raise CommandError("recover 只能由用户在自己的终端里手动运行，要打字确认。agent 不能运行它，管道和脚本也不行。")
+    try:
+        approval.require_person("recover", interactive)
+    except approval.Refused as error:
+        raise CommandError(str(error)) from error
     data = store.read_request(root, request_id)
     store.require_open(data)
     record = data["promote"]
@@ -215,10 +248,10 @@ def recover(
     print(f"请求 {request_id}：promote 中途出错（出错的仓库 {record.get('repo_failed', '')}：{record.get('error', '')}）。将运行：", file=out)
     for command in record.get("recovery", []) or ["（没有要运行的命令：没有仓库被改动）"]:
         print(f"  {command}", file=out)
-    code = code_of(record["plan_sha256"])
-    answer = (reader or input)(f"确认恢复，输入 {code}（其他任何输入都是取消）：").strip()
-    if answer != code:
-        raise CommandError("没有确认。什么都没有做。")
+    try:
+        approval.ask("确认恢复", record["plan_sha256"], "没有确认。什么都没有做。", reader)
+    except approval.Refused as error:
+        raise CommandError(str(error)) from error
     found = ops.load_targets(root)
     results = promote_target.run_recovery(steps, record["branch"], found.timeout)
     for item in results:
@@ -255,10 +288,12 @@ def run(root: Path, request_id: str, dry_run: bool) -> Dict[str, Any]:
                 record.update(approved_plan_sha256=old["approved_plan_sha256"], approved_at=old["approved_at"])  # same plan: keep the approval
             data["promote"] = record
             result["approved"] = "approved_plan_sha256" in record
+            result["review_file"] = write_review(root, request_id, result, bool(data.get("target_mode")))
             result["next"] = (
                 "已经有用户的批准，可以运行 promote（去掉 --dry-run）。"
                 if result["approved"]
-                else "把这份计划给用户看，请用户在自己的终端运行：" + approve_command(request_id) + "。用户批准后，再运行 promote（去掉 --dry-run）。"
+                else f"告诉用户：完整差异在 [{REVIEW_FILE}]({result['review_file']})（给出这个链接，让用户在编辑器里打开看，不要把差异贴进对话）。"
+                "看完后请用户在自己的终端运行：" + approve_command(request_id) + "，输入确认码。用户批准后，再运行 promote（去掉 --dry-run）。"
             )
             return {"dry_run": True, **shown(result)}
         if data["promote"]["state"] != "dry_run" or data["promote"].get("plan_sha256") != result["plan_sha256"]:
@@ -285,6 +320,7 @@ def run(root: Path, request_id: str, dry_run: bool) -> Dict[str, Any]:
                 if item["action"] == "unchanged":
                     continue
                 ops.copy_file(package / "candidate" / item["path"], root / item["path"])
+            result = shown(result)
             data["promote"] = {
                 "state": "done",
                 "plan_sha256": result["plan_sha256"],

@@ -248,6 +248,9 @@
         },
         "request_id": {
           "type": "string"
+        },
+        "recover_command": {
+          "type": "string"
         }
       }
     },
@@ -295,6 +298,17 @@
           "blob",
           "base_commit"
         ]
+      }
+    },
+    "plan": {
+      "type": "object",
+      "properties": {
+        "approved_sha256": {
+          "type": "string"
+        },
+        "approved_at": {
+          "type": "string"
+        }
       }
     }
   }
