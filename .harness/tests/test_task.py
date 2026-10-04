@@ -352,9 +352,9 @@ class FetchDiffTests(TaskCase):
         self.assertEqual(self.dev("bdtt_repo/src/a.sql").read_text(encoding="utf-8"), "select 1;\n")
 
     def test_a_large_file_and_crlf_arrive_byte_for_byte_and_the_diff_holds_only_the_change(self) -> None:
-        (self.bdtt / "big.sql").write_text(BIG, encoding="utf-8")
+        (self.bdtt / "big.sql").write_text(BIG, encoding="utf-8", newline="\n")
         (self.bdtt / "crlf.sql").write_bytes(b"select 1;\r\nselect 2;\r\n")
-        git_text(self.bdtt, "add", "-A")
+        git_text(self.bdtt, "-c", "core.autocrlf=false", "add", "-A")  # with autocrlf=true, git would store this CRLF file as LF
         git_text(self.bdtt, "-c", "core.autocrlf=false", "commit", "-q", "-m", "big")
         self.ready()
         self.run_cli("task", "fetch", "bdtt_repo/big.sql", "bdtt_repo/crlf.sql")

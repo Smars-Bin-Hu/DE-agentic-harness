@@ -15,7 +15,7 @@ import support  # noqa: F401  (puts the engine on sys.path)
 from core import targets
 from modules.request import handler
 from test_request import SESSION, RequestCase
-from test_targets import GIT, make_repo, run_git
+from test_targets import GIT, SYMLINKS, make_repo, run_git
 
 TASK = ".workspace/current_tasks/job1"
 CRLF = b"select 1;\r\nselect 2;\r\n"
@@ -230,6 +230,7 @@ class AddInputTests(TargetCase):
         self.assertIn("上限 1", self.add(request_id, "bdtt_repo/src", ok=False)["stderr"])
         self.assertEqual(self.request(request_id)["target_files"], {})
 
+    @unittest.skipUnless(SYMLINKS, "this account cannot make symlinks (on Windows: turn on Developer Mode or run as admin)")
     def test_a_symbolic_link_in_a_folder_is_skipped_and_asked_for_by_name_is_refused(self) -> None:
         (self.bdtt / "src" / "link.sql").symlink_to("a.sql")
         run_git(self.bdtt, "add", "-A")

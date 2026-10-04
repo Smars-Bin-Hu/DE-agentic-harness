@@ -5,13 +5,15 @@ The repositories are real git repositories made with `git init` in a temporary f
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
+import os
 import shlex
 import subprocess
 import unittest
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 from unittest import mock
 
 import support  # noqa: F401  (puts the engine on sys.path)
@@ -26,6 +28,25 @@ BRANCH = "feature/add_column"
 
 def git_text(path: Path, *arguments: str) -> str:
     return run_git(path, *arguments)
+
+
+@contextlib.contextmanager
+def blocked_from_replacing(path: Path) -> Iterator[None]:
+    """Stop git from replacing `path` while the block runs. macOS and Linux: the folder loses its write bit.
+    Windows ignores that bit, so the file is held open by another program instead, which is what blocks a replace there."""
+    if os.name == "nt":
+        held = open(path, "rb")
+        try:
+            yield
+        finally:
+            held.close()
+    else:
+        folder = path.parent
+        folder.chmod(0o555)
+        try:
+            yield
+        finally:
+            folder.chmod(0o755)
 
 
 def porcelain(path: Path) -> List[str]:
@@ -528,8 +549,7 @@ class RecoverTests(FailureBase):
     def test_a_step_that_fails_stops_that_repository_only_and_a_second_run_finishes(self) -> None:
         request_id = self.partial_request()
         (self.bdtt / "src" / "a.sql").write_text("half written\n", encoding="utf-8")  # a change that git has to undo
-        (self.bdtt / "src").chmod(0o555)  # git cannot replace a.sql in a folder it may not write to
-        try:
+        with blocked_from_replacing(self.bdtt / "src" / "a.sql"):
             with self.assertRaises(CommandError) as raised:
                 self.recover(request_id)
             self.assertIn("没有成功", str(raised.exception))
@@ -537,8 +557,6 @@ class RecoverTests(FailureBase):
             self.assert_untouched(self.b9td)  # the other repository is back
             self.assertEqual(git_text(self.bdtt, "symbolic-ref", "--short", "HEAD"), BRANCH)  # this one stopped at its first step
             self.assertEqual(self.request(request_id)["promote"]["state"], "partial")
-        finally:
-            (self.bdtt / "src").chmod(0o755)
         self.recover(request_id)  # the finished repository's steps are skipped, the rest runs
         self.assertIn("[skipped]", self.shown.getvalue())
         self.assert_untouched(self.bdtt)

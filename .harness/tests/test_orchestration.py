@@ -4,6 +4,7 @@ the model series rule (M4-5), the orchestration skill (M4-6)."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -172,7 +173,11 @@ class SubagentStartTests(RequestCase):
         self.assertIn(f"{base}/handoffs/orchestrator/attempt-001/to-builder/assignment.md", context)
         self.assertIn("manifest.json", context)
         self.assertIn(f"{base}/builder/outputs/attempt-001/", context)
-        self.assertIn("mkdir -p", context)
+        if os.name == "nt":  # PowerShell and cmd make parent folders with plain `mkdir`
+            self.assertIn("mkdir", context)
+            self.assertNotIn("mkdir -p", context)
+        else:
+            self.assertIn("mkdir -p", context)
         self.assertIn(f"handoff submit --request {request_id} --role builder", context)
         self.assertIn("第 1 轮的 builder", context)
 
