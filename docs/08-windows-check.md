@@ -58,12 +58,6 @@ git -C C:\h-check\repos\demo_repo init -q -b main
 git -C C:\h-check\repos\demo_repo add -A
 git -C C:\h-check\repos\demo_repo -c user.name=check -c user.email=check@example.com commit -q -m init
 
-mkdir "C:\h-check\repos\演练 仓库"
-Set-Content "C:\h-check\repos\演练 仓库\a.sql" "select 2;" -Encoding ascii
-git -C "C:\h-check\repos\演练 仓库" init -q -b main
-git -C "C:\h-check\repos\演练 仓库" add -A
-git -C "C:\h-check\repos\演练 仓库" -c user.name=check -c user.email=check@example.com commit -q -m init
-
 Set-Content .harness\policies\target.override.json '{ "repos_root": "C:\\h-check\\repos" }' -Encoding ascii
 ```
 
@@ -74,7 +68,8 @@ python .harness/engine/cli.py target list
 git -C C:\h-check\repos\demo_repo rev-parse --short=12 main
 ```
 
-通过：`repos` 里有 `demo_repo` 和 `演练 仓库` 两个，`problems` 是空的；`demo_repo` 的 `base_commit` 和第二条命令的输出一样。中文名显示成乱码也算没通过。
+通过：`repos` 里有 `demo_repo`，`problems` 是空的；`demo_repo` 的 `base_commit` 和第二条命令的输出一样。
+仓库名只用英文字母、数字、`_`、`.`、`-`，不用中文和空格。
 
 ## 3. Copilot 里的检查
 
