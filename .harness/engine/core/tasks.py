@@ -53,6 +53,21 @@ def read(root: Path, task: str) -> Optional[Dict[str, Any]]:
     return data if isinstance(data, dict) else None
 
 
+def open_of(root: Path, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The open task of a session, or None. An L3 request in the session hides it."""
+    name = state.get("active_task")
+    if not name or state.get("active_request"):
+        return None
+    data = read(root, name)
+    return data if data and data.get("status") == "open" else None
+
+
+def verify_choice(data: Optional[Dict[str, Any]]) -> str:
+    """The standing verifier choice of a task: `on`, `off`, or `` (the level's default). Set by a marker in any prompt of the task."""
+    choice = (data or {}).get("verify", "")
+    return choice if choice in ("on", "off") else ""
+
+
 def plan_digest(root: Path, task: str) -> str:
     """sha256 of PLAN.md, or an empty string when there is none."""
     try:

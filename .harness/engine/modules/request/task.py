@@ -33,6 +33,7 @@ from .layout import CommandError
 SCHEMA_VERSION = 1
 EVENTS_KEPT = 200
 SKIP_TOP = ("_deleted",)
+VERIFY_TEXT = {"on": "开启（用户写了开启标记）", "off": "关闭（用户写了跳过标记）"}
 HINTS = {
     "fetch": "先 `task fetch {key}` 取过再改。",
     "refetch": "把你的改动另存，`task fetch --overwrite` 重新取文件，再改一遍。",
@@ -146,7 +147,7 @@ def start(root: Path, raw_task: str, session_id: str, surface: str = "vscode", b
                     "schema_version": SCHEMA_VERSION, "task": task, "name": name_of(task), "session_id": session_id, "surface": surface,
                     "status": "open", "created_at": now, "updated_at": now, "round": 1, "round_started_at": now,
                     "target_mode": found.configured, "branch": "", "targets": {}, "target_files": {}, "deletes": [],
-                    "plan": {}, "promote": {"state": "none"}, "rounds": [], "events": [],
+                    "plan": {}, "promote": {"state": "none"}, "rounds": [], "events": [], "verify": "",
                 }
                 note(data, "start", f"会话 {session_id}")
             else:
@@ -158,6 +159,11 @@ def start(root: Path, raw_task: str, session_id: str, surface: str = "vscode", b
                     archive_round(root, task, data)
                 data.update(status="open", session_id=session_id, surface=surface, target_mode=found.configured)
                 note(data, "new-round" if new_round else "resume", f"会话 {session_id}")
+            marker = ((state["modules"].get("task_level") or {}).get("prompt") or {}).get("verify", "")
+            if marker in ("on", "off") and marker != tasks.verify_choice(data):
+                # The user wrote [verify] or [no-verify] in the prompt that starts the task: it holds for the whole task.
+                data["verify"] = marker
+                note(data, "verify", VERIFY_TEXT[marker])
             if branch_name:
                 data["branch"] = branch_name
             elif found.configured and not data["branch"]:
@@ -170,11 +176,19 @@ def start(root: Path, raw_task: str, session_id: str, surface: str = "vscode", b
     result: Dict[str, Any] = {
         "task": task, "round": data["round"], "resumed": resumed and not new_round, "new_round": new_round,
         "plan": f"{task}/{tasks.PLAN_NAME}", "plan_approved": approved, "dev": f"{task}/{tasks.DEV_NAME}",
-        "next": next_step(root, task, data),
+        "next": next_step(root, task, data), "verify": tasks.verify_choice(data),
     }
     if found.configured:
         result.update(branch=data["branch"], target_repos=found.names())
     return result
+
+
+def set_verify(root: Path, task: str, choice: str) -> Dict[str, Any]:
+    """Called by the hook when the user writes a verifier marker in a later prompt of the task. Returns the new state."""
+    with locked(root, task) as data:
+        data["verify"] = choice
+        note(data, "verify", VERIFY_TEXT[choice])
+    return data
 
 
 def archive_round(root: Path, task: str, data: Dict[str, Any]) -> None:
@@ -214,6 +228,7 @@ def status(root: Path, raw_task: str = "") -> Dict[str, Any]:
         "task": task, "status": data["status"], "round": data["round"], "branch": data.get("branch", ""),
         "plan_written": bool(tasks.plan_digest(root, task)), "plan_approved": tasks.plan_approved(root, task, data),
         "fetched": sorted(data["target_files"]), "deletes": data["deletes"], "promote": data["promote"]["state"],
+        "verify": tasks.verify_choice(data),
         "next": next_step(root, task, data) if data["status"] == "open" else "",
     }
 

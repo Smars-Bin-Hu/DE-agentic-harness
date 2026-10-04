@@ -240,6 +240,80 @@ class PlanApprovalTests(TaskCase):
         self.assertIn("不要用 git diff", text)
 
 
+class VerifyTests(TaskCase):
+    """The verifier choice of a task: written once, it holds for every later prompt of the task."""
+
+    VERIFIER = {"agentName": "verifier", "prompt": "check it", "description": "check"}
+
+    def call_verifier(self, session: str = SESSION) -> Dict[str, Any]:
+        return self.hook(pre_tool(session, "runSubagent", self.VERIFIER))
+
+    def edited(self, path: str) -> None:
+        tool_input = {"filePath": path, "content": "x"}
+        for data in (pre_tool(SESSION, "create_file", tool_input), post_tool(SESSION, "create_file", tool_input)):
+            data["cwd"] = str(self.root)
+            self.hook(data)
+
+    def blocked(self) -> bool:
+        output = self.hook(payload("Stop", SESSION, stop_hook_active=False))
+        return output.get("hookSpecificOutput", {}).get("decision") == "block"
+
+    def test_the_marker_of_the_first_prompt_holds_for_the_later_prompts(self) -> None:
+        self.prompt("/l2 [verify] 做任务 job1")
+        self.assertEqual(self.start()["verify"], "on")
+        self.assertEqual(self.data()["verify"], "on")
+        self.write_plan()
+        self.approve_plan()
+        text = self.context(self.prompt("计划批准了"))
+        self.assertIn("只允许 verifier", text)
+        self.assertNotIn("没有开启 verifier 复核", text)
+        self.assertIn("这个任务开启了 verifier 复核", text)
+        self.assertEqual(self.call_verifier(), {})
+        self.prompt("批准了")
+        self.assertEqual(self.call_verifier(), {})
+
+    def test_without_a_marker_the_verifier_stays_off(self) -> None:
+        self.start()
+        self.assertEqual(self.data()["verify"], "")
+        text = self.context(self.prompt("计划批准了"))
+        self.assertIn("子 agent：不允许", text)
+        self.assertEqual(self.decision(self.call_verifier()), "deny")
+
+    def test_a_marker_in_a_later_prompt_changes_the_task(self) -> None:
+        self.start()
+        self.assertIn("这个任务开启了 verifier 复核", self.context(self.prompt("[verify] 交付前复核一次")))
+        self.assertEqual(self.data()["verify"], "on")
+        self.prompt("继续")
+        self.assertEqual(self.call_verifier(), {})
+        self.assertIn("这个任务关闭了 verifier 复核", self.context(self.prompt("[no-verify] 不用复核了")))
+        self.assertEqual(self.data()["verify"], "off")
+        self.prompt("继续")
+        self.assertEqual(self.decision(self.call_verifier()), "deny")
+        self.assertEqual([event["what"] for event in self.data()["events"]].count("verify"), 2)
+
+    def test_the_plan_is_not_the_verifiers_to_review(self) -> None:
+        self.prompt("/l2 [verify] 做任务 job1")
+        self.start()
+        self.edited(f"{TASK}/PLAN.md")
+        self.assertFalse(self.blocked())  # the person reviews the plan
+        self.write_plan()
+        self.approve_plan()
+        self.prompt("计划批准了")
+        self.edited(f"{TASK}/DEV/a.txt")
+        self.assertTrue(self.blocked())  # no marker in this prompt, the task's choice counts
+
+    def test_the_choice_ends_with_the_task_and_comes_back_when_it_is_resumed(self) -> None:
+        self.prompt("/l2 [verify] 做任务 job1")
+        self.start()
+        self.run_cli("task", "close")
+        self.prompt("另一件事")
+        self.assertEqual(self.decision(self.call_verifier()), "deny")
+        self.prompt("/l2 接着做 job1", "s2")
+        self.assertEqual(self.run_cli("task", "start", "--task", TASK, "--session-id", "s2")["verify"], "on")
+        self.assertEqual(self.call_verifier("s2"), {})  # the same prompt that resumed the task
+        self.assertIn("verifier 复核：开启", (self.root / self.run_cli("task", "report", "--task", TASK)["report"]).read_text(encoding="utf-8"))
+
+
 class FetchDiffTests(TaskCase):
     def test_fetch_copies_the_main_version_into_dev_with_the_repository_layout(self) -> None:
         self.ready()

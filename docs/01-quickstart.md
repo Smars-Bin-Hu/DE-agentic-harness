@@ -101,7 +101,7 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 
    输入屏幕上的确认码。要改计划，直接告诉 agent，改完再批准。
 5. 你说“批准了”。agent 用 `task fetch` 把要改的文件取到 `<任务>/DEV/<仓库名>/<路径>`，在那里改。它只能写 `DEV/`。
-6. 写了 `[verify]` 的话，verifier 读差异做一次独立复核。
+6. 写了 `[verify]` 的话，verifier 读差异做一次独立复核。任务里写一次就够，后面的“计划批准了”“批准了”不用再写。
 7. agent 运行 `task promote --dry-run`，给你 `PROMOTE-PLAN.diff` 的链接。你在编辑器里看差异，同意就运行：
 
    ```bash

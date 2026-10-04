@@ -17,7 +17,7 @@ from . import report, task as task_ops
 PLAN_LINES = 120
 EVENT_TEXT = {
     "start": "开始", "resume": "接着做", "new-round": "开新的一轮", "approve-plan": "人批准计划", "fetch": "取文件", "delete": "声明删除",
-    "set-branch": "设分支名", "promote-dry-run": "回写计划（dry-run）", "approve-promote": "人批准回写", "promote": "回写到新分支",
+    "set-branch": "设分支名", "verify": "verifier 复核", "promote-dry-run": "回写计划（dry-run）", "approve-promote": "人批准回写", "promote": "回写到新分支",
     "promote-partial": "回写中途出错", "recover": "人恢复仓库", "close": "关闭",
 }
 PROMOTE_TEXT = {"none": "没有回写。", "dry_run": "已生成回写计划，没有回写。", "done": "已回写到目标仓库的新分支（没有提交）。", "partial": "回写中途出错，要人运行 task recover。"}
@@ -48,6 +48,7 @@ def render(root: Path, task: str, data: Dict[str, Any]) -> str:
         f"- 会话：{data.get('session_id', '')}（{data.get('surface', '')}）",
         "- 计划：" + (f"由人批准于 {plan['approved_at']}" + ("" if approved_now else "；之后计划又改过，现在的版本没有批准") if plan.get("approved_at") else "没有人的批准"),
     ]
+    lines.append("- verifier 复核：" + {"on": "开启", "off": "关闭"}.get(tasks.verify_choice(data), "没有开启（默认）"))
     if data.get("branch"):
         lines.append(f"- 分支：{data['branch']}")
     lines += [f"- 目标仓库：{name}，{item['base_ref']} 在 {item['base_commit'][:12]}" for name, item in data.get("targets", {}).items()]

@@ -58,10 +58,10 @@ def review_reason(ms: Dict[str, Any], need: Dict[str, Any]) -> str:
     return "、".join(parts)
 
 
-def needs_review(ms: Dict[str, Any], policy: Dict[str, Any], level: int) -> Optional[Dict[str, Any]]:
-    """None if this prompt needs no review, otherwise the facts behind the need."""
+def needs_review(ms: Dict[str, Any], policy: Dict[str, Any], level: int, choice: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """None if this prompt needs no review, otherwise the facts behind the need. `choice` left out: the marker of this prompt."""
     rule = verification(policy, level)
-    if not verifier_on(policy, level, ms["prompt"]["verify"]):
+    if not verifier_on(policy, level, ms["prompt"]["verify"] if choice is None else choice):
         return None
     when = rule.get("require_when", {})
     edited = bool(when.get("edits")) and ms["prompt"]["edits"] > 0
@@ -72,11 +72,11 @@ def needs_review(ms: Dict[str, Any], policy: Dict[str, Any], level: int) -> Opti
     return {"edited": edited, "tool_calls_reached": heavy}
 
 
-def on_stop(event: HookEvent, ms: Dict[str, Any], policy: Dict[str, Any], level: int) -> Optional[Decision]:
+def on_stop(event: HookEvent, ms: Dict[str, Any], policy: Dict[str, Any], level: int, choice: Optional[str] = None) -> Optional[Decision]:
     """Block the stop once if this prompt needs a review and has none after the last edit. Nothing when the verifier is off."""
     if event.stop_hook_active:
         return None
-    need = needs_review(ms, policy, level)
+    need = needs_review(ms, policy, level, choice)
     if need is None:
         return None
     reviews = ms["reviews"]
