@@ -91,9 +91,9 @@ class LinkTests(unittest.TestCase):
         for doc in (REPO / "docs").glob("*.md"):
             self.assertTrue(f"docs/{doc.name}" in readme, doc.name)
 
-    def test_the_seven_docs_exist(self) -> None:
+    def test_the_eight_docs_exist(self) -> None:
         names = sorted(item.name for item in (REPO / "docs").glob("*.md"))
-        self.assertEqual(len(names), 7, names)
+        self.assertEqual(len(names), 8, names)
 
 
 class ReadmeStructureTests(unittest.TestCase):
@@ -243,6 +243,17 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("%*", content)
         self.assertIn("exit /b %errorlevel%", content)
         self.assertIn("python", content)
+
+    @unittest.skipUnless(os.name == "nt", "harness.cmd runs on Windows only")
+    def test_the_windows_launcher_runs_from_any_folder_also_one_with_a_space(self) -> None:
+        launcher = str(self.bin / "harness.cmd")
+        with tempfile.TemporaryDirectory() as folder:
+            spaced = Path(folder) / "a b"
+            spaced.mkdir()
+            done = subprocess.run(["cmd", "/c", launcher, "target", "--help"], capture_output=True, text=True, cwd=spaced)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn("list", done.stdout)
+            self.assertEqual(subprocess.run(["cmd", "/c", launcher, "no-such-command"], capture_output=True, text=True, cwd=spaced).returncode, 2)
 
     def test_git_keeps_the_line_endings_the_launchers_need(self) -> None:
         attributes = text(REPO / ".gitattributes")

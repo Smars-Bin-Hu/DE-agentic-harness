@@ -456,6 +456,23 @@ class PromoteTests(TaskCase):
         # the backups promote left in DEV/ are not results
         self.assertEqual(sorted(key for key, _path in task_ops.dev_files(self.root, TASK)), ["bdtt_repo/src/a.sql", "bdtt_repo/src/new/c.sql"])
 
+    def test_a_repository_that_converts_line_endings_shows_only_the_results(self) -> None:
+        """`core.autocrlf=true` is the git default on Windows: main holds LF, the working tree may hold CRLF."""
+        git_text(self.bdtt, "config", "core.autocrlf", "true")
+        (self.bdtt / "src" / "b.sql").write_bytes(b"select 2;\r\n")  # what a Windows checkout leaves in the working tree
+        git_text(self.bdtt, "add", "src/b.sql")  # same blob (git converts it back); the index now knows the file's size
+        self.assertEqual(porcelain(self.bdtt), [])
+        self.ready()
+        self.run_cli("task", "fetch", "bdtt_repo/src/a.sql")
+        self.assertEqual(self.dev("bdtt_repo/src/a.sql").read_bytes(), b"select 1;\n")  # the main version, byte for byte
+        self.dev("bdtt_repo/src/a.sql").write_bytes(b"select 1, 2;\n")
+        self.run_cli("task", "promote", "--dry-run")
+        self.approve_promote()
+        self.run_cli("task", "promote")
+        self.assertEqual(porcelain(self.bdtt), [" M src/a.sql"])
+        self.assertEqual((self.bdtt / "src" / "a.sql").read_bytes(), b"select 1, 2;\n")
+        self.assertEqual((self.bdtt / "src" / "b.sql").read_bytes(), b"select 2;\r\n")
+
     def test_the_checks_of_the_l3_promote_apply(self) -> None:
         self.ready()
         self.dev("bdtt_repo/src/a.sql", "select 1, 2;\n")  # written without a fetch

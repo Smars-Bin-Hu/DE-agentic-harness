@@ -19,6 +19,7 @@
 - 只用标准库，不需要 `pip install`。
 - git。用目标仓库时必须有。
 - VS Code 和 GitHub Copilot Chat。`.vscode/settings.json` 里要开 `chat.useHooks`（仓库已经写好）。
+- 第一次放到 Windows 电脑上时，先照 [Windows 上线前检查](08-windows-check.md) 走一遍。
 
 ## 1. 检查
 
