@@ -42,7 +42,7 @@ Copilot 很会写代码，但在企业里用 VS Code 做复杂任务时，常有
 harness 本身是通用的，不带任何业务内容。**下面两样不接入，它没法面向你们的日常需求工作**：
 
 - **企业知识库**：把知识库放进 `knowledge-base/`，同时把知识库**自带的 instructions** 放到 [.github/instructions/knowledgebase.instructions.md](.github/instructions/knowledgebase.instructions.md)。这个文件交付时是空的占位：它是知识库的一个组件，没有它，agent 不知道怎么按索引读知识库。`doctor` 会提醒。接入方法见 [配置与定制](docs/03-configure.md)。
-- **目标仓库**：在 `target.override.json` 里写 `repos_root`，指向放着你们代码仓库的文件夹。harness 面向的是没有入口、不能在本机运行的数据工程 pipeline 代码库（按 domain 或功能存放大量 Python、SQL、`.json`、`.sh`、PowerShell 文件）。没配置时，agent 改不了你们的代码。配置后，目标仓库只能经你批准的 promote 写入（L2 任务模式和 L3 都是）。
+- **目标仓库**：在 `target.override.json` 里写 `repos_root`，指向放着你们代码仓库的文件夹。harness 面向的是**庞大的、有合规要求的数据工程（DE）团队的 git 代码库**：没有入口、不能在本机运行，按 domain 或功能存放大量 Python、SQL、`.json`、`.sh`、PowerShell 文件，比一般项目更复杂。agent 不能靠运行来验证，所以它更依赖上面的知识库。详见 [适用的代码库](docs/03-configure.md)。没配置时，agent 改不了你们的代码。配置后，目标仓库只能经你批准的 promote 写入（L2 任务模式和 L3 都是）。
 
 ## 目录结构
 
