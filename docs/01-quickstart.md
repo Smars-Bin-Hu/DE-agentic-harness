@@ -141,4 +141,5 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 - **agent 要运行 git 写命令**：被拒绝，理由里有整条命令和验证码。你在自己的终端运行 `<cli> approve-command`，输入验证码，agent 再运行同一条命令（只放行一次）。
 - **agent 想直接改目标仓库的文件**：被拒绝。目标仓库只有 promote 能写。L2 用任务模式，L3 用请求。
 - **promote 中途出错**：进入 `partial`，信息里列出已写好、出错、没动的仓库。你在自己的终端运行 `<cli> request recover`（L2 任务是 `<cli> task recover`），再让 agent 重新 `--dry-run`。
+- **任务很大，要做很多天或跨多个 session**：输入 `/generic-goal-driven` 建目标，之后每个新 session 输入 `/generic-goal-driven 继续`。日常任务不要用。提示见 [07-prompts.md](07-prompts.md)。
 - **看用量和拒绝次数**：`<cli> stats`。

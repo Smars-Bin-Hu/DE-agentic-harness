@@ -11,6 +11,7 @@ harness 做六件事。每一件都分成“写给 agent 的说明”和“代�
 | L3 | 复杂、需要独立验证的任务 | orchestrator 编排 builder 和 reviewer |
 
 - 怎么选：需求清楚的中小任务用 L1、L2；要改目标仓库就用 L2 的任务模式，计划和回写都由你批准，有报告。L3 更贵，多出来的是独立的 reviewer 和每一步的交接记录。实测数字见 [省时间和省钱](06-cost-optimization.md) 的第九节。
+- 任务大到要跨很多天或多个 session：用 `/generic-goal-driven`，见下面“长任务：目标驱动”。它只管记录和流程，不改 Level 和权限。
 - 上限和标记在 [task-levels.json](../.harness/policies/task-levels.json)。
 - Level 只控制工作方式，不改文件、网络、环境、生产权限。
 - 只有你能切换。hook 读你的提示原文来识别标记，agent 运行 `level set` 会被拒绝。
@@ -61,6 +62,23 @@ gate 不是沙盒：终端命令可以用 gate 看不出的写法写任何路径
 - 需要你决定时，orchestrator 运行 `request wait` 再结束这一轮；无法继续时进 HITL（人在回路）。
 - 结束时必须有结论（`accepted`、`hitl`、`abandoned`），`check` 检查请求目录自洽，并自动写报告。
 - 目录和文件的格式见 [04-reference.md](04-reference.md) 的 contracts 一节。
+
+## 长任务：目标驱动（可选，只有你能启动）
+
+任务大、会跨很多天或多个 session 时，agent 容易忘。输入 `/generic-goal-driven`，它把任务存成三个文件，放在 `.workspace/goals/<目标名>/`（git 忽略）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `GOAL.md` | 中心思想：目标、原则、范围、不做什么、整体验收；末尾是变更记录 |
+| `TODO.md` | 步骤清单：每步的状态、验收标准、你的反馈 |
+| `NOW.md` | 进度指针：现在在哪一步、下一步做什么 |
+
+- **一步一步做**：每步做完自验，交给你验收。**只有你在对话里说“通过”，步骤才算通过**，然后才开下一步。每步由 agent 建议用 L1、L2 还是 L3，由你切换。
+- **能随时接上**：换了 session 或隔了几天，输入 `/generic-goal-driven 继续`。agent 读 `NOW.md` 和 `TODO.md`，核对磁盘，记录和磁盘不一致时以磁盘为准，汇报后等你说开始。
+- **能改需求**：直接告诉 agent。它先给你看影响哪些步骤，你确认后才改。已通过的步骤不改写，要返工就加新步骤，变更记在 `GOAL.md` 末尾。
+- **和 gate 的关系**：L2 任务模式和 L3 请求进行中，gate 不许写这三个文件。agent 在开工前写好 `NOW.md`，任务或请求结束后再更新。进行中你提的新需求，先记在对话里。
+- **日常任务不要用**：agent 觉得任务很长时，只能建议，不能自己启动。
+- 提示模板见 [07-prompts.md](07-prompts.md)，技能在 [.github/skills/generic-goal-driven/](../.github/skills/generic-goal-driven/)。
 
 ## 目标仓库：多个仓库，从 main 取文件，promote 回写
 
