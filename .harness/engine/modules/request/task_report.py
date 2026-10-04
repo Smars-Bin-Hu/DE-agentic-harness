@@ -92,6 +92,8 @@ def render(root: Path, task: str, data: Dict[str, Any]) -> str:
         lines.append(f"- 回写：{PROMOTE_TEXT.get(old['promote']['state'], old['promote']['state'])} 分支 {old.get('branch', '')}")
         lines += [f"- {item['action']} {item['path']}" for item in old["promote"].get("files", [])]
         lines.append(f"- 当时的成果：{old.get('dev', '')}")
+        if old.get("plan_file"):
+            lines.append(f"- 当时的计划：{old['plan_file']}")
     lines += report.log_section(root, {"session_id": data.get("session_id", ""), "surface": data.get("surface", "vscode"), "created_at": data.get("round_started_at", data["created_at"])})
     return "\n".join(lines) + "\n"
 

@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from core import approval, tasks
 from core.paths import cli_command, utc_now
-from core.state import atomic_write, session, state_lock, state_path
+from core.state import admin_on, atomic_write, session, state_lock, state_path
 
 from . import layout, ops, promote, promote_target, store
 from .layout import CommandError
@@ -133,6 +133,8 @@ def start(root: Path, raw_task: str, session_id: str, surface: str = "vscode", b
             raise CommandError(f"这个会话有进行中的 L3 请求 `{state['active_request']}`。任务模式是 L2 的，先结束那个请求。")
         if state.get("parent_session_id"):
             raise CommandError("子 agent 不能开任务。")
+        if admin_on(state):
+            raise CommandError("这个会话在 admin 模式里，不能开任务。admin 只用来二开和排查 harness；做任务请用户换一个对话，或先运行 `admin off`。")
         if state["level"] != 2:
             raise CommandError("任务模式只在 L2 用。停下来，请用户在提示开头写 /l2 重发。L1 不改目标仓库，也不开任务。")
         other = state.get("active_task")
@@ -199,9 +201,13 @@ def archive_round(root: Path, task: str, data: Dict[str, Any]) -> None:
     if dev.is_dir() and any(dev.iterdir()) and not kept.exists():
         dev.rename(kept)
     shutil.rmtree(str(tasks.base_dir(root, task)), ignore_errors=True)
+    plan = tasks.plan_file(root, task)
+    old_plan = plan.with_name(f"{plan.stem}_r{number}{plan.suffix}")
+    if plan.is_file() and not old_plan.exists():
+        plan.rename(old_plan)  # the new round starts without a plan, so the old one cannot be approved again by mistake
     data["rounds"].append({
         "round": number, "started_at": data.get("round_started_at", ""), "plan": data.get("plan", {}), "promote": data["promote"],
-        "branch": data["branch"], "dev": rel(root, kept), "files": sorted(data["target_files"]), "deletes": list(data["deletes"]),
+        "branch": data["branch"], "dev": rel(root, kept), "plan_file": rel(root, old_plan) if old_plan.exists() else "", "files": sorted(data["target_files"]), "deletes": list(data["deletes"]),
     })
     data.update(round=number + 1, round_started_at=utc_now(), targets={}, target_files={}, deletes=[], plan={}, promote={"state": "none"}, branch="")
 

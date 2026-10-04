@@ -525,6 +525,9 @@ class RoundAndReportTests(TaskCase):
         self.assertEqual((result["round"], result["new_round"], result["plan_approved"], result["branch"]), (2, True, False, "feature/job1_r2"))
         self.assertTrue((self.task / "DEV_r1" / "bdtt_repo" / "src" / "a.sql").is_file())
         self.assertEqual(list((self.task / "DEV").iterdir()), [])
+        self.assertEqual((self.task / "PLAN_r1.md").read_text(encoding="utf-8"), PLAN)  # the old plan cannot be approved again
+        self.assertFalse((self.task / "PLAN.md").exists())
+        self.assertIn("把计划写到", result["next"])
         data = self.data()
         self.assertEqual((data["target_files"], data["deletes"], data["plan"], data["promote"]), ({}, [], {}, {"state": "none"}))
         self.assertEqual(data["rounds"][0]["promote"]["state"], "done")

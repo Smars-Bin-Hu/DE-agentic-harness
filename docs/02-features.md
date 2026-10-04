@@ -45,7 +45,7 @@ gate 不是沙盒：终端命令可以用 gate 看不出的写法写任何路径
 - **差异**：`task diff` 把成果和取文件时的版本对比，写成 `CHANGES.diff`。verifier 读差异，不读全文。
 - **回写要你批准**：`task promote --dry-run` 把完整差异写成 `PROMOTE-PLAN.diff`，你在编辑器里看，在终端运行 `task approve-promote`。检查、新分支（默认 `feature/<任务名>`）、不提交、出错恢复，都和 L3 的 promote 一样。
 - **删除和改名**：`task delete <仓库>/<路径>` 声明删除（文件要先取过）。改名是新文件加删除旧文件。
-- **多轮**：接着做沿用原来的批准。回写过之后再 `task start`，开新的一轮：上一轮的成果移到 `DEV_r<轮数>/`，要新计划、新批准。
+- **多轮**：接着做沿用原来的批准。回写过之后再 `task start`，开新的一轮：上一轮的成果移到 `DEV_r<轮数>/`，计划移到 `PLAN_r<轮数>.md`，要新计划、新批准。
 - **报告**：`task close` 写 `.workspace/reports/task-<任务名>.md`：计划全文、两次批准的时间、取了哪些文件、改动的增删行数、verifier 结论、被拒绝的调用。
 
 和 L3 的差别：没有请求目录，没有 handoff，没有独立的 reviewer。复核是可选的 verifier。
