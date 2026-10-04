@@ -223,7 +223,23 @@ W2 结果：798 个测试，784 通过，11 FAIL，1 ERROR，2 跳过。**W2 没
 
 跳过原因：“shell 启动器只给 macOS 和 Linux”。这是测试里写死的跳过条件，还没有验证。待查。
 
-## 7. 清理
+## 7. 修复后的结果（Windows）
+
+环境：Python 3.11.9（winget 安装，用户目录）；开发者模式已开。
+
+- 第一轮的 12 个 FAIL/ERROR 和 2 个跳过都已处理（见第 6 节）。
+- 测试脚本修了 8 个，按系统区分期望值；harness 修了 3 个文件，另外修了启动器在 Windows 上的 `python3` 问题。
+- 最后一轮全量：798 个测试，OK。开发者模式开之前，2 个符号链接测试跳过；开了之后，单独跑两个都通过。
+- 还没做：macOS 重跑（要在 macOS 上跑 `python3 -m unittest discover -s .harness/tests`）；W5 到 W11。
+
+**Python 版本**
+
+- harness 要求 Python 3.9 或更高（`engine/doctor.py` 的检查）。
+- harness 只用标准库，没有第三方依赖。
+- 你下的 `Python-3.11.17.tar.xz` 是 CPython 源码包，要编译成解释器才能用。harness 没有用它。
+- 3.11.9 可以运行 harness。公司电脑只要是 3.9 或更高就行，用 `doctor` 命令能看到版本。
+
+## 8. 清理
 
 ```powershell
 Remove-Item -Recurse -Force C:\h-check
