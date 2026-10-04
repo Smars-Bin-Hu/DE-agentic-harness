@@ -21,7 +21,7 @@ MAX_DEPTH = 3
 READ_ONLY = frozenset(
     "status diff log show blame annotate rev-parse rev-list ls-files ls-tree cat-file describe shortlog grep show-ref "
     "for-each-ref name-rev merge-base diff-tree diff-files diff-index check-ignore check-attr count-objects version help "
-    "whatchanged cherry range-diff show-branch verify-commit verify-tag var".split()
+    "whatchanged cherry range-diff show-branch verify-commit verify-tag var archive".split()
 )
 NEVER_SUBCOMMANDS = {
     "push": "它会把提交发到远程仓库",

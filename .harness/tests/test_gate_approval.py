@@ -25,7 +25,7 @@ class ClassifyTests(unittest.TestCase):
             "git tag", "git tag -l 'v*'", "git stash list", "git stash show -p", "git config --get user.name", "git config --list", "git remote -v",
             "git worktree list", "git rev-parse --show-toplevel", "git ls-files", "git cat-file -p HEAD", "git log --format=%s | head", "git version",
             "git", "git --version", "git reflog", "git blame a.sql", "git grep -n select", "rg 'git push' docs", 'echo "git commit"', "gh issue list",
-            "git -C repo --no-pager diff", "ls -la && git status",
+            "git -C repo --no-pager diff", "ls -la && git status", "git archive HEAD", "git archive main product | tar -t",
         )
 
     def test_writes_need_approval(self) -> None:
@@ -34,7 +34,7 @@ class ClassifyTests(unittest.TestCase):
             "git restore a.sql", "git reset HEAD a.sql", "git stash", "git stash drop", "git merge x", "git rebase -i main", "git cherry-pick abc",
             "git branch newone", "git branch -d old", "git tag v1", "git config user.name x", "git remote add o url", "git worktree add ../x",
             "git fetch", "git pull", "git clone x", "git init", "git mv a b", "git rm a", "git apply p.diff", "git gc", "git ci", "git $CMD",
-            "git -c core.pager=sh log", "git diff --output=x.txt", "GIT_SSH_COMMAND=x git fetch", "git submodule update",
+            "git -c core.pager=sh log", "git diff --output=x.txt", "git archive --output=x.tar HEAD", "git archive -o x.tar HEAD", "GIT_SSH_COMMAND=x git fetch", "git submodule update",
         )
 
     def test_never_approved(self) -> None:
