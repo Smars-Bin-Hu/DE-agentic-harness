@@ -21,4 +21,4 @@ applyTo: '.workspace/**'
 - 写入被拒绝时，照理由里的下一步做。不要用终端命令绕过。
 - `current_tasks/<任务>/` 里的 `REQ/`、`REF/` 是人放的材料，只读。任务模式下可以写 `PLAN.md` 和 `DEV/`。`reports/` 由 CLI 写。
 - 要用户批准时，给出文件的链接（`plan.md`、`PLAN.md`、`promote-plan.diff`、`PROMOTE-PLAN.diff`），让用户在编辑器里看。不要把全文贴进对话。
-- `goals/<id>/` 里的 `GOAL.md`、`TODO.md`、`NOW.md` 是长任务的记录，用户用 `/generic-goal-driven` 启动后才有。L1、L2 普通模式下可以直接写。L2 任务模式（`task close` 之前）和 L3 请求进行中不能写，要在任务或请求结束后写。流程见技能 `generic-goal-driven`。
+- `goals/<id>/` 里的 `GOAL.md`、`TODO.md`、`NOW.md`、`LOG.md` 和 `accept/` 是长任务的记录，用户用 `/generic-goal-driven` 启动后才有。L1、L2 普通模式下可以直接写。L2 任务模式（`task close` 之前）和 L3 请求进行中不能写，要在任务或请求结束后写。流程见技能 `generic-goal-driven`。

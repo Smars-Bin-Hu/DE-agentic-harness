@@ -146,4 +146,4 @@
 | `.workspace/sandbox/requests/<请求 id>/` | L3 请求目录，由 CLI 建立 |
 | `.workspace/current_tasks/<任务>/` | 你放任务材料（需求、参考、测试数据）；promote 把备份写进它的 `DEV/` |
 | `.workspace/reports/` | 请求报告，由 CLI 写 |
-| `.workspace/goals/<目标名>/` | 长任务的 `GOAL.md`、`TODO.md`、`NOW.md`，用 `/generic-goal-driven` 才建；L2 任务模式和 L3 进行中不能写 |
+| `.workspace/goals/<目标名>/` | 长任务的 `GOAL.md`、`TODO.md`、`NOW.md`、`LOG.md`、`accept/`，用 `/generic-goal-driven` 才建；L2 任务模式和 L3 进行中不能写 |
