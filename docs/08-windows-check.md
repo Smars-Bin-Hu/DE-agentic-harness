@@ -264,7 +264,7 @@ W2 结果：798 个测试，784 通过，11 FAIL，1 ERROR，2 跳过。**W2 没
 **清理**
 
 - 删除了 `.harness/policies/target.override.json.saved`（演练仓库的配置）。
-- 第 9 节的其他项（`C:\h-check`、`wcheck*` 和 `eval-t1` 任务目录）还没清理。
+- 已清理：`C:\h-check` 演练仓库；`.workspace/current_tasks/` 下的 `eval-t1`、`wcheck`、`wcheck-neg`、`wcheck-neg2`；`.workspace/sandbox/requests/` 下的三个 s4 请求；`.workspace/reports/` 下对应的报告。
 
 **W5 目标仓库（通过）**
 
