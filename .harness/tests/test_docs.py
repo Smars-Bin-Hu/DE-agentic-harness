@@ -93,9 +93,9 @@ class LinkTests(unittest.TestCase):
         for doc in (REPO / "docs").glob("*.md"):
             self.assertTrue(f"docs/{doc.name}" in readme, doc.name)
 
-    def test_the_seven_docs_exist(self) -> None:
+    def test_the_eight_docs_exist(self) -> None:
         names = sorted(item.name for item in (REPO / "docs").glob("*.md"))
-        self.assertEqual(len(names), 7, names)
+        self.assertEqual(len(names), 8, names)
 
 
 class ReadmeStructureTests(unittest.TestCase):
