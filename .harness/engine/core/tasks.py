@@ -1,8 +1,9 @@
 """An L2 task: where its files live and what its state says. Core knows it so the gate need not import the task module.
 
 A task is a folder under `.workspace/current_tasks/`. The person puts the requirement there (`REQ/`, `REF/`). In task mode
-the agent writes `PLAN.md` and, once the person approved it, files under `DEV/`. Everything else in the folder that is not
-the person's is the CLI's: `.task/` (state, the main version of fetched files) and the two diff files.
+the agent writes anywhere else in the folder: `PLAN.md`, results that stay in the task (an RCA, a design) at its top, and,
+once the person approved the plan, the results that go back to a target repository under `DEV/`. The CLI's own files are
+`.task/` (state, the main version of fetched files) and the two diff files.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ STATE_NAME = "task.json"
 BASE_NAME = "base"
 CHANGES_NAME = "CHANGES.diff"
 REVIEW_NAME = "PROMOTE-PLAN.diff"
+PERSON_DIRS = ("req", "ref")  # lower case: the gate compares without case
 
 
 def task_dir(root: Path, task: str) -> Path:

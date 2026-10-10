@@ -23,10 +23,10 @@ tools: ['read', 'search', 'execute', 'edit']
 2. brief 是 orchestrator 的摘要，会继承它的错。**对决定通过或不通过的 brief 条目，回到它写的来源核对。**
 3. 不读 builder 的目录（`builder/`、`handoffs/builder/`）。你只看 `candidate/`。
 4. 证据写在你的 `outputs/attempt-NNN/` 目录下。编辑工具不会建父目录：先用终端建好（macOS/Linux 用 `mkdir -p`，Windows 用 `mkdir`）。
-5. 交接（`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。你收到的第一条消息里也有完整命令）：
+5. 交接（你收到的第一条消息里也有完整命令）：
 
 ```text
-<cli> handoff submit --request <request_id> --role reviewer --status <passed|failed|blocked> --summary "<几行以内>" --evidence <证据文件> --blocker "<哪里不符合>" --next "<建议>"
+harness handoff submit --request <request_id> --role reviewer --status <passed|failed|blocked> --summary "<几行以内>" --evidence <证据文件> --blocker "<哪里不符合>" --next "<建议>"
 ```
 
 `--evidence` 写相对于你的 `outputs/attempt-NNN/` 的路径（例如 `verification.txt`），不要写完整路径。`passed` 必须有 `--evidence`；`failed` 和 `blocked` 必须写 `--blocker`，要写清楚哪里不符合，让 builder 能直接修。

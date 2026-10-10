@@ -241,8 +241,8 @@ class AgentFileTests(unittest.TestCase):
         texts.append((REPO / ".github" / "skills" / "harness-orchestration" / "SKILL.md").read_text(encoding="utf-8"))
         words: set = set()
         for text in texts:
-            for span in re.findall(r"`([^`]+)`", text) + re.findall(r"cli\.py ([^\n`]+)", text):
-                span = span.replace("python3 .harness/engine/cli.py ", "").replace(".harness/engine/cli.py ", "")
+            for span in re.findall(r"`([^`]+)`", text) + re.findall(r"(?m)^harness ([^\n`]+)", text):
+                span = span[len("harness "):] if span.startswith("harness ") else span
                 parts = span.split()
                 if parts and parts[0] in ("request", "handoff", "brief", "attempt") and len(parts) > 1 and re.match(r"^[a-z-]+$", parts[1]):
                     words.add(" ".join(parts[:2]))

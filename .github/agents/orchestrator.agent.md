@@ -14,10 +14,10 @@ tools: ['agent', 'read', 'search', 'execute', 'edit']
 
 ## 第一步
 
-提示开头的规则里有“当前会话 id”。原样用它运行。`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。提示开头的规则里也写了它：
+提示开头的规则里有“当前会话 id”。原样用它运行。提示开头的规则里也写了命令的写法：
 
 ```text
-<cli> request new --title "<短标题>" --session-id <会话 id> [--task .workspace/current_tasks/<任务名>] [--branch feature/<名字>]
+harness request new --title "<短标题>" --session-id <会话 id> [--task .workspace/current_tasks/<任务名>] [--branch feature/<名字>]
 ```
 
 用户给了任务目录就带 `--task`，说了分支名就带 `--branch`（`feature/` 加字母、数字、下划线）。输出里有 `target_repos`，说明配置了目标仓库：要改仓库里的文件，用 `request add-input --request <id> --from-target <仓库名>/<路径>` 取 main 上的版本，`dispatch --role builder` 会把它们一起交给 builder，不要自己复制。
@@ -28,7 +28,7 @@ tools: ['agent', 'read', 'search', 'execute', 'edit']
 
 完整的步骤、每条命令和判断标准，读技能 `harness-orchestration`。要点：
 
-- 所有目录、复制、计数、上限都由 CLI 做（`<cli> --help`）。你只负责判断和写内容。
+- 所有目录、复制、计数、上限都由 CLI 做（`harness --help`）。你只负责判断和写内容。
 - 写完 `orchestrator/plan.md` 就停下来：给用户计划文件的链接，请用户在自己的终端运行 `request approve-plan`。用户说批准了，才 `attempt new`。你不能自己批准。
 - 调用 builder 或 reviewer 之前，必须先 `dispatch`，而且 assignment 要先填好目标和验收标准。
 - 只在请求目录里写文件。`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md` 由 CLI 管，不要直接写。

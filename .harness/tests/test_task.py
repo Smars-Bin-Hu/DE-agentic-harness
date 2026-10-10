@@ -165,30 +165,49 @@ class StartTests(TaskCase):
 
 
 class PlanApprovalTests(TaskCase):
-    def test_before_the_approval_only_the_plan_is_written(self) -> None:
+    def test_before_the_approval_dev_is_closed_and_the_rest_of_the_task_folder_is_open(self) -> None:
         self.start()
-        self.assertEqual(self.edit(f"{TASK}/PLAN.md"), {})
-        for path in (f"{TASK}/DEV/bdtt_repo/src/a.sql", f"{TASK}/REQ/req.md", "docs/x.md", "/tmp/outside.txt"):
+        for path in (f"{TASK}/PLAN.md", f"{TASK}/RCA.md", f"{TASK}/notes/draft.md", str(self.task.resolve() / "DESIGN.md")):
+            with self.subTest(path):
+                self.assertEqual(self.edit(path), {})  # a result that stays in the task needs no plan (M9-0)
+        for path in (f"{TASK}/DEV/bdtt_repo/src/a.sql", f"{TASK}/DEV/x.sql", f"{TASK}/dev/x.sql"):
             with self.subTest(path):
                 output = self.edit(path)
                 self.assertEqual(self.decision(output), "deny")
-                self.assertIn("只能写", self.reason(output))
+                self.assertIn("要等计划经用户批准后才能写", self.reason(output))
+                self.assertLess(self.reason(output).index("task approve-plan"), 300)  # the log cuts a reason there; the scenario check reads the log
                 self.assertIn("task approve-plan", self.reason(output))
+                self.assertNotIn("task fetch", self.reason(output))
+        for path in ("docs/x.md", "/tmp/outside.txt", f"{TASK}/../job2/RCA.md", TASK, f"{TASK}/DEV"):
+            with self.subTest(path):
+                output = self.edit(path)
+                self.assertEqual(self.decision(output), "deny")
+                self.assertIn("只能在任务目录", self.reason(output))
+                self.assertNotIn("task fetch", self.reason(output))
         self.assertIn("把计划写到", self.run_cli("task", "fetch", "bdtt_repo/src/a.sql", ok=False)["stderr"])
         self.write_plan()
         self.assertIn("还没有经用户批准", self.run_cli("task", "promote", "--dry-run", ok=False)["stderr"])
         self.assertIn("还没有经用户批准", self.run_cli("task", "delete", "bdtt_repo/src/a.sql", ok=False)["stderr"])
 
-    def test_after_the_approval_only_dev_and_the_plan_are_written(self) -> None:
+    def test_after_the_approval_the_whole_task_folder_is_written_but_not_the_persons_material(self) -> None:
         self.ready()
-        for path in (f"{TASK}/DEV/bdtt_repo/src/a.sql", f"{TASK}/DEV/new/deep/file.sql", f"{TASK}/PLAN.md", str(self.task.resolve() / "DEV" / "x.sql")):
+        for path in (
+            f"{TASK}/DEV/bdtt_repo/src/a.sql", f"{TASK}/DEV/new/deep/file.sql", f"{TASK}/PLAN.md", str(self.task.resolve() / "DEV" / "x.sql"),
+            f"{TASK}/RCA.md", f"{TASK}/DEV2/x", f"{TASK}/TEST/case1.md",
+        ):
             with self.subTest(path):
                 self.assertEqual(self.edit(path), {})
-        for path in (f"{TASK}/REQ/req.md", f"{TASK}/DEV", f"{TASK}/DEV2/x", "docs/x.md", "/tmp/outside.txt", f"{TASK}/DEV/../REQ/a"):
+        for path in (f"{TASK}/REQ/req.md", f"{TASK}/REF/spec.md", f"{TASK}/req/req.md", f"{TASK}/DEV/../REQ/a"):
             with self.subTest(path):
                 output = self.edit(path)
                 self.assertEqual(self.decision(output), "deny")
-                self.assertIn("DEV/", self.reason(output))
+                self.assertIn("只读", self.reason(output))
+        for path in (f"{TASK}/DEV", "docs/x.md", "/tmp/outside.txt"):
+            with self.subTest(path):
+                output = self.edit(path)
+                self.assertEqual(self.decision(output), "deny")
+                self.assertIn("只能在任务目录", self.reason(output))
+                self.assertNotIn("task fetch", self.reason(output))
         # files only the CLI writes, and the target repository itself, stay closed
         self.assertEqual(self.decision(self.edit(f"{TASK}/.task/task.json")), "deny")
         self.assertEqual(self.decision(self.edit(f"{TASK}/PROMOTE-PLAN.diff")), "deny")
@@ -352,7 +371,7 @@ class FetchDiffTests(TaskCase):
         self.assertEqual(self.dev("bdtt_repo/src/a.sql").read_text(encoding="utf-8"), "select 1;\n")
 
     def test_a_large_file_and_crlf_arrive_byte_for_byte_and_the_diff_holds_only_the_change(self) -> None:
-        (self.bdtt / "big.sql").write_text(BIG, encoding="utf-8", newline="\n")
+        (self.bdtt / "big.sql").write_bytes(BIG.encode("utf-8"))
         (self.bdtt / "crlf.sql").write_bytes(b"select 1;\r\nselect 2;\r\n")
         git_text(self.bdtt, "-c", "core.autocrlf=false", "add", "-A")  # with autocrlf=true, git would store this CRLF file as LF
         git_text(self.bdtt, "-c", "core.autocrlf=false", "commit", "-q", "-m", "big")
@@ -483,7 +502,9 @@ class PromoteTests(TaskCase):
         self.assertIn("完全一样", self.run_cli("task", "promote", "--dry-run", ok=False)["stderr"])
         self.dev("bdtt_repo/src/a.sql", "select 1, 2;\n")
         self.dev("notes/x.md", "n\n")
-        self.assertIn("不是已配置的目标仓库", self.run_cli("task", "promote", "--dry-run", ok=False)["stderr"])
+        message = self.run_cli("task", "promote", "--dry-run", ok=False)["stderr"]
+        self.assertIn("不是已配置的目标仓库", message)  # a folder that is no repository may be a misspelt name: still refused
+        self.assertIn("移到任务目录根下", message)
         self.dev("notes/x.md").unlink()
         (self.bdtt / "dirty.txt").write_text("x\n", encoding="utf-8")
         self.assertIn("工作区不干净", self.run_cli("task", "promote", "--dry-run", ok=False)["stderr"])
@@ -497,6 +518,29 @@ class PromoteTests(TaskCase):
         (self.bdtt / "src" / "a.sql").write_text("select 0;\n", encoding="utf-8")  # main moves under the task
         git_text(self.bdtt, "commit", "-qam", "moved")
         self.assertIn("在 main 上变了", self.run_cli("task", "promote", "--dry-run", ok=False)["stderr"])
+
+    def test_a_file_directly_in_dev_is_not_written_back_and_does_not_stop_the_promote(self) -> None:
+        """ISSUE-20261005-02: one-off scripts the person told the agent to keep in DEV/."""
+        self.ready()
+        self.dev("upsert.sql", "x\n")
+        self.dev("verify.sql", "y\n")
+        message = self.run_cli("task", "promote", "--dry-run", ok=False)["stderr"]
+        self.assertIn("没有要回写的成果", message)
+        self.assertIn("upsert.sql、verify.sql", message)
+        self.run_cli("task", "fetch", "bdtt_repo/src/a.sql")
+        self.dev("bdtt_repo/src/a.sql", "select 1, 2;\n")
+        self.dev("bdtt_repo/src/new/c.sql", "select 3;\n")  # a new file under the repository's path was always fine
+        plan = self.run_cli("task", "promote", "--dry-run")
+        self.assertEqual([(item["path"], item["action"]) for item in plan["files"]], [("bdtt_repo/src/a.sql", "modify"), ("bdtt_repo/src/new/c.sql", "create")])
+        self.assertEqual(plan["not_promoted"], ["upsert.sql", "verify.sql"])
+        self.assertIn("不会回写", plan["not_promoted_note"])
+        screen = io.StringIO()
+        self.approve_promote(out=screen)
+        self.assertIn("不回写（直接放在 DEV/ 根目录，不属于任何仓库）：upsert.sql、verify.sql", screen.getvalue())
+        self.run_cli("task", "promote")
+        self.assertEqual(sorted(porcelain(self.bdtt)), [" M src/a.sql", "?? src/new/"])
+        self.assertFalse((self.bdtt / "upsert.sql").exists())
+        self.assertTrue(self.dev("upsert.sql").is_file())  # it stays where the agent put it
 
     def test_a_promote_that_stops_halfway_is_recovered_by_the_person(self) -> None:
         self.ready()

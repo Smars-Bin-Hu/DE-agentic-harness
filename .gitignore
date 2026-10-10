@@ -6,6 +6,7 @@
 
 # Machine-local target repository settings (holds a local path)
 .harness/policies/target.override.json
+.harness/policies/user.override.json
 
 # Python cache
 __pycache__/

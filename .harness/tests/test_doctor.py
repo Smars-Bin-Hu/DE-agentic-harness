@@ -24,6 +24,10 @@ def copy_repo(destination: Path) -> None:
     shutil.copy(REPO / ".workspace" / "README.md", destination / ".workspace" / "README.md")  # a module lists it
 
 
+# The release data the banner prints: read it, so a version bump does not break the tests.
+REGISTRY = json.loads((REPO / ".harness" / "registry.json").read_text(encoding="utf-8"))
+VERSION = REGISTRY["version"]
+
 # The Level entry skills are an exception to the prefix rule (skills.instructions.md).
 LEVEL_ENTRY_SKILLS = ("l1", "l2", "l3")
 
@@ -34,15 +38,69 @@ class DoctorTests(unittest.TestCase):
         self.root = Path(self._temporary.name)
         copy_repo(self.root)
 
-    def doctor(self) -> subprocess.CompletedProcess:
+    def env(self, **extra: str) -> dict:
+        """The environment of a machine that is set up: the launcher of this copy is in PATH."""
+        path = str(self.root / ".harness" / "bin") + os.pathsep + os.environ.get("PATH", "")
+        return {**os.environ, "HARNESS_ROOT": str(self.root), "PATH": path, **extra}
+
+    def doctor(self, **extra: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [sys.executable, str(CLI), "doctor"],
             text=True,
             encoding="utf-8",
             capture_output=True,
-            env={**os.environ, "HARNESS_ROOT": str(self.root)},
+            env=self.env(**extra),
             check=False,
         )
+
+    def doctor_as(self, encoding: str) -> bytes:
+        """doctor with stdout in `encoding`, as a Windows pipe has it. The bytes, not decoded."""
+        return subprocess.run(
+            [sys.executable, str(CLI), "doctor"],
+            capture_output=True,
+            env=self.env(PYTHONIOENCODING=encoding),
+            check=False,
+        ).stdout
+
+    def test_it_says_how_chinese_is_printed_here(self) -> None:
+        """ISSUE-20261005-03: on a pipe that cannot show Chinese the CLI prints \\uXXXX; doctor shows what UTF-8 would look like."""
+        fine = self.doctor().stdout
+        self.assertIn("输出编码：stdout=utf-8", fine)
+        self.assertIn("output.encoding=auto", fine)
+        self.assertIn("中文样例：成果已写入（这一行能读", fine)
+        self.assertNotIn("UTF-8 样例", fine)
+        narrow = self.doctor_as("cp1252")
+        self.assertIn(b"[WARN]  \\u8f93\\u51fa\\u7f16\\u7801", narrow)  # 输出编码, escaped: what the company machine showed
+        self.assertIn(b"stdout=cp1252", narrow)
+        sample = [line for line in narrow.splitlines() if line.startswith(b"[INFO]")]
+        self.assertEqual(len(sample), 1)
+        self.assertIn("UTF-8 样例：中文样例：成果已写入", sample[0].decode("utf-8"))  # raw UTF-8 bytes, whatever the stream is
+        self.assertIn("cli.override.json", sample[0].decode("utf-8"))
+        self.assertTrue(narrow.rstrip().endswith(b'{"errors": 0}'))
+
+    def test_the_switch_prints_utf8_whatever_the_terminal_says(self) -> None:
+        (self.root / ".harness" / "policies" / "cli.override.json").write_text('{"output": {"encoding": "utf-8"}}', encoding="utf-8")
+        text = self.doctor_as("cp1252").decode("utf-8")
+        self.assertIn("输出编码：stdout=utf-8", text)
+        self.assertIn("output.encoding=utf-8", text)
+        self.assertNotIn("\\u", text)
+        refused = subprocess.run(
+            [sys.executable, str(CLI), "task", "status"], capture_output=True, check=False,
+            env=self.env(PYTHONIOENCODING="cp1252"),
+        )
+        self.assertIn("没有进行中的任务", refused.stderr.decode("utf-8"))  # stderr follows the switch too
+
+    def test_a_wrong_or_broken_output_setting_is_reported_and_printing_goes_on(self) -> None:
+        override = self.root / ".harness" / "policies" / "cli.override.json"
+        override.write_text('{"output": {"encoding": "gbk"}}', encoding="utf-8")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("output.encoding 是 `gbk`", result.stdout)
+        self.assertIn("output.encoding=auto", result.stdout)
+        override.write_text("{not json", encoding="utf-8")
+        result = self.doctor()
+        self.assertIn("[ERROR]", result.stdout)
+        self.assertEqual(self.version().stdout.strip(), f"harness {VERSION}")  # the CLI still prints
 
     def edit_json(self, relative: str, change) -> None:
         path = self.root / relative
@@ -55,19 +113,52 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertNotIn("[ERROR]", result.stdout)
 
-    def version(self) -> subprocess.CompletedProcess:
+    def version(self, *flags: str) -> subprocess.CompletedProcess:
+        """`--version --short`: one line, for scripts. Pass `flags=("--version",)` for the banner."""
         return subprocess.run(
-            [sys.executable, str(CLI), "--version"],
+            [sys.executable, str(CLI), *(flags or ("--version", "--short"))],
             text=True,
             encoding="utf-8",
             capture_output=True,
-            env={**os.environ, "HARNESS_ROOT": str(self.root)},
+            env=self.env(),
             check=False,
         )
 
     def test_version_prints_the_registry_version(self) -> None:
         result = self.version()
-        self.assertEqual((result.returncode, result.stdout.strip()), (0, "harness 1.0.0"), result.stderr)
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, f"harness {VERSION}"), result.stderr)
+
+    def test_user_gives_the_name_from_the_override_and_else_from_git(self) -> None:
+        """M9-2: the name an agent writes where a file needs an author."""
+        def who() -> dict:
+            done = subprocess.run([sys.executable, str(CLI), "user"], text=True, encoding="utf-8", capture_output=True, env=self.env(), check=False)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            return json.loads(done.stdout)
+
+        self.assertIn(who()["source"], ("git", "none"))  # the copy is no git repository: whatever git says for this machine
+        override = self.root / ".harness" / "policies" / "user.override.json"
+        override.write_text('{"name": "  胡斌  "}', encoding="utf-8")
+        self.assertEqual(who(), {"name": "胡斌", "source": "user.override.json"})
+        self.assertIn("用户名字：胡斌（来自 user.override.json）", self.doctor().stdout)
+        override.write_text('{"name": 7}', encoding="utf-8")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("user.json 的 name 要是一段文字", result.stdout)
+
+    def test_version_shows_the_banner_with_the_release_date_and_the_authors(self) -> None:
+        """M9-1. ASCII only, so it shows on a terminal of any encoding."""
+        result = self.version("--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertTrue(lines[4].endswith(f"version {VERSION}"), lines)
+        self.assertEqual(lines[6:], ["Copilot Agentic Harness", f"Released {REGISTRY['released']}", f"Copyright (c) {REGISTRY['released'][:4]} {REGISTRY['copyright']}", "Contributors: " + ", ".join(REGISTRY["contributors"])])
+        self.assertTrue(result.stdout.isascii())
+        self.assertEqual(self.version("--short", "--version").stdout.strip(), f"harness {VERSION}")  # the order does not matter
+        self.edit_json(".harness/registry.json", lambda data: [data.pop(key) for key in ("released", "copyright", "contributors")])
+        bare = self.version("--version").stdout.splitlines()
+        self.assertEqual(bare[6:], ["Copilot Agentic Harness"])  # the three fields are optional
+        self.edit_json(".harness/registry.json", lambda data: data.update(released="October 2026"))
+        self.assertEqual(self.version("--version").returncode, 1)
 
     def test_version_follows_the_registry_and_the_registry_needs_it_in_the_x_y_z_form(self) -> None:
         self.edit_json(".harness/registry.json", lambda data: data.update(version="2.3.4"))
@@ -190,14 +281,66 @@ class DoctorTests(unittest.TestCase):
     # --- interpreter and cross-platform text -----------------------------------------------------
 
     def test_a_missing_interpreter_is_a_warning(self) -> None:
+        result = self.doctor(PATH=str(self.root / ".harness" / "bin"))  # the launcher is there, python is not
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("PATH 里找不到 `python", result.stdout)
+
+    def test_the_short_command_must_be_in_path(self) -> None:
+        """M9-5: every command an agent is given starts with `harness`."""
+        fine = self.doctor()
+        self.assertIn("[OK]    短命令 `harness` 在 PATH 里", fine.stdout)
         empty = self.root / "empty-path"
         empty.mkdir()
-        result = subprocess.run(
-            [sys.executable, str(CLI), "doctor"], text=True, encoding="utf-8", capture_output=True, check=False,
-            env={**os.environ, "HARNESS_ROOT": str(self.root), "PATH": str(empty)},
-        )
+        missing = self.doctor(PATH=str(empty))
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("[ERROR] PATH 里找不到短命令 `harness`", missing.stdout)
+        self.assertIn(str(self.root / ".harness" / "bin"), missing.stdout)  # the folder to add
+        self.assertIn("harness-repo-initialize", missing.stdout)
+
+    @unittest.skipIf(os.name == "nt", "a shell script as a stand-in launcher")
+    def test_a_launcher_of_another_copy_is_a_warning(self) -> None:
+        other = self.root / "other-bin"
+        other.mkdir()
+        (other / "harness").write_text("#!/bin/sh\n", encoding="utf-8")
+        (other / "harness").chmod(0o755)
+        result = self.doctor(PATH=str(other) + os.pathsep + os.environ.get("PATH", "").replace(str(Path.home() / "bin"), ""))
+        self.assertIn("不是这个仓库的 `.harness/bin/`", result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertIn("PATH 里找不到", result.stdout)
+
+    @unittest.skipIf(os.name == "nt", "the shell launcher; harness.cmd follows the same steps")
+    def test_a_copy_of_the_launcher_in_a_fixed_folder_works_and_doctor_accepts_it(self) -> None:
+        """A fixed folder in PATH holds a copy of the launcher, so a new version never needs a PATH change."""
+        fixed = self.root / "fixed-bin"
+        fixed.mkdir()
+        shutil.copy(self.root / ".harness" / "bin" / "harness", fixed / "harness")
+        (fixed / "harness").chmod(0o755)
+        outside_dir = tempfile.TemporaryDirectory()  # not under the repository copy, or the upward search would find it
+        self.addCleanup(outside_dir.cleanup)
+        outside = Path(outside_dir.name).resolve()
+
+        def run(cwd: Path, **extra: str) -> "subprocess.CompletedProcess[str]":
+            env = {key: value for key, value in os.environ.items() if key not in ("HARNESS_ROOT", "HARNESS_HOME")}
+            return subprocess.run([str(fixed / "harness"), "--version", "--short"], cwd=cwd, capture_output=True, text=True, check=False, env={**env, **extra})
+
+        inside = run(self.root / ".harness")  # inside a repository: that one is used
+        self.assertEqual((inside.returncode, inside.stdout.strip()), (0, f"harness {VERSION}"), inside.stderr)
+        lost = run(outside)  # outside every repository, the copy has no repository of its own
+        self.assertEqual(lost.returncode, 1)
+        self.assertIn("not inside a harness repository", lost.stderr)
+        self.assertIn("HARNESS_HOME", lost.stderr)
+        homed = run(outside, HARNESS_HOME=str(self.root))
+        self.assertEqual((homed.returncode, homed.stdout.strip()), (0, f"harness {VERSION}"), homed.stderr)
+        wrong = run(outside, HARNESS_HOME=str(outside))  # a folder that is no repository: the same message
+        self.assertEqual(wrong.returncode, 1)
+        self.assertIn("not inside a harness repository", wrong.stderr)
+        stripped = os.environ.get("PATH", "").replace(str(Path.home() / "bin"), "")
+        same = self.doctor(PATH=str(fixed) + os.pathsep + stripped)
+        self.assertIn("是本仓库启动脚本的拷贝", same.stdout)
+        self.assertNotIn("[WARN]  PATH 里的 `harness`", same.stdout)
+        (fixed / "harness").write_text("#!/bin/sh\n# an old copy\n", encoding="utf-8")
+        old = self.doctor(PATH=str(fixed) + os.pathsep + stripped)
+        self.assertIn("[WARN]  PATH 里的 `harness`", old.stdout)
+        self.assertIn("重新拷一份", old.stdout)
 
     def test_agent_facing_files_do_not_hard_code_python3(self) -> None:
         """Windows has `python` and often no `python3`. A command written with python3 must say it is for macOS/Linux."""
@@ -387,8 +530,8 @@ class LayoutTests(unittest.TestCase):
     def test_engine_code_uses_only_the_standard_library(self) -> None:
         local = {"core", "adapters", "modules", "doctor", "hook", "cli"}
         stdlib = {
-            "__future__", "argparse", "ast", "contextlib", "copy", "dataclasses", "datetime", "difflib", "hashlib", "importlib",
-            "json", "math", "os", "pathlib", "posixpath", "random", "re", "shutil", "stat", "string", "subprocess", "sys", "tempfile", "time",
+            "__future__", "argparse", "ast", "contextlib", "copy", "ctypes", "dataclasses", "datetime", "difflib", "hashlib", "importlib",
+            "json", "locale", "math", "os", "pathlib", "posixpath", "random", "re", "shutil", "stat", "string", "subprocess", "sys", "tempfile", "time",
             "traceback", "typing", "urllib", "uuid",
         }
         for path in sorted(ENGINE.rglob("*.py")):

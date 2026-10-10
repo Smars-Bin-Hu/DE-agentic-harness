@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "Who uses this copy of the harness. name: what an agent writes when a file needs the author's name (a change note at the top of a file). Set it in user.override.json; that file is yours and is not committed. Empty: `git config user.name` is used.",
+  "name": ""
+}

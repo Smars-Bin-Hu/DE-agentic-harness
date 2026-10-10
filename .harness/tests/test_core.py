@@ -50,8 +50,8 @@ class CommandNameTests(unittest.TestCase):
     def test_windows_uses_python_and_the_others_python3(self) -> None:
         from core import paths
 
-        self.assertEqual(paths.cli_command(windows=True), "python .harness/engine/cli.py")
-        self.assertEqual(paths.cli_command(windows=False), "python3 .harness/engine/cli.py")
+        self.assertEqual(paths.cli_command(windows=True), "harness")  # the short command on every system (M9-5)
+        self.assertEqual(paths.cli_command(windows=False), "harness")
         self.assertEqual(paths.mkdir_command(windows=True), "mkdir")
         self.assertEqual(paths.mkdir_command(windows=False), "mkdir -p")
 

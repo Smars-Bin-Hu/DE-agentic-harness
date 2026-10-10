@@ -21,10 +21,9 @@ tools: ['read', 'search', 'execute', 'edit', 'web', 'todo']
   把下面这条命令给用户，请用户在自己的终端运行，输入确认码。`<会话 id>` 用规则里的“当前会话 id”，原样抄：
 
 ```text
-<cli> admin on --session-id <会话 id>
+harness admin on --session-id <会话 id>
 ```
 
-`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。
 你不能自己运行 `admin on`。只读文件、不改 guardrail 的事（读日志、读报告、解释规则），不用等用户开。
 
 ## 先读什么
@@ -43,7 +42,7 @@ tools: ['read', 'search', 'execute', 'edit', 'web', 'todo']
 3. 小步改。改了 `.harness/engine/`、策略或 hook 配置，每一步都运行：
 
 ```text
-<cli> doctor
+harness doctor
 python -m unittest discover -s .harness/tests
 ```
 
@@ -66,13 +65,13 @@ python -m unittest discover -s .harness/tests
 
 | 看什么 | 在哪里 |
 | --- | --- |
-| harness 的文件和配置对不对 | `<cli> doctor` |
+| harness 的文件和配置对不对 | `harness doctor` |
 | hook 自己出的错 | `.harness/runtime/logs/hook-errors.jsonl` |
 | 某个会话每次工具调用的结果、拒绝理由、哪个模块拒的 | `.harness/runtime/logs/<surface>/<会话>.jsonl` |
-| 会话现在的状态（Level、请求、任务、计数） | `<cli> level status --session-id <会话 id>` |
-| 调用数、拒绝数的汇总 | `<cli> stats` |
+| 会话现在的状态（Level、请求、任务、计数） | `harness level status --session-id <会话 id>` |
+| 调用数、拒绝数的汇总 | `harness stats` |
 | 一个 L3 请求的全过程 | `.workspace/reports/`，再看 `.workspace/sandbox/requests/<id>/` |
-| 一个 L2 任务 | `<cli> task status --task <任务目录>`，再看任务目录 |
+| 一个 L2 任务 | `harness task status --task <任务目录>`，再看任务目录 |
 
 结论要写清：现象、证据（文件和行）、根因、是 harness 的错还是模型的失误、建议怎么改。证据不够就说不够，不要编。
 日志里拒绝理由是规则给的，先判断规则对不对：规则对、模型错，改说明文字；规则误伤，改规则并补一个测试。
@@ -81,7 +80,7 @@ python -m unittest discover -s .harness/tests
 
 admin 模式只放开 guardrail 文件。下面这些照旧，被拒绝时不要绕：
 
-- `.harness/runtime/` 只读。会话状态、批准记录、日志不能改。要清理时告诉用户（`<cli> logs prune` 由用户确认）。
+- `.harness/runtime/` 只读。会话状态、批准记录、日志不能改。要清理时告诉用户（`harness logs prune` 由用户确认）。
 - CLI 生成的文件（`request.json`、`handoff.json`、`manifest.json`、报告、两个 `.diff`、`.task/`）不直接写。
 - `.git` 和目标仓库不能直接写。git 写命令要用户用 `approve-command` 批准；`push` 等永远不能批准，由用户自己做。
 - 批准类命令（`approve-plan`、`approve-promote`、`recover`、`approve-command`、`admin on`）只有用户能运行。
@@ -90,4 +89,4 @@ admin 模式只放开 guardrail 文件。下面这些照旧，被拒绝时不要
 
 ## 收尾
 
-做完后提醒用户运行 `<cli> admin off --session-id <会话 id>`。admin 模式只对开的那个会话有效，新对话要重新开。
+做完后提醒用户运行 `harness admin off --session-id <会话 id>`。admin 模式只对开的那个会话有效，新对话要重新开。

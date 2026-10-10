@@ -48,7 +48,7 @@ applyTo: '.github/agents/**/*.agent.md'
 - orchestrator 和 reviewer 要推理和判断，用强模型。builder 按 assignment 执行，有验收标准和 reviewer 把关，用普通模型。
 - **builder 和 reviewer 必须是不同系列**，减少同类错误。`model` 的回退列表只能在同一系列里回退。
   admin 例外（`agents.json` 的 `any_series`）：它不参与评审，强模型不可用时可以跨系列回退。
-  系列的划分在 `.harness/policies/agents.json`，`python .harness/engine/cli.py doctor` 会检查（macOS/Linux 把 `python` 换成 `python3`）。
+  系列的划分在 `.harness/policies/agents.json`，`harness doctor` 会检查（macOS/Linux 把 `python` 换成 `python3`）。
 - 模型名以本机 Copilot 下拉列表里的显示名为准。不同的会话类型能选的模型不一样（例如有的会话没有 Opus），换环境后重新确认。
 
 ## Builder 的不同形态

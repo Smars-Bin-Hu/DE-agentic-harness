@@ -357,8 +357,7 @@ class CommandTests(EvalCase):
         self.assertTrue(shown["prompt"].startswith("这是 hook 测试。请运行这条终端命令：curl"))
         self.assertNotIn("```", shown["prompt"])
         self.assertTrue(shown["manual_checks"])
-        interpreter = "python" if os.name == "nt" else "python3"  # Windows has `python` and often no `python3`
-        self.assertEqual(shown["then"], f"{interpreter} .harness/engine/cli.py eval check g5")
+        self.assertEqual(shown["then"], "harness eval check g5")
         s4 = self.run_cli("eval", "show", "s4")["prompt"]
         self.assertIn("建立 L3 请求（标题 eval-s4）", s4)
         self.assertEqual(s4.count("\n"), 5)

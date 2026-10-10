@@ -71,16 +71,25 @@ def target_tree_terminal(why: str) -> str:
 
 
 def task_plan_first(relative: str, task: str) -> str:
+    # The log keeps only the first characters of a reason (observe.json: max_text_chars): what to do comes first.
     return (
-        f"任务 {task} 的计划还没有经用户批准（或批准之后改过），现在只能写 `{task}/PLAN.md`，你要写的是 `{relative}`。"
-        f"写好 PLAN.md 后停下来：给用户 [PLAN.md]({task}/PLAN.md) 的链接，请用户在自己的终端运行 `{cli_command()} task approve-plan`。用户说批准了，再继续。"
+        f"`{relative}` 在任务的 `DEV/` 下。`DEV/` 要等计划经用户批准后才能写（现在没批准，或批准之后改过）。"
+        f"写好 [PLAN.md]({task}/PLAN.md) 就停下，请用户在自己的终端运行 `{cli_command()} task approve-plan`，用户说批准了再继续。"
+        f"不回写的成果（RCA、设计、笔记）不用等批准，直接写在 `{task}/` 根下。"
     )
 
 
-def task_outside_dev(relative: str, task: str) -> str:
+def task_outside(relative: str, task: str) -> str:
     return (
-        f"任务 {task} 只能在 `{task}/DEV/` 下写文件（计划在 `{task}/PLAN.md`），你要写的是 `{relative}`。"
-        f"改成在 DEV/ 下写；目标仓库的文件先用 `{cli_command()} task fetch <仓库名>/<路径>` 取进来。"
+        f"任务 {task} 进行中，只能在任务目录 `{task}/` 里写，你要写的是 `{relative}`。"
+        f"不回写的成果（RCA、设计、笔记）写在任务目录根下；要回写到目标仓库的成果写在 `{task}/DEV/<仓库名>/<路径>` 下。"
+    )
+
+
+def task_person_files(relative: str, task: str) -> str:
+    return (
+        f"`{relative}` 在任务 {task} 的 `REQ/` 或 `REF/` 里。那是用户放的材料，只读。"
+        f"要记笔记或写成果，写在任务目录 `{task}/` 根下。"
     )
 
 

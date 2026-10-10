@@ -1,19 +1,43 @@
 #!/bin/sh
-# Short command for people (macOS/Linux): harness <command> ...
-# Same as: python3 .harness/engine/cli.py <command> ...  Works from any folder, also through a link in PATH.
-self=$0
-while [ -h "$self" ]; do
-  link=$(readlink "$self")
-  case $link in
-    /*) self=$link ;;
-    *) self=$(dirname "$self")/$link ;;
-  esac
+# Short command for people and agents (macOS/Linux): harness <command> ...
+# Like git, it works on the harness repository the current folder is in: it looks upward from the current folder for
+# .harness/engine/cli.py. Outside every harness repository it uses the repository this script sits in (also through a link in PATH).
+# A copy of this script has none: it uses the repository named by HARNESS_HOME, or stops with a message.
+dir=$(pwd -P)
+cli=
+while :; do
+  if [ -f "$dir/.harness/engine/cli.py" ]; then
+    cli=$dir/.harness/engine/cli.py
+    break
+  fi
+  parent=$(dirname "$dir")
+  [ "$parent" = "$dir" ] && break
+  dir=$parent
 done
-here=$(cd "$(dirname "$self")" && pwd)
+if [ -z "$cli" ]; then
+  self=$0
+  while [ -h "$self" ]; do
+    link=$(readlink "$self")
+    case $link in
+      /*) self=$link ;;
+      *) self=$(dirname "$self")/$link ;;
+    esac
+  done
+  here=$(cd "$(dirname "$self")" && pwd)
+  cli=$here/../engine/cli.py
+  if [ ! -f "$cli" ]; then
+    if [ -n "${HARNESS_HOME:-}" ] && [ -f "$HARNESS_HOME/.harness/engine/cli.py" ]; then
+      cli=$HARNESS_HOME/.harness/engine/cli.py
+    else
+      echo "harness: not inside a harness repository. cd into one, or set HARNESS_HOME to one." >&2
+      exit 1
+    fi
+  fi
+fi
 # Try each name and check that it really runs: on Windows, python3 can be a Store stub that exists but exits with 49.
 for py in python3 python; do
   if "$py" -c "" >/dev/null 2>&1; then
-    exec "$py" "$here/../engine/cli.py" "$@"
+    exec "$py" "$cli" "$@"
   fi
 done
 echo "harness: no working python3 or python found" >&2

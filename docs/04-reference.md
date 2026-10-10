@@ -1,6 +1,6 @@
 # 命令与字段参考
 
-按代码写。命令用 `--help` 看全部参数。下面省略命令前缀。前缀是 `<cli>`（macOS/Linux 是 `python3 .harness/engine/cli.py`，Windows 是 `python .harness/engine/cli.py`），也可以用短命令 `harness`。
+按代码写。命令用 `--help` 看全部参数。下面省略命令前面的 `harness`（短命令怎么配见 [快速开始](01-quickstart.md) 第 1 步）。
 
 ## 命令
 
@@ -8,7 +8,8 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `--version` | 显示 harness 的版本，例如 `harness 1.0.0`。版本号只写在 `.harness/registry.json` 的 `version`，格式 `主.次.修` |
+| `--version` | 显示图案、版本、发布日期、作者。加 `--short` 只输出一行，例如 `harness 1.0.0`，给脚本用。都来自 `.harness/registry.json`；版本号格式 `主.次.修` |
+| `user` | 用这份 harness 的人的名字，和它来自哪：`user.override.json`、`git`（`git config user.name`）或 `none` |
 | `doctor` | 检查文件、策略、hook 配置、知识库、目标仓库是否一致 |
 | `level status`、`level set` | 看或设会话的 Level（1 或 2）。只有人能设，agent 运行被拒绝 |
 | `request approve-plan` | 批准 L3 请求的 `orchestrator/plan.md`。只能在终端，输入确认码 |
@@ -37,7 +38,7 @@
 | `task delete` | 声明删除一个取过的文件 |
 | `task diff` | 列出 `DEV/` 的改动，差异全文写到 `CHANGES.diff` |
 | `task set-branch` | 改 feature 分支名。格式是 `feature/` 加字母、数字、下划线（最长 60 个字符），不能有 `-`、`.`、`/`。默认取任务目录名，其中不合格的字符变成 `_`（`my-task` 变成 `feature/my_task`）；任务开新一轮时加 `_r2`、`_r3` |
-| `task promote` | 把 `DEV/` 回写到各目标仓库的新分支；`--dry-run` 只列计划，差异写到 `PROMOTE-PLAN.diff` |
+| `task promote` | 把 `DEV/<仓库>/` 下的文件回写到各目标仓库的新分支；`--dry-run` 只列计划，差异写到 `PROMOTE-PLAN.diff`。直接放在 `DEV/` 根目录的文件不回写 |
 | `task close` | 退出任务模式，写报告 |
 
 ### agent 在 L3 里用
@@ -93,6 +94,8 @@
 | observe.json | `max_text_chars` | 日志里每段文字的最大长度 |
 | observe.json | `capture.enabled` | 保存 hook 的原始输入输出 |
 | observe.json | `warn_session_files` | 会话日志文件数超过它时 `doctor` 提醒 |
+| user.json | `name` | 你的名字。agent 在要署名的地方用（例如文件开头的改动记录）。空着就用 `git config user.name` |
+| cli.json | `output.encoding` | CLI 输出的编码。`auto`（默认）跟着终端；`utf-8` 一律输出 UTF-8 |
 | agents.json | `series` | 模型系列 |
 | agents.json | `different_series` | 必须用不同系列的角色组 |
 | agents.json | `any_series` | 回退列表可以跨系列的 agent（admin） |

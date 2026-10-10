@@ -82,7 +82,7 @@ harness 面向的目标仓库，是**庞大的、有合规要求的数据工程�
 
 技能放在 `.github/skills/<名>/SKILL.md`，规则见 [skills.instructions.md](../.github/instructions/skills.instructions.md)。
 
-- 目录名和 `name` 必须一致，用前缀：`harness-<模块>`（harness 自带）、`generic-<名>`（通用）、`domain-<领域>-<名>`（你们的业务技能）。
+- 目录名和 `name` 必须一致，用前缀：`harness-<名>`（harness 自带）、`generic-<名>`（通用）、`domain-<领域>-<名>`（你们的业务技能）。
 - `description` 写清“什么时候用”，它是 agent 决定要不要读全文的唯一依据。
 - 业务技能用 `domain-` 前缀，和自带的分开，方便以后升级 harness 时不冲突。
 - 新建技能可以用 `generic-build-new-skill`。
@@ -100,5 +100,7 @@ harness 面向的目标仓库，是**庞大的、有合规要求的数据工程�
 - 想知道某个运行环境的 hook 实际收到什么：在 `observe.override.json` 里把 `capture.enabled` 设为 `true`，原始输入输出会存到 `.harness/runtime/capture/`。用完关掉。
 
 ## 路径太长（Windows）
+
+CLI 输出里的中文显示成 `\uXXXX`：运行 `doctor`，看“输出编码”那几行。最后有一行“UTF-8 样例”。那一行能读，就新建 `.harness/policies/cli.override.json`，写 `{"output": {"encoding": "utf-8"}}`。那一行是乱码，就不要改。
 
 请求目录加仓库路径会让文件路径很长，Windows 默认上限 260 个字符。把 harness 放在短路径、不同步的位置（例如 `C:\h`），不要放在 OneDrive 下。`doctor` 会对过长的路径给 WARN。

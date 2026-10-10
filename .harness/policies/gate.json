@@ -107,7 +107,7 @@
       },
       {
         "why": "会删除会话日志",
-        "pattern": "\\bcli\\.py\\s+logs\\s+prune\\b"
+        "pattern": "\\b(?:cli\\.py|harness(?:\\.cmd)?)\\s+logs\\s+prune\\b"
       }
     ]
   },

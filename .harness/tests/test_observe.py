@@ -325,6 +325,7 @@ class PruneTests(ObserveCase):
         self.assertIn("--days", completed.stderr)
 
     def test_an_agent_running_prune_is_sent_to_the_person(self) -> None:
+        self.assertEqual(self.hook(pre_tool("agent", "run_in_terminal", {"command": "harness logs prune --days 1"}))["hookSpecificOutput"]["permissionDecision"], "ask")  # the short command too
         output = self.hook(pre_tool("agent", "run_in_terminal", {"command": "python3 .harness/engine/cli.py logs prune --days 1"}))
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
 

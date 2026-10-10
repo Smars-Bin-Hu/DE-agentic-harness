@@ -24,9 +24,15 @@ def python_command(windows: Optional[bool] = None) -> str:
     return "python" if is_windows(windows) else "python3"
 
 
+SHORT_COMMAND = "harness"
+
+
 def cli_command(windows: Optional[bool] = None) -> str:
-    """The prefix of every harness command shown to an agent or a person."""
-    return f"{python_command(windows)} {CLI_PATH}"
+    """The prefix of every harness command shown to an agent or a person: the short command (`.harness/bin/`, in PATH).
+
+    Putting it into PATH is a required setup step; `doctor` checks it. `windows` is kept for callers that pass it.
+    """
+    return SHORT_COMMAND
 
 
 def mkdir_command(windows: Optional[bool] = None) -> str:

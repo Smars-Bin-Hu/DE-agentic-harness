@@ -7,13 +7,13 @@ agent 和人的工作区。这里的运行内容不进 git，只有本文件和�
 | 路径 | 用途 | 谁写 |
 | --- | --- | --- |
 | `sandbox/requests/<request-id>/` | L3 请求的执行目录。L3 任务只在这里写 | L3 的 agent 和 CLI |
-| `current_tasks/<任务>/` | 人放任务材料（`REQ/`、`REF/`）。L2 任务模式下：`PLAN.md`（计划）、`DEV/`（成果，路径和目标仓库一样）、`CHANGES.diff` 和 `PROMOTE-PLAN.diff`（给人看的差异）、`.task/`（状态） | 人；L2 的 agent 写 `PLAN.md` 和 `DEV/`；其余由 CLI 写 |
+| `current_tasks/<任务>/` | 人放任务材料（`REQ/`、`REF/`）。L2 任务模式下：`PLAN.md`（计划）、`DEV/`（要回写的成果，路径和目标仓库一样）、目录根下的其他文件（不回写的成果，例如 `RCA.md`）、`CHANGES.diff` 和 `PROMOTE-PLAN.diff`（给人看的差异）、`.task/`（状态） | 人；L2 的 agent 写 `PLAN.md`、`DEV/` 和不回写的成果；两个 `.diff` 和 `.task/` 由 CLI 写 |
 | `goals/<id>/` | 长任务的目标文件：`GOAL.md`（中心思想）、`TODO.md`（步骤）、`NOW.md`（进度指针）、`LOG.md`（改动日志），复杂步骤另有 `accept/`（验收指南）。用户输入 `/generic-goal-driven` 才建 | 人和 agent；L2 任务模式和 L3 进行中不能写 |
-| `reports/` | 请求的执行报告。请求收尾时自动写，也可以 `cli.py report` 重写 | CLI |
+| `reports/` | 请求的执行报告。请求收尾时自动写，也可以 `harness report` 重写 | CLI |
 
-`<request-id>` 的格式是 `<yyyymmdd-HHMM>-<slug>-<4 位随机>`。请求目录和里面的子目录都由 CLI 建立：`cli.py request new`、`attempt new`、`dispatch`。命令一览：`python .harness/engine/cli.py --help`（macOS/Linux 用 `python3`）。
+`<request-id>` 的格式是 `<yyyymmdd-HHMM>-<slug>-<4 位随机>`。请求目录和里面的子目录都由 CLI 建立：`harness request new`、`attempt new`、`dispatch`。命令一览：`harness --help`。
 
-L1、L2 不走 sandbox，直接在仓库里改。L2 的任务模式（`task start`）只写任务目录的 `PLAN.md` 和 `DEV/`，计划和回写都要人在终端批准。`sandbox/` 下请求目录之外的东西，是手测或探针留下的，可以直接删。
+L1、L2 不走 sandbox，直接在仓库里改。L2 的任务模式（`task start`）只在任务目录里写；写 `DEV/` 和回写都要人在终端批准。`sandbox/` 下请求目录之外的东西，是手测或探针留下的，可以直接删。
 
 ## 谁管着写入
 
@@ -23,7 +23,7 @@ agent 要遵守的写法见 [workspace.instructions.md](../.github/instructions/
 - 所有 Level：guardrail 文件不能改。
 - admin 模式（用户在终端运行 `admin on` 的那个会话）：guardrail 文件可以改，`.harness/runtime/` 除外。下面的其他规则不变。
 - L3：编辑类工具只能写当前请求目录。写到别处会被拒绝，回写原仓库用 `promote`：先 `--dry-run`，用户在自己的终端运行 `request approve-promote` 批准，再 `promote`。开第一轮之前，计划要用户运行 `request approve-plan` 批准。
-- L2 任务模式：用户运行 `task approve-plan` 之前，编辑类工具只能写 `PLAN.md`；之后只能写 `DEV/`。计划改了，批准失效。
+- L2 任务模式：编辑类工具只能写任务目录。`DEV/` 要等用户运行 `task approve-plan` 之后才能写，计划改了，批准失效。`REQ/`、`REF/` 不能写。任务目录里的其他位置不用批准。
 - 所有 Level：目标仓库工作区里的文件不能直接改（编辑类工具，和带仓库完整路径的常见终端写法）。只有 promote 能写。
 - 所有 Level：`request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md`、`promote-plan.diff`、任务目录的 `.task/` 和两个 `.diff`、`reports/` 下的报告只由 CLI 写，agent 直接写会被拒绝。
 - 所有 Level：任何 `.git` 文件夹和目标仓库的 `refused_paths` 不能写（含终端写法）。配置了目标仓库后，agent 的 git 写命令要人批准，`push` 等永远不能批准，见 [docs/02-features.md](../docs/02-features.md)。

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
-from core import config, targets
+from core import config, output, targets, user
 from core.paths import cli_command, policies_dir, python_command
 from core.registry import load_registry
 from core.state import TRACKED_EVENTS
@@ -52,12 +52,53 @@ def check_python(report: Report) -> None:
 
 
 def check_interpreter(report: Report) -> None:
-    """The commands shown to agents start with `python` (Windows) or `python3` (elsewhere). It has to run from the terminal."""
+    """The launcher and the hook start `python` (Windows) or `python3` (elsewhere). It has to run from the terminal."""
     name = python_command()
     if shutil.which(name):
-        report.ok(f"终端里能找到 `{name}`（agent 提示里的命令前缀：{cli_command()}）")
+        report.ok(f"终端里能找到 `{name}`")
     else:
-        report.warn(f"终端的 PATH 里找不到 `{name}`。agent 提示里的命令前缀是 `{cli_command()}`，运行会失败。装好 Python，或把它加进 PATH")
+        report.warn(f"终端的 PATH 里找不到 `{name}`。短命令和 hook 都要用它。装好 Python，或把它加进 PATH")
+
+
+def launcher_files(root: Path) -> List[Path]:
+    return [root / ".harness" / "bin" / name for name in ("harness", "harness.cmd")]
+
+
+def same_launcher(found: Path, root: Path) -> bool:
+    """A copy of this repository's launcher (a fixed folder in PATH holds one): the same name, the same bytes."""
+    mine = root / ".harness" / "bin" / found.name
+    try:
+        return found.name in ("harness", "harness.cmd") and mine.is_file() and found.read_bytes() == mine.read_bytes()
+    except OSError:
+        return False
+
+
+def check_short_command(report: Report, root: Path) -> None:
+    """Every command an agent is told to run starts with `harness`: it has to be in PATH (a required setup step)."""
+    found = shutil.which(cli_command())
+    if not found:
+        folder = root / ".harness" / "bin"
+        report.error(
+            f"PATH 里找不到短命令 `{cli_command()}`。agent 收到的命令都以它开头，现在都会失败。"
+            f"把 `{folder}` 加进 PATH（或在 PATH 里的文件夹建一个指向 `{folder / 'harness'}` 的链接），重开终端和 VS Code，再运行 doctor。"
+            "步骤见 docs/01-quickstart.md 第 1 步，或让 agent 用技能 harness-repo-initialize 带你配"
+        )
+        return
+    try:
+        resolved = Path(found).resolve()
+        mine = any(resolved == path.resolve() for path in launcher_files(root))
+    except OSError:
+        resolved, mine = Path(found), False
+    if mine:
+        report.ok(f"短命令 `{cli_command()}` 在 PATH 里（{found}）")
+    elif same_launcher(resolved, root):
+        report.ok(f"短命令 `{cli_command()}` 在 PATH 里（{found}），是本仓库启动脚本的拷贝")
+    else:
+        report.warn(
+            f"PATH 里的 `{cli_command()}` 是 `{resolved}`，不是这个仓库的 `.harness/bin/`。"
+            "1.0.2 起的启动脚本会先找当前目录所在的仓库，所以能用；它要是更早的版本，会操作它自己那一份仓库。"
+            "它要是 PATH 里固定文件夹的拷贝，内容和这个仓库的 `.harness/bin/` 不一样，就从仓库里重新拷一份"
+        )
 
 
 def check_files(report: Report, root: Path, owner: str, files: List[str]) -> None:
@@ -164,6 +205,63 @@ def check_logs(report: Report, root: Path, registry: Dict[str, Any]) -> None:
         report.warn(f"有 {count} 个会话日志（超过 {limit}）。不用的可以删：{cli_command()} logs prune --days 30")
     if (base / "hook-calls.jsonl").exists():
         report.warn("还有旧的 .harness/runtime/logs/hook-calls.jsonl。现在每个会话一个文件，这个旧文件不再写入，可以删除")
+
+
+def check_output(report: Report, root: Path) -> bool:
+    """How the CLI prints Chinese here. Returns True when the raw UTF-8 sample line should be printed too."""
+    try:
+        raw = config.load_policy(root, output.POLICY_NAME)["output"]["encoding"]
+    except Exception as error:
+        report.error(f"cli.json 不能读取或缺 output.encoding：{error}")
+        return False
+    if raw not in output.CHOICES:
+        report.error(f"cli.json 的 output.encoding 是 `{raw}`，只能是 {'、'.join(output.CHOICES)}。现在按 auto 处理")
+    facts = output.facts()
+    pages = facts["code_pages"]
+    where = "终端" if facts["terminal"] else "管道或重定向"
+    shown = f"输出编码：stdout={facts['stdout_encoding']}（{where}），系统默认={facts['preferred']}"
+    if pages:
+        shown += f"，代码页 输出={pages['console_output']} ANSI={pages['ansi']}"
+    shown += f"；output.encoding={output.setting(root)}"
+    if output.shows(output.SAMPLE, facts["stdout_encoding"]):
+        report.ok(shown)
+        report.ok(f"  {output.SAMPLE}（这一行能读，中文输出就正常）")
+        return False
+    report.warn(shown + "。这个编码写不出中文，CLI 的中文会显示成 \\uXXXX")
+    return True
+
+
+def print_utf8_sample() -> None:
+    """One line as raw UTF-8 bytes, whatever the stream encoding is: it shows what `output.encoding: utf-8` would look like here.
+
+    The advice is in that line too: a person who can read it is a person for whom the switch works.
+    """
+    text = (
+        f"[INFO]  UTF-8 样例：{output.SAMPLE}。这一行能读，就新建 .harness/policies/cli.override.json，"
+        '写 {"output": {"encoding": "utf-8"}}，CLI 的中文就不再是 \\uXXXX；这一行是乱码，就不要改。\n'
+    )
+    try:
+        sys.stdout.flush()
+        sys.stdout.buffer.write(text.encode("utf-8"))
+        sys.stdout.buffer.flush()
+    except Exception:  # noqa: BLE001 - a sample line must not fail doctor
+        pass
+
+
+def check_user(report: Report, root: Path) -> None:
+    try:
+        raw = config.load_policy(root, user.POLICY_NAME).get("name", "")
+    except Exception as error:
+        report.error(f"user.json 不能读取：{error}")
+        return
+    if not isinstance(raw, str):
+        report.error("user.json 的 name 要是一段文字")
+        return
+    found = user.who(root)
+    if found["source"] == "none":
+        report.warn("不知道用户的名字：user.override.json 没写 name，git 也没有 user.name。要署名的地方会空着。新建 .harness/policies/user.override.json，写 {\"name\": \"你的名字\"}")
+    else:
+        report.ok(f"用户名字：{found['name']}（来自 {found['source']}）")
 
 
 def check_overrides(report: Report, root: Path) -> None:
@@ -407,6 +505,7 @@ def run(root: Path) -> int:
     report = Report()
     check_python(report)
     check_interpreter(report)
+    check_short_command(report, root)
     try:
         registry = load_registry(root)
     except Exception as error:
@@ -420,11 +519,15 @@ def run(root: Path) -> int:
     check_agents(report, root)
     check_logs(report, root, registry)
     check_overrides(report, root)
+    sample = check_output(report, root)
+    check_user(report, root)
     check_targets(report, root)
     check_location(report, root)
     check_knowledge_base(report, root)
     for name, entry in registry["modules"].items():
         check_module(report, root, name, entry)
     print("\n".join(report.lines))
+    if sample:
+        print_utf8_sample()
     print(json.dumps({"errors": report.errors}))
     return 1 if report.errors else 0

@@ -26,6 +26,7 @@ NAME = "task_level"
 GENERIC_AGENT_NAMES = ("", "default")
 
 _LEVEL_SET = re.compile(r"\blevel\s+set\b", re.IGNORECASE)
+_CLI = re.compile(r"cli\.py|\bharness(?:\.cmd)?\b", re.IGNORECASE)  # the long form and the short command
 
 
 def is_level_set_call(event: HookEvent) -> bool:
@@ -33,7 +34,7 @@ def is_level_set_call(event: HookEvent) -> bool:
     if event.tool_kind != "terminal":
         return False
     command = event.command.replace('"', " ").replace("'", " ")
-    return "cli.py" in command and _LEVEL_SET.search(command) is not None
+    return _CLI.search(command) is not None and _LEVEL_SET.search(command) is not None
 
 
 def is_generic_agent(name: str) -> bool:

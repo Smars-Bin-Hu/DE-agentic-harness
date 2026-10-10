@@ -29,7 +29,7 @@ Copilot 很会写代码，但在企业里用 VS Code 做复杂任务时，常有
 
 | 文档 | 你会看到什么 |
 | --- | --- |
-| [docs/01-quickstart.md](docs/01-quickstart.md) | **想马上跑起来**：环境要求（Python 3.9+，不用 `pip install`）、`doctor` 自检、`harness` 短命令、配置目标仓库、跑通第一个 L2 任务和第一个 L3 请求 |
+| [docs/01-quickstart.md](docs/01-quickstart.md) | **想马上跑起来**：环境要求（Python 3.9+，不用 `pip install`）、配好 `harness` 短命令（必须）、`doctor` 自检、配置目标仓库、跑通第一个 L2 任务和第一个 L3 请求 |
 | [docs/02-features.md](docs/02-features.md) | **它到底能做什么**：三档 Level 按任务大小选做法；gate 拦住越界写和危险命令；L2 任务模式（一个 agent，计划和回写都由你批准）；orchestrator、builder、reviewer 多 agent 协作；人批准的 promote 和 git 命令；日志、统计、报告 |
 | [docs/03-configure.md](docs/03-configure.md) | **接入你们自己的东西**：用 override 改配置而不动默认值，配置目标仓库，接入知识库和 domain 技能，给每个角色选模型 |
 | [docs/04-reference.md](docs/04-reference.md) | **查表用**：全部命令和常用命令、策略字段、交接格式、hook 事件、运行时文件 |
@@ -84,15 +84,16 @@ harness 之外：目标仓库（企业的代码仓库）
 | [AGENTS.md](AGENTS.md)、[.github/copilot-instructions.md](.github/copilot-instructions.md) | 核心规则和安全边界；仓库级规则 |
 | [.github/instructions/](.github/instructions/) | 分类规则：[agents](.github/instructions/agents.instructions.md)、[skills](.github/instructions/skills.instructions.md)、[tools](.github/instructions/tools.instructions.md)、[workspace](.github/instructions/workspace.instructions.md)（`.workspace/` 的读写规则） |
 | [.github/skills/harness-task-level/](.github/skills/harness-task-level/)、[.github/skills/harness-orchestration/](.github/skills/harness-orchestration/) | Task Level 的使用流程和 L2 任务模式的每一步；L3 请求的每一步用哪条命令 |
+| [.github/skills/harness-repo-initialize/](.github/skills/harness-repo-initialize/) | 第一次配置：短命令、知识库、公司技能、目标仓库、用户名字，最后 `doctor` 检查。用户用 `/harness-repo-initialize` 启动 |
 | [.github/skills/generic-goal-driven/](.github/skills/generic-goal-driven/) | 长周期任务的目标驱动流程：中心思想、TODO、进度指针存成文件，换 session 能接上。只由用户用 `/generic-goal-driven` 启动 |
 | [.github/agents/](.github/agents/) | 自定义智能体：orchestrator、admin（用户可选）、builder、reviewer、verifier。admin 用来二开和排查 harness，要先在终端开 admin 模式 |
 | [.github/hooks/harness.json](.github/hooks/harness.json) | 唯一的 hook 配置，所有事件进同一个入口 |
 | [.harness/registry.json](.harness/registry.json) | 模块注册表：开关、订阅的事件、文件清单 |
-| [.harness/policies/](.harness/policies/) | 策略：task-levels、gate、orchestration、observe、agents、target。覆盖写在同名 `.override.json`，规则见 [配置与定制](docs/03-configure.md) |
+| [.harness/policies/](.harness/policies/) | 策略：task-levels、gate、orchestration、observe、agents、target、cli、user。覆盖写在同名 `.override.json`，规则见 [配置与定制](docs/03-configure.md) |
 | [.harness/contracts/](.harness/contracts/) | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板 |
 | [.harness/engine/](.harness/engine/) | [hook.py](.harness/engine/hook.py)（hook 入口）、[cli.py](.harness/engine/cli.py)（命令入口）、modules/（task_level、gate、request、observe、evalcheck）、adapters/（运行时差异） |
-| [.harness/bin/](.harness/bin/) | 给人用的短命令：`harness`（macOS/Linux）、`harness.cmd`（Windows） |
+| [.harness/bin/](.harness/bin/) | 短命令的启动脚本：`harness`（macOS/Linux）、`harness.cmd`（Windows）。必须加进 PATH，人和 agent 都用它 |
 | [.harness/eval/](.harness/eval/) | 固定场景（scenarios/）和真实 hook 输入的录制样本（fixtures/） |
-| [.harness/tests/](.harness/tests/) | 全部测试：`<cli>` 换成 `python -m unittest discover -s .harness/tests`（macOS/Linux 用 `python3`） |
+| [.harness/tests/](.harness/tests/) | 全部测试：`python -m unittest discover -s .harness/tests`（macOS/Linux 用 `python3`） |
 | [.workspace/README.md](.workspace/README.md) | 工作区目录约定，以及 gate 管得住和管不住什么 |
 | [knowledge-base/](knowledge-base/) | 接入企业知识库的位置，交付时为空 |
