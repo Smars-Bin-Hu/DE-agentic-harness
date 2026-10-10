@@ -41,7 +41,7 @@ specificTo: generic
 
 1. **短命令（必须，先做）。** 运行 `harness --version --short`。
    - 输出 `harness <版本>`：已经配好，跳到第 2 步。
-   - 找不到命令：按 [短命令怎么配](./references/short-command.md) 判断系统和 shell，把那几条命令给用户，请用户**在自己的终端**运行，然后**重开终端和 VS Code**。你不运行这些命令。用户说做完了，再运行一次 `harness --version --short` 确认。
+   - 找不到命令：先自己运行只读的 `uname`、`echo $SHELL`、`echo $PATH`（Windows 不用），按 [短命令怎么配](./references/short-command.md) 的“先判断”选出要给的命令。PATH 里已有 `~/bin` 就不给改 shell 配置文件的那一条。把命令给用户，请用户**在自己的终端**运行，然后**重开终端和 VS Code**。你不运行这些命令。用户说做完了，再运行一次 `harness --version --short` 确认。
    - 这一步没通过，不做后面的。后面的命令都以 `harness` 开头。
 2. **开 admin 模式。** 看提示开头的规则。没写“admin 模式：已开”时，把 `harness admin on --session-id <当前会话 id>` 给用户，请用户在自己的终端运行并输入确认码。会话 id 原样抄规则里的。你不能自己运行它。
 3. **用户名字。** 运行 `harness user`。
