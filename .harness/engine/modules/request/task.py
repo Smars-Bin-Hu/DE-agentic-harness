@@ -42,7 +42,7 @@ HINTS = {
     "set_branch": "用 `task set-branch --branch feature/<名字>` 设一个。",
     "rename_branch": "换一个分支名（`task set-branch`），或先处理掉那个分支。",
     "drop": "把它从 DEV/ 里拿掉。",
-    "stray": "要回写：放到 DEV/<仓库名>/<路径> 下。不回写：用终端命令把它移到任务目录根下（DEV/ 之外），再重新 --dry-run。",
+    "stray": "要回写：放到 DEV/<仓库名>/<路径> 下。不回写：用 mv 把它移到任务目录根下（DEV/ 之外），空目录留着就行，不要 rmdir（删除要用户确认），再重新 --dry-run。",
 }
 
 
