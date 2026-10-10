@@ -48,7 +48,7 @@ def make_repo(path: Path, files: Optional[Dict[str, str]] = None, branch: str = 
     for name, body in (files or {"README.md": "x\n"}).items():
         target = path / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(body, encoding="utf-8", newline="\n")  # the text as written: Windows must not turn \n into \r\n
+        target.write_bytes(body.encode("utf-8"))  # the text as written: Windows must not turn \n into \r\n
     run_git(path, "add", "-A")
     run_git(path, "commit", "-q", "-m", "first")
     return path
