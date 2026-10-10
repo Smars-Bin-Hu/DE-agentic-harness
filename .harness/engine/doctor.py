@@ -64,6 +64,15 @@ def launcher_files(root: Path) -> List[Path]:
     return [root / ".harness" / "bin" / name for name in ("harness", "harness.cmd")]
 
 
+def same_launcher(found: Path, root: Path) -> bool:
+    """A copy of this repository's launcher (a fixed folder in PATH holds one): the same name, the same bytes."""
+    mine = root / ".harness" / "bin" / found.name
+    try:
+        return found.name in ("harness", "harness.cmd") and mine.is_file() and found.read_bytes() == mine.read_bytes()
+    except OSError:
+        return False
+
+
 def check_short_command(report: Report, root: Path) -> None:
     """Every command an agent is told to run starts with `harness`: it has to be in PATH (a required setup step)."""
     found = shutil.which(cli_command())
@@ -82,10 +91,13 @@ def check_short_command(report: Report, root: Path) -> None:
         resolved, mine = Path(found), False
     if mine:
         report.ok(f"短命令 `{cli_command()}` 在 PATH 里（{found}）")
+    elif same_launcher(resolved, root):
+        report.ok(f"短命令 `{cli_command()}` 在 PATH 里（{found}），是本仓库启动脚本的拷贝")
     else:
         report.warn(
             f"PATH 里的 `{cli_command()}` 是 `{resolved}`，不是这个仓库的 `.harness/bin/`。"
-            "1.0.2 起的启动脚本会先找当前目录所在的仓库，所以能用；它要是更早的版本，会操作它自己那一份仓库。拿不准就把 PATH 改成指向这个仓库"
+            "1.0.2 起的启动脚本会先找当前目录所在的仓库，所以能用；它要是更早的版本，会操作它自己那一份仓库。"
+            "它要是 PATH 里固定文件夹的拷贝，内容和这个仓库的 `.harness/bin/` 不一样，就从仓库里重新拷一份"
         )
 
 

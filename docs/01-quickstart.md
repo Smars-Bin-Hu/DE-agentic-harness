@@ -27,11 +27,18 @@ echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
 
 你的 PATH 里已经有自己的文件夹时（`echo $PATH` 能看到），把链接建在那里就行，不用再改 PATH。
 
-Windows：把仓库的 `.harness\bin` 文件夹加进用户 PATH（系统设置里搜“环境变量”，编辑用户变量 `Path`，新建一行，填这个文件夹的完整路径）。
+Windows：用一个**固定的文件夹**，PATH 只改这一次，以后升级不用再改。
+
+1. 建一个仓库之外的文件夹，例如 `C:\Users\<你>\bin`。
+2. 把 `.harness\bin\harness.cmd` **拷**一份进去（拷贝，不用链接：Windows 的链接要管理员权限）。
+3. 把这个文件夹加进用户 PATH（系统设置里搜“环境变量”，编辑用户变量 `Path`，新建一行，填完整路径）。
+   公司电脑不让自己改的话，请 helpdesk 远程加这一条：“请把 `C:\Users\<你>\bin` 加进我账户的 Path”。
+
+以后下载新版本，放在哪都行。`harness` 按当前目录找仓库，进到哪一份就用哪一份。脚本本身变了时，`doctor` 会给 `[WARN]`，你再拷一份，不用找 helpdesk。
 
 然后**重开终端，也重开 VS Code**。Copilot 的终端用的是 VS Code 启动时的 PATH，不重开它认不到。
 
-- `harness` 像 git 一样，操作的是**当前目录所在的那一份** harness 仓库。电脑上有两份仓库时，在哪一份里运行，就操作哪一份。不在任何 harness 仓库里时，用启动脚本自己所在的那一份。
+- `harness` 像 git 一样，操作的是**当前目录所在的那一份** harness 仓库。电脑上有两份仓库时，在哪一份里运行，就操作哪一份。不在任何 harness 仓库里时，用启动脚本自己所在的那一份；固定文件夹里的拷贝没有自己的仓库，这时读环境变量 `HARNESS_HOME`（设成某份仓库的路径），没设就报“不在 harness 仓库里”。
 - 提示 `command not found` 时，运行 `echo $PATH`，看 `~/bin` 在不在里面：只建链接不改 PATH 是最常见的原因。
 - 不要用 alias 或 PowerShell 函数代替。它们只在你自己的交互式终端里有效，agent 的终端里没有。
 - 这一步由你自己做。harness 和 agent 都不改你的环境变量。

@@ -24,6 +24,10 @@ def copy_repo(destination: Path) -> None:
     shutil.copy(REPO / ".workspace" / "README.md", destination / ".workspace" / "README.md")  # a module lists it
 
 
+# The release data the banner prints: read it, so a version bump does not break the tests.
+REGISTRY = json.loads((REPO / ".harness" / "registry.json").read_text(encoding="utf-8"))
+VERSION = REGISTRY["version"]
+
 # The Level entry skills are an exception to the prefix rule (skills.instructions.md).
 LEVEL_ENTRY_SKILLS = ("l1", "l2", "l3")
 
@@ -96,7 +100,7 @@ class DoctorTests(unittest.TestCase):
         override.write_text("{not json", encoding="utf-8")
         result = self.doctor()
         self.assertIn("[ERROR]", result.stdout)
-        self.assertEqual(self.version().stdout.strip(), "harness 1.0.0")  # the CLI still prints
+        self.assertEqual(self.version().stdout.strip(), f"harness {VERSION}")  # the CLI still prints
 
     def edit_json(self, relative: str, change) -> None:
         path = self.root / relative
@@ -122,7 +126,7 @@ class DoctorTests(unittest.TestCase):
 
     def test_version_prints_the_registry_version(self) -> None:
         result = self.version()
-        self.assertEqual((result.returncode, result.stdout.strip()), (0, "harness 1.0.0"), result.stderr)
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, f"harness {VERSION}"), result.stderr)
 
     def test_user_gives_the_name_from_the_override_and_else_from_git(self) -> None:
         """M9-2: the name an agent writes where a file needs an author."""
@@ -146,10 +150,10 @@ class DoctorTests(unittest.TestCase):
         result = self.version("--version")
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = result.stdout.splitlines()
-        self.assertTrue(lines[4].endswith("version 1.0.0"), lines)
-        self.assertEqual(lines[6:], ["Copilot Agentic Harness", "Released 2026-10-04", "Copyright (c) 2026 Smars Hu", "Contributors: Claude Code"])
+        self.assertTrue(lines[4].endswith(f"version {VERSION}"), lines)
+        self.assertEqual(lines[6:], ["Copilot Agentic Harness", f"Released {REGISTRY['released']}", f"Copyright (c) {REGISTRY['released'][:4]} {REGISTRY['copyright']}", "Contributors: " + ", ".join(REGISTRY["contributors"])])
         self.assertTrue(result.stdout.isascii())
-        self.assertEqual(self.version("--short", "--version").stdout.strip(), "harness 1.0.0")  # the order does not matter
+        self.assertEqual(self.version("--short", "--version").stdout.strip(), f"harness {VERSION}")  # the order does not matter
         self.edit_json(".harness/registry.json", lambda data: [data.pop(key) for key in ("released", "copyright", "contributors")])
         bare = self.version("--version").stdout.splitlines()
         self.assertEqual(bare[6:], ["Copilot Agentic Harness"])  # the three fields are optional
@@ -302,6 +306,41 @@ class DoctorTests(unittest.TestCase):
         result = self.doctor(PATH=str(other) + os.pathsep + os.environ.get("PATH", "").replace(str(Path.home() / "bin"), ""))
         self.assertIn("不是这个仓库的 `.harness/bin/`", result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout)
+
+    @unittest.skipIf(os.name == "nt", "the shell launcher; harness.cmd follows the same steps")
+    def test_a_copy_of_the_launcher_in_a_fixed_folder_works_and_doctor_accepts_it(self) -> None:
+        """A fixed folder in PATH holds a copy of the launcher, so a new version never needs a PATH change."""
+        fixed = self.root / "fixed-bin"
+        fixed.mkdir()
+        shutil.copy(self.root / ".harness" / "bin" / "harness", fixed / "harness")
+        (fixed / "harness").chmod(0o755)
+        outside_dir = tempfile.TemporaryDirectory()  # not under the repository copy, or the upward search would find it
+        self.addCleanup(outside_dir.cleanup)
+        outside = Path(outside_dir.name).resolve()
+
+        def run(cwd: Path, **extra: str) -> "subprocess.CompletedProcess[str]":
+            env = {key: value for key, value in os.environ.items() if key not in ("HARNESS_ROOT", "HARNESS_HOME")}
+            return subprocess.run([str(fixed / "harness"), "--version", "--short"], cwd=cwd, capture_output=True, text=True, check=False, env={**env, **extra})
+
+        inside = run(self.root / ".harness")  # inside a repository: that one is used
+        self.assertEqual((inside.returncode, inside.stdout.strip()), (0, f"harness {VERSION}"), inside.stderr)
+        lost = run(outside)  # outside every repository, the copy has no repository of its own
+        self.assertEqual(lost.returncode, 1)
+        self.assertIn("not inside a harness repository", lost.stderr)
+        self.assertIn("HARNESS_HOME", lost.stderr)
+        homed = run(outside, HARNESS_HOME=str(self.root))
+        self.assertEqual((homed.returncode, homed.stdout.strip()), (0, f"harness {VERSION}"), homed.stderr)
+        wrong = run(outside, HARNESS_HOME=str(outside))  # a folder that is no repository: the same message
+        self.assertEqual(wrong.returncode, 1)
+        self.assertIn("not inside a harness repository", wrong.stderr)
+        stripped = os.environ.get("PATH", "").replace(str(Path.home() / "bin"), "")
+        same = self.doctor(PATH=str(fixed) + os.pathsep + stripped)
+        self.assertIn("是本仓库启动脚本的拷贝", same.stdout)
+        self.assertNotIn("[WARN]  PATH 里的 `harness`", same.stdout)
+        (fixed / "harness").write_text("#!/bin/sh\n# an old copy\n", encoding="utf-8")
+        old = self.doctor(PATH=str(fixed) + os.pathsep + stripped)
+        self.assertIn("[WARN]  PATH 里的 `harness`", old.stdout)
+        self.assertIn("重新拷一份", old.stdout)
 
     def test_agent_facing_files_do_not_hard_code_python3(self) -> None:
         """Windows has `python` and often no `python3`. A command written with python3 must say it is for macOS/Linux."""

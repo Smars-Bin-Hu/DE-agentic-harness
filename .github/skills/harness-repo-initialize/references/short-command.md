@@ -28,16 +28,26 @@ echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
 
 ## Windows
 
-把 `<仓库>\.harness\bin` 加进**用户**的 PATH。两种做法给用户选：
+用一个**固定的、仓库之外的文件夹**，PATH 只改一次，以后升级不用再改。默认用 `C:\Users\<用户名>\bin`（用户名用 `$env:USERNAME` 查到的，填好再给用户）。
 
-- 界面：系统设置里搜“环境变量”→“编辑账户的环境变量”→ 选 `Path` → 编辑 → 新建 → 填 `<仓库>\.harness\bin`。
-- PowerShell（只改用户变量，不用管理员权限）：
+1. 建文件夹，把 `<仓库>\.harness\bin\harness.cmd` **拷**进去（拷贝，不用链接）：
 
 ```powershell
-[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";<仓库>\.harness\bin", "User")
+New-Item -ItemType Directory -Force "$env:USERPROFILE\bin"
+Copy-Item "<仓库>\.harness\bin\harness.cmd" "$env:USERPROFILE\bin\harness.cmd"
 ```
 
-公司电脑不让改环境变量时，告诉用户：这一步是必须的，要找 IT 加这一条用户 PATH。
+2. 把这个文件夹加进**用户**的 PATH。两种做法给用户选：
+   - 界面：系统设置里搜“环境变量”→“编辑账户的环境变量”→ 选 `Path` → 编辑 → 新建 → 填 `C:\Users\<用户名>\bin`。
+   - PowerShell（只改用户变量，不用管理员权限）：
+
+```powershell
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$env:USERPROFILE\bin", "User")
+```
+
+公司电脑不让自己改环境变量时，告诉用户：这一步是必须的，请 helpdesk 远程加这一条用户 PATH：“请把 `C:\Users\<用户名>\bin` 加进我账户的 Path”。只用加这一次。
+
+以后下载新版本，放在哪都行：`harness` 按当前目录找仓库。拷贝本身变了（`doctor` 给 `[WARN]`），从新仓库再拷一次，不用找 helpdesk。在仓库之外运行 `harness` 时，设环境变量 `HARNESS_HOME` 为某份仓库的路径。
 
 ## 做完之后
 
