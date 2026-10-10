@@ -4,7 +4,7 @@
 
 - 会话类型选 **Local**（orchestrator 和 reviewer 用 Opus，SDK 会话里没有）。agent 下拉列表里选 **orchestrator**。
 - 每个场景新开一个对话。
-- orchestrator 写完计划会停下来，给你 `plan.md` 的链接。你在**自己的终端**运行 `python .harness/engine/cli.py request approve-plan`（macOS/Linux 用 `python3`），输入确认码，再在对话里回“计划批准了”。没批准，它开不了第一轮。
+- orchestrator 写完计划会停下来，给你 `plan.md` 的链接。你在**自己的终端**运行 `harness request approve-plan`，输入确认码，再在对话里回“计划批准了”。没批准，它开不了第一轮。
 - 先确认仓库根没有 `demo-b8/`；有就删掉。
 
 ## Prompt
@@ -25,9 +25,9 @@ builder 不用认真做，写一个最简单的 slug.py 就行。
 ## 跑完以后
 
 ```text
-python .harness/engine/cli.py eval check s3
+harness eval check s3
 ```
 
-默认检查最新的主会话和它的请求。要指定：`--session-id <会话 id>`（提示开头的规则里有，`cli.py stats` 的 `recent_sessions` 里有最近的会话 id），`--request <请求 id>`。
+默认检查最新的主会话和它的请求。要指定：`--session-id <会话 id>`（提示开头的规则里有，`harness stats` 的 `recent_sessions` 里有最近的会话 id），`--request <请求 id>`。
 
 B8 的 S3 第一次测时，builder 和 reviewer 用了同一条矛盾标准，builder 先发现并交了 blocked，reviewer 一次没被调用。这里把矛盾只放给 reviewer。

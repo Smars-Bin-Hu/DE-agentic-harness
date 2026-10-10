@@ -16,7 +16,7 @@
 3) 把计划写到 PLAN.md（只做一件事：在 DEV/ 下写 hello.txt，内容 hi）。然后停下，给我 PLAN.md 的链接，等我批准。
 ```
 
-agent 停下后，你在编辑器里打开 `PLAN.md` 看一眼，在**自己的终端**运行 `python .harness/engine/cli.py task approve-plan`（macOS/Linux 用 `python3`），输入确认码。然后在**同一个对话**里回：
+agent 停下后，你在编辑器里打开 `PLAN.md` 看一眼，在**自己的终端**运行 `harness task approve-plan`，输入确认码。然后在**同一个对话**里回：
 
 ```text
 计划批准了。请在 DEV/ 下写 hello.txt，运行 task diff，再 task close，把报告路径告诉我。
@@ -32,7 +32,7 @@ agent 停下后，你在编辑器里打开 `PLAN.md` 看一眼，在**自己的�
 ## 跑完以后
 
 ```text
-python .harness/engine/cli.py eval check t1
+harness eval check t1
 ```
 
-默认检查最新的主会话。要指定：`--session-id <会话 id>`（提示开头的规则里有，`cli.py stats` 的 `recent_sessions` 里有最近的会话 id）。
+默认检查最新的主会话。要指定：`--session-id <会话 id>`（提示开头的规则里有，`harness stats` 的 `recent_sessions` 里有最近的会话 id）。

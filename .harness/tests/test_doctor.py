@@ -34,13 +34,18 @@ class DoctorTests(unittest.TestCase):
         self.root = Path(self._temporary.name)
         copy_repo(self.root)
 
-    def doctor(self) -> subprocess.CompletedProcess:
+    def env(self, **extra: str) -> dict:
+        """The environment of a machine that is set up: the launcher of this copy is in PATH."""
+        path = str(self.root / ".harness" / "bin") + os.pathsep + os.environ.get("PATH", "")
+        return {**os.environ, "HARNESS_ROOT": str(self.root), "PATH": path, **extra}
+
+    def doctor(self, **extra: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [sys.executable, str(CLI), "doctor"],
             text=True,
             encoding="utf-8",
             capture_output=True,
-            env={**os.environ, "HARNESS_ROOT": str(self.root)},
+            env=self.env(**extra),
             check=False,
         )
 
@@ -49,7 +54,7 @@ class DoctorTests(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(CLI), "doctor"],
             capture_output=True,
-            env={**os.environ, "HARNESS_ROOT": str(self.root), "PYTHONIOENCODING": encoding},
+            env=self.env(PYTHONIOENCODING=encoding),
             check=False,
         ).stdout
 
@@ -77,7 +82,7 @@ class DoctorTests(unittest.TestCase):
         self.assertNotIn("\\u", text)
         refused = subprocess.run(
             [sys.executable, str(CLI), "task", "status"], capture_output=True, check=False,
-            env={**os.environ, "HARNESS_ROOT": str(self.root), "PYTHONIOENCODING": "cp1252"},
+            env=self.env(PYTHONIOENCODING="cp1252"),
         )
         self.assertIn("没有进行中的任务", refused.stderr.decode("utf-8"))  # stderr follows the switch too
 
@@ -104,19 +109,52 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertNotIn("[ERROR]", result.stdout)
 
-    def version(self) -> subprocess.CompletedProcess:
+    def version(self, *flags: str) -> subprocess.CompletedProcess:
+        """`--version --short`: one line, for scripts. Pass `flags=("--version",)` for the banner."""
         return subprocess.run(
-            [sys.executable, str(CLI), "--version"],
+            [sys.executable, str(CLI), *(flags or ("--version", "--short"))],
             text=True,
             encoding="utf-8",
             capture_output=True,
-            env={**os.environ, "HARNESS_ROOT": str(self.root)},
+            env=self.env(),
             check=False,
         )
 
     def test_version_prints_the_registry_version(self) -> None:
         result = self.version()
         self.assertEqual((result.returncode, result.stdout.strip()), (0, "harness 1.0.0"), result.stderr)
+
+    def test_user_gives_the_name_from_the_override_and_else_from_git(self) -> None:
+        """M9-2: the name an agent writes where a file needs an author."""
+        def who() -> dict:
+            done = subprocess.run([sys.executable, str(CLI), "user"], text=True, encoding="utf-8", capture_output=True, env=self.env(), check=False)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            return json.loads(done.stdout)
+
+        self.assertIn(who()["source"], ("git", "none"))  # the copy is no git repository: whatever git says for this machine
+        override = self.root / ".harness" / "policies" / "user.override.json"
+        override.write_text('{"name": "  胡斌  "}', encoding="utf-8")
+        self.assertEqual(who(), {"name": "胡斌", "source": "user.override.json"})
+        self.assertIn("用户名字：胡斌（来自 user.override.json）", self.doctor().stdout)
+        override.write_text('{"name": 7}', encoding="utf-8")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("user.json 的 name 要是一段文字", result.stdout)
+
+    def test_version_shows_the_banner_with_the_release_date_and_the_authors(self) -> None:
+        """M9-1. ASCII only, so it shows on a terminal of any encoding."""
+        result = self.version("--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertTrue(lines[4].endswith("version 1.0.0"), lines)
+        self.assertEqual(lines[6:], ["Copilot Agentic Harness", "Released 2026-10-04", "Copyright (c) 2026 Smars Hu", "Contributors: Claude Code"])
+        self.assertTrue(result.stdout.isascii())
+        self.assertEqual(self.version("--short", "--version").stdout.strip(), "harness 1.0.0")  # the order does not matter
+        self.edit_json(".harness/registry.json", lambda data: [data.pop(key) for key in ("released", "copyright", "contributors")])
+        bare = self.version("--version").stdout.splitlines()
+        self.assertEqual(bare[6:], ["Copilot Agentic Harness"])  # the three fields are optional
+        self.edit_json(".harness/registry.json", lambda data: data.update(released="October 2026"))
+        self.assertEqual(self.version("--version").returncode, 1)
 
     def test_version_follows_the_registry_and_the_registry_needs_it_in_the_x_y_z_form(self) -> None:
         self.edit_json(".harness/registry.json", lambda data: data.update(version="2.3.4"))
@@ -239,14 +277,31 @@ class DoctorTests(unittest.TestCase):
     # --- interpreter and cross-platform text -----------------------------------------------------
 
     def test_a_missing_interpreter_is_a_warning(self) -> None:
+        result = self.doctor(PATH=str(self.root / ".harness" / "bin"))  # the launcher is there, python is not
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("PATH 里找不到 `python", result.stdout)
+
+    def test_the_short_command_must_be_in_path(self) -> None:
+        """M9-5: every command an agent is given starts with `harness`."""
+        fine = self.doctor()
+        self.assertIn("[OK]    短命令 `harness` 在 PATH 里", fine.stdout)
         empty = self.root / "empty-path"
         empty.mkdir()
-        result = subprocess.run(
-            [sys.executable, str(CLI), "doctor"], text=True, encoding="utf-8", capture_output=True, check=False,
-            env={**os.environ, "HARNESS_ROOT": str(self.root), "PATH": str(empty)},
-        )
+        missing = self.doctor(PATH=str(empty))
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("[ERROR] PATH 里找不到短命令 `harness`", missing.stdout)
+        self.assertIn(str(self.root / ".harness" / "bin"), missing.stdout)  # the folder to add
+        self.assertIn("harness-repo-initialize", missing.stdout)
+
+    @unittest.skipIf(os.name == "nt", "a shell script as a stand-in launcher")
+    def test_a_launcher_of_another_copy_is_a_warning(self) -> None:
+        other = self.root / "other-bin"
+        other.mkdir()
+        (other / "harness").write_text("#!/bin/sh\n", encoding="utf-8")
+        (other / "harness").chmod(0o755)
+        result = self.doctor(PATH=str(other) + os.pathsep + os.environ.get("PATH", "").replace(str(Path.home() / "bin"), ""))
+        self.assertIn("不是这个仓库的 `.harness/bin/`", result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertIn("PATH 里找不到", result.stdout)
 
     def test_agent_facing_files_do_not_hard_code_python3(self) -> None:
         """Windows has `python` and often no `python3`. A command written with python3 must say it is for macOS/Linux."""

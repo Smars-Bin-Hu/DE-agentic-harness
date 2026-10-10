@@ -16,7 +16,7 @@
 | 知识库 | `knowledge-base/` 加 `knowledgebase.instructions.md` | 企业的领域资料；instructions 教 agent 按索引渐进地读 | **必须接入**，交付时为空 |
 | 技能（Skills） | `.github/skills/` | 按需加载的流程和参考 | 加 `domain-` 开头的业务技能 |
 | 智能体（Agents） | `.github/agents/` | orchestrator、builder、reviewer、verifier，各有分工和模型 | 改模型，加角色 |
-| 工具（Tools） | Copilot 原生工具；harness 的命令行 `cli.py` | 读、写、搜、运行命令；确定性的请求操作 | 加脚本或 MCP server |
+| 工具（Tools） | Copilot 原生工具；harness 的命令行 `harness` | 读、写、搜、运行命令；确定性的请求操作 | 加脚本或 MCP server |
 | Hooks 和引擎 | `.github/hooks/`、`.harness/engine/` | 在每次工具调用前后检查，强制规则 | 一般不改；用策略调 |
 | 策略 | `.harness/policies/` | “允许什么、上限多少” | 用 `*.override.json` 覆盖 |
 | 交接格式 | `.harness/contracts/` | L3 的请求、清单、交接的数据格式 | 一般不改 |

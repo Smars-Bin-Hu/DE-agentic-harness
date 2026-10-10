@@ -2,6 +2,7 @@
 """Command line entry for agents and people: <python> .harness/engine/cli.py <command> (python on Windows, python3 elsewhere).
 
   doctor                       check that the harness files and config are consistent
+  user                         the name of the person using this copy (for a change note that needs an author)
   level status|set             level of a session (task_level module)
   request, brief, attempt, dispatch, handoff, check, promote   the L3 request (request module)
   target list|show             the target repositories (request module)
@@ -9,7 +10,7 @@
   admin on|off|status          a person switches admin mode on for one session: it may then change guardrail files (gate module)
   stats, logs prune            numbers from the session logs; delete old logs (observe module)
   eval list|show|check         fixed scenarios, judged from a finished run (evalcheck module)
-  --version                    the harness release (from .harness/registry.json)
+  --version [--short]          the harness release, date and authors (from .harness/registry.json); --short prints one line
 """
 
 from __future__ import annotations
@@ -21,15 +22,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core import output  # noqa: E402
+from core import output, user  # noqa: E402
 from core.paths import repo_root  # noqa: E402
-from core.registry import harness_version  # noqa: E402
+from core.registry import harness_version, version_banner  # noqa: E402
 import doctor  # noqa: E402
 from modules.evalcheck import commands as eval_commands  # noqa: E402
 from modules.gate import commands as gate_commands  # noqa: E402
 from modules.observe import commands as observe_commands  # noqa: E402
 from modules.request import commands as request_commands  # noqa: E402
 from modules.task_level import commands as task_level_commands  # noqa: E402
+
+
+SHORT_FLAG = "--short"
+ARGV = None  # the arguments main() was called with, when it was not the command line
 
 
 class ShowVersion(argparse.Action):
@@ -40,7 +45,10 @@ class ShowVersion(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         try:
-            print(f"harness {harness_version(repo_root())}")
+            if SHORT_FLAG in (ARGV if ARGV is not None else sys.argv[1:]):
+                print(f"harness {harness_version(repo_root())}")  # one line, for scripts
+            else:
+                print(version_banner(repo_root()))
         except Exception as error:
             print(f"harness: 读不到版本号：{error}", file=sys.stderr)
             parser.exit(1)
@@ -50,9 +58,12 @@ class ShowVersion(argparse.Action):
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="harness", description="Harness CLI")
     parser.add_argument("--version", action=ShowVersion)
+    parser.add_argument(SHORT_FLAG, action="store_true", help="with --version: only `harness <version>`, one line")
     commands = parser.add_subparsers(dest="command", required=True)
     check = commands.add_parser("doctor", help="check harness files and config")
     check.set_defaults(handler=None)
+    name = commands.add_parser("user", help="the name of the person using this copy (user.override.json, else git config user.name)")
+    name.set_defaults(handler=lambda _args: user.who(repo_root()))
     task_level_commands.register(commands)
     request_commands.register(commands)
     gate_commands.register(commands)
@@ -78,6 +89,8 @@ def safe_streams() -> None:
 
 
 def main(argv=None) -> int:
+    global ARGV
+    ARGV = argv
     safe_streams()
     args = build_parser().parse_args(argv)
     if args.command == "doctor":

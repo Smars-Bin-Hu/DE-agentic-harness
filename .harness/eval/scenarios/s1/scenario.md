@@ -4,7 +4,7 @@
 
 - 会话类型选 **Local**（orchestrator 和 reviewer 用 Opus，SDK 会话里没有）。agent 下拉列表里选 **orchestrator**。
 - 每个场景新开一个对话。
-- orchestrator 写完计划会停下来，给你 `plan.md` 的链接。你在**自己的终端**运行 `python .harness/engine/cli.py request approve-plan`（macOS/Linux 用 `python3`），输入确认码，再在对话里回“计划批准了”。没批准，它开不了第一轮。
+- orchestrator 写完计划会停下来，给你 `plan.md` 的链接。你在**自己的终端**运行 `harness request approve-plan`，输入确认码，再在对话里回“计划批准了”。没批准，它开不了第一轮。
 - 先确认仓库根没有 `demo-b8/`；有就删掉。
 
 ## Prompt
@@ -18,7 +18,7 @@ b) 填 assignment 时，让 builder 和 reviewer 在 handoff 的 summary 第一�
 reviewer 通过后，运行 promote --dry-run，把计划给我看，然后停下来等我批准。我批准以后会告诉你，你再 promote 并结束请求。
 ```
 
-orchestrator 给你计划后，你在**自己的终端**运行它给你的命令（`python .harness/engine/cli.py request approve-promote`），输入确认码。然后在**同一个对话**里回：
+orchestrator 给你计划后，你在**自己的终端**运行它给你的命令（`harness request approve-promote`），输入确认码。然后在**同一个对话**里回：
 
 ```text
 我批准了。
@@ -34,7 +34,7 @@ orchestrator 给你计划后，你在**自己的终端**运行它给你的命令
 ## 跑完以后
 
 ```text
-python .harness/engine/cli.py eval check s1
+harness eval check s1
 ```
 
-默认检查最新的主会话和它的请求。要指定：`--session-id <会话 id>`（提示开头的规则里有，`cli.py stats` 的 `recent_sessions` 里有最近的会话 id），`--request <请求 id>`。
+默认检查最新的主会话和它的请求。要指定：`--session-id <会话 id>`（提示开头的规则里有，`harness stats` 的 `recent_sessions` 里有最近的会话 id），`--request <请求 id>`。

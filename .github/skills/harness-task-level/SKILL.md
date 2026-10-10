@@ -28,7 +28,7 @@ Task Level 是用户为会话选的工作模式。它控制工作方式和探索
 - **要回写到目标仓库的**（代码、知识库）：放 `<任务>/DEV/<仓库名>/<路径>`。要先有用户批准的计划。走下面全部步骤。
 - **不回写的**（RCA、设计、方案、笔记、一次性脚本）：放任务目录根下，例如 `<任务>/RCA.md`。不需要计划和批准。只做第 1、2 步，写完第 8 步结束。
 
-`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。下面省略命令前的 `<cli>`。
+下面省略命令前的 `harness`。
 
 1. **开始**：`task start --task .workspace/current_tasks/<任务> --session-id <提示开头规则里的会话 id>`。它建好 `DEV/`。以前做过的任务会接着做；上一轮已经回写过，就开新的一轮。
 2. **读**：任务目录的 `REQ/`、`REF/`；知识库先读 `knowledge-base/README.md` 再按索引读需要的；目标仓库只读（main 上的版本用 `git -C <仓库> show main:<路径>`，大文件只读需要的部分）。

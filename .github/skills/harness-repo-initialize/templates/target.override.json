@@ -1,0 +1,10 @@
+{
+  "repos_root": "<放代码仓库的文件夹，例如 /Users/you/repos 或 C:\\repos>",
+  "repos": {
+    "<仓库名>": {
+      "path": "<只有仓库不在 repos_root 下时才写>",
+      "base_ref": "<只有取文件的分支不是 main 时才写>",
+      "refused_paths": [".git/**", "<不许 agent 碰的路径，git 风格 glob，例如 .github/workflows/**>"]
+    }
+  }
+}

@@ -476,7 +476,7 @@ class GateHookTests(HarnessTestCase):
                 output = self.pre("create_file", {"filePath": self.path(relative), "content": "{}"})
                 self.assertEqual(self.decision(output), "deny")
                 self.assertIn("由 CLI 生成", self.reason(output))
-                self.assertIn("cli.py", self.reason(output))
+                self.assertIn("`harness`", self.reason(output))
         # other files in the request folder stay writable
         for relative in (f"{inside}/orchestrator/plan.md", f"{inside}/builder/outputs/attempt-001/request.json.md"):
             with self.subTest(relative):

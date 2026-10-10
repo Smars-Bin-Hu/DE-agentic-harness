@@ -17,6 +17,9 @@ REGISTRY_SCHEMA = {
     "properties": {
         "schema_version": {"type": "integer", "enum": [1]},
         "version": {"type": "string", "pattern": r"^\d+\.\d+\.\d+$"},
+        "released": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"},
+        "copyright": {"type": "string"},
+        "contributors": {"type": "array", "items": {"type": "string"}},
         "engine": {
             "type": "object",
             "required": ["files"],
@@ -51,6 +54,31 @@ def load_registry(root: Path) -> Dict[str, Any]:
 def harness_version(root: Path) -> str:
     """The harness release, `major.minor.patch`. `registry.json` is its only source."""
     return load_registry(root)["version"]
+
+
+BANNER = r"""
+    __  __
+   / / / /___ __________  ___  __________
+  / /_/ / __ `/ ___/ __ \/ _ \/ ___/ ___/
+ / __  / /_/ / /  / / / /  __(__  |__  )
+/_/ /_/\__,_/_/  /_/ /_/\___/____/____/   version {version}
+"""
+
+
+def version_banner(root: Path) -> str:
+    """What `harness --version` prints. ASCII only: it has to show on every terminal, whatever its encoding."""
+    registry = load_registry(root)
+    lines = [BANNER.strip("\n").format(version=registry["version"]), "", "Copilot Agentic Harness"]
+    released = registry.get("released", "")
+    if released:
+        lines.append(f"Released {released}")
+    owner = registry.get("copyright", "")
+    if owner:
+        lines.append(f"Copyright (c) {released[:4]} {owner}".replace("  ", " "))
+    others = registry.get("contributors") or []
+    if others:
+        lines.append("Contributors: " + ", ".join(others))
+    return "\n".join(lines)
 
 
 def modules_for(registry: Dict[str, Any], event_name: str) -> List[str]:

@@ -42,10 +42,10 @@ gate 不是沙盒：终端命令可以用 gate 看不出的写法写任何路径
 选了 admin 还不够：hook 看不到当前是哪个 agent，所以写权限由你在终端开。admin 会给你这条命令：
 
 ```text
-<cli> admin on --session-id <会话 id>
+harness admin on --session-id <会话 id>
 ```
 
-输入确认码后，只有这一个会话进入 admin 模式，直到你运行 `<cli> admin off --session-id <会话 id>`。`<cli> admin status` 列出开着的会话。
+输入确认码后，只有这一个会话进入 admin 模式，直到你运行 `harness admin off --session-id <会话 id>`。`harness admin status` 列出开着的会话。
 
 | admin 模式下 | 说明 |
 | --- | --- |

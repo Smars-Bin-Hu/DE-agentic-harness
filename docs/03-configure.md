@@ -82,7 +82,7 @@ harness 面向的目标仓库，是**庞大的、有合规要求的数据工程�
 
 技能放在 `.github/skills/<名>/SKILL.md`，规则见 [skills.instructions.md](../.github/instructions/skills.instructions.md)。
 
-- 目录名和 `name` 必须一致，用前缀：`harness-<模块>`（harness 自带）、`generic-<名>`（通用）、`domain-<领域>-<名>`（你们的业务技能）。
+- 目录名和 `name` 必须一致，用前缀：`harness-<名>`（harness 自带）、`generic-<名>`（通用）、`domain-<领域>-<名>`（你们的业务技能）。
 - `description` 写清“什么时候用”，它是 agent 决定要不要读全文的唯一依据。
 - 业务技能用 `domain-` 前缀，和自带的分开，方便以后升级 harness 时不冲突。
 - 新建技能可以用 `generic-build-new-skill`。

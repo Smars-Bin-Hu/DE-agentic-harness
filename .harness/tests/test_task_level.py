@@ -338,6 +338,9 @@ class TaskLevelTests(HarnessTestCase):
             "PYTHONPATH=. python3 .harness/engine/cli.py LEVEL SET --level 2",
             "python .harness\\engine\\cli.py level set --session-id s --level 2",
             "py -3 .\\.harness\\engine\\cli.py level set --level 2",
+            "harness level set --session-id s --level 2",  # the short command (M9-5)
+            "cd /x && harness.cmd level set --level 2",
+            ".harness/bin/harness level set --level 3",
         ]
         for command in variants:
             with self.subTest(command):
@@ -352,6 +355,8 @@ class TaskLevelTests(HarnessTestCase):
         for command in (
             "python3 .harness/engine/cli.py level status --session-id s",
             "python3 .harness/engine/cli.py doctor",
+            "harness doctor",
+            "harness level status --session-id s",
             "echo level set",
             "git log --grep='level set'",
         ):

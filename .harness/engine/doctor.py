@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
-from core import config, output, targets
+from core import config, output, targets, user
 from core.paths import cli_command, policies_dir, python_command
 from core.registry import load_registry
 from core.state import TRACKED_EVENTS
@@ -52,12 +52,41 @@ def check_python(report: Report) -> None:
 
 
 def check_interpreter(report: Report) -> None:
-    """The commands shown to agents start with `python` (Windows) or `python3` (elsewhere). It has to run from the terminal."""
+    """The launcher and the hook start `python` (Windows) or `python3` (elsewhere). It has to run from the terminal."""
     name = python_command()
     if shutil.which(name):
-        report.ok(f"终端里能找到 `{name}`（agent 提示里的命令前缀：{cli_command()}）")
+        report.ok(f"终端里能找到 `{name}`")
     else:
-        report.warn(f"终端的 PATH 里找不到 `{name}`。agent 提示里的命令前缀是 `{cli_command()}`，运行会失败。装好 Python，或把它加进 PATH")
+        report.warn(f"终端的 PATH 里找不到 `{name}`。短命令和 hook 都要用它。装好 Python，或把它加进 PATH")
+
+
+def launcher_files(root: Path) -> List[Path]:
+    return [root / ".harness" / "bin" / name for name in ("harness", "harness.cmd")]
+
+
+def check_short_command(report: Report, root: Path) -> None:
+    """Every command an agent is told to run starts with `harness`: it has to be in PATH (a required setup step)."""
+    found = shutil.which(cli_command())
+    if not found:
+        folder = root / ".harness" / "bin"
+        report.error(
+            f"PATH 里找不到短命令 `{cli_command()}`。agent 收到的命令都以它开头，现在都会失败。"
+            f"把 `{folder}` 加进 PATH（或在 PATH 里的文件夹建一个指向 `{folder / 'harness'}` 的链接），重开终端和 VS Code，再运行 doctor。"
+            "步骤见 docs/01-quickstart.md 第 1 步，或让 agent 用技能 harness-repo-initialize 带你配"
+        )
+        return
+    try:
+        resolved = Path(found).resolve()
+        mine = any(resolved == path.resolve() for path in launcher_files(root))
+    except OSError:
+        resolved, mine = Path(found), False
+    if mine:
+        report.ok(f"短命令 `{cli_command()}` 在 PATH 里（{found}）")
+    else:
+        report.warn(
+            f"PATH 里的 `{cli_command()}` 是 `{resolved}`，不是这个仓库的 `.harness/bin/`。"
+            "1.0.2 起的启动脚本会先找当前目录所在的仓库，所以能用；它要是更早的版本，会操作它自己那一份仓库。拿不准就把 PATH 改成指向这个仓库"
+        )
 
 
 def check_files(report: Report, root: Path, owner: str, files: List[str]) -> None:
@@ -205,6 +234,22 @@ def print_utf8_sample() -> None:
         sys.stdout.buffer.flush()
     except Exception:  # noqa: BLE001 - a sample line must not fail doctor
         pass
+
+
+def check_user(report: Report, root: Path) -> None:
+    try:
+        raw = config.load_policy(root, user.POLICY_NAME).get("name", "")
+    except Exception as error:
+        report.error(f"user.json 不能读取：{error}")
+        return
+    if not isinstance(raw, str):
+        report.error("user.json 的 name 要是一段文字")
+        return
+    found = user.who(root)
+    if found["source"] == "none":
+        report.warn("不知道用户的名字：user.override.json 没写 name，git 也没有 user.name。要署名的地方会空着。新建 .harness/policies/user.override.json，写 {\"name\": \"你的名字\"}")
+    else:
+        report.ok(f"用户名字：{found['name']}（来自 {found['source']}）")
 
 
 def check_overrides(report: Report, root: Path) -> None:
@@ -448,6 +493,7 @@ def run(root: Path) -> int:
     report = Report()
     check_python(report)
     check_interpreter(report)
+    check_short_command(report, root)
     try:
         registry = load_registry(root)
     except Exception as error:
@@ -462,6 +508,7 @@ def run(root: Path) -> int:
     check_logs(report, root, registry)
     check_overrides(report, root)
     sample = check_output(report, root)
+    check_user(report, root)
     check_targets(report, root)
     check_location(report, root)
     check_knowledge_base(report, root)

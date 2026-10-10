@@ -9,9 +9,9 @@ agent 和人的工作区。这里的运行内容不进 git，只有本文件和�
 | `sandbox/requests/<request-id>/` | L3 请求的执行目录。L3 任务只在这里写 | L3 的 agent 和 CLI |
 | `current_tasks/<任务>/` | 人放任务材料（`REQ/`、`REF/`）。L2 任务模式下：`PLAN.md`（计划）、`DEV/`（要回写的成果，路径和目标仓库一样）、目录根下的其他文件（不回写的成果，例如 `RCA.md`）、`CHANGES.diff` 和 `PROMOTE-PLAN.diff`（给人看的差异）、`.task/`（状态） | 人；L2 的 agent 写 `PLAN.md`、`DEV/` 和不回写的成果；两个 `.diff` 和 `.task/` 由 CLI 写 |
 | `goals/<id>/` | 长任务的目标文件：`GOAL.md`（中心思想）、`TODO.md`（步骤）、`NOW.md`（进度指针）、`LOG.md`（改动日志），复杂步骤另有 `accept/`（验收指南）。用户输入 `/generic-goal-driven` 才建 | 人和 agent；L2 任务模式和 L3 进行中不能写 |
-| `reports/` | 请求的执行报告。请求收尾时自动写，也可以 `cli.py report` 重写 | CLI |
+| `reports/` | 请求的执行报告。请求收尾时自动写，也可以 `harness report` 重写 | CLI |
 
-`<request-id>` 的格式是 `<yyyymmdd-HHMM>-<slug>-<4 位随机>`。请求目录和里面的子目录都由 CLI 建立：`cli.py request new`、`attempt new`、`dispatch`。命令一览：`python .harness/engine/cli.py --help`（macOS/Linux 用 `python3`）。
+`<request-id>` 的格式是 `<yyyymmdd-HHMM>-<slug>-<4 位随机>`。请求目录和里面的子目录都由 CLI 建立：`harness request new`、`attempt new`、`dispatch`。命令一览：`harness --help`。
 
 L1、L2 不走 sandbox，直接在仓库里改。L2 的任务模式（`task start`）只在任务目录里写；写 `DEV/` 和回写都要人在终端批准。`sandbox/` 下请求目录之外的东西，是手测或探针留下的，可以直接删。
 

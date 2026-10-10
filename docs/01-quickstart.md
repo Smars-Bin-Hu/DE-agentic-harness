@@ -2,17 +2,6 @@
 
 从克隆仓库到跑通第一个 L2 任务和第一个 L3 请求。可以直接复制的提示见 [提示模板](07-prompts.md)。
 
-## 命令怎么写
-
-下面的 `<cli>` 是运行 harness 命令的前缀：
-
-| 系统        | `<cli>`                          |
-| ----------- | ---------------------------------- |
-| macOS/Linux | `python3 .harness/engine/cli.py` |
-| Windows     | `python .harness/engine/cli.py`  |
-
-在仓库根目录运行。装了短命令（见第 2 步）后，可以用 `harness` 代替 `<cli>`。
-
 ## 要求
 
 - Python 3.9 或更新。macOS/Linux 用 `python3`，Windows 用 `python`。
@@ -20,10 +9,37 @@
 - git。用目标仓库时必须有。
 - VS Code 和 GitHub Copilot Chat。`.vscode/settings.json` 里要开 `chat.useHooks`（仓库已经写好）。
 
-## 1. 检查
+## 1. 短命令（必须）
+
+所有命令都写成 `harness <命令>`：文档里、agent 收到的规则里、拒绝理由里都是。所以要先让终端认得 `harness`。只做一次。
+
+想让 agent 带着你做：在 Copilot 对话里输入 `/harness-repo-initialize`。下面是手动的做法。
+
+启动脚本在 `.harness/bin/`：macOS/Linux 是 `harness`，Windows 是 `harness.cmd`。要做的事只有一件：让它在 PATH 里。
+
+macOS/Linux（zsh；bash 把 `~/.zshrc` 换成 `~/.bashrc`），在仓库根目录运行：
 
 ```bash
-<cli> doctor
+mkdir -p ~/bin
+ln -sf "$PWD/.harness/bin/harness" ~/bin/harness
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+```
+
+你的 PATH 里已经有自己的文件夹时（`echo $PATH` 能看到），把链接建在那里就行，不用再改 PATH。
+
+Windows：把仓库的 `.harness\bin` 文件夹加进用户 PATH（系统设置里搜“环境变量”，编辑用户变量 `Path`，新建一行，填这个文件夹的完整路径）。
+
+然后**重开终端，也重开 VS Code**。Copilot 的终端用的是 VS Code 启动时的 PATH，不重开它认不到。
+
+- `harness` 像 git 一样，操作的是**当前目录所在的那一份** harness 仓库。电脑上有两份仓库时，在哪一份里运行，就操作哪一份。不在任何 harness 仓库里时，用启动脚本自己所在的那一份。
+- 提示 `command not found` 时，运行 `echo $PATH`，看 `~/bin` 在不在里面：只建链接不改 PATH 是最常见的原因。
+- 不要用 alias 或 PowerShell 函数代替。它们只在你自己的交互式终端里有效，agent 的终端里没有。
+- 这一步由你自己做。harness 和 agent 都不改你的环境变量。
+
+## 2. 检查
+
+```bash
+harness doctor
 ```
 
 最后一行 `{"errors": 0}` 就是通过。
@@ -32,31 +48,7 @@
 - `[WARN]` 提醒，不影响运行（例如知识库没有 README）。
 - `[ERROR]` 要先修。信息里写了哪个文件、哪一项。
 
-## 2. 短命令（可选）
-
-`.harness/bin/` 里有给人用的短命令：macOS/Linux 是 `harness`，Windows 是 `harness.cmd`。
-
-```bash
-.harness/bin/harness doctor
-```
-
-想在任何目录直接敲 `harness`，要做两件事：把它放进一个文件夹，再让这个文件夹在 PATH 里。
-
-macOS/Linux（zsh；bash 把 `~/.zshrc` 换成 `~/.bashrc`）：
-
-```bash
-mkdir -p ~/bin
-ln -sf "$PWD/.harness/bin/harness" ~/bin/harness
-echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
-```
-
-然后**重开终端**（或运行 `source ~/.zshrc`），再运行 `harness doctor`。提示 `command not found` 时，运行 `echo $PATH`，看 `~/bin` 在不在里面：只建链接不改 PATH 是最常见的原因。你的 PATH 里已经有别的自己的文件夹时（`echo $PATH` 能看到），把链接建在那里也行，不用再改 PATH。
-
-Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变量”），重开终端；或在 PowerShell 配置里加函数：`function harness { python C:\你的路径\.harness\engine\cli.py @args }`。
-
-也可以只加 alias：`alias harness='python3 /你的路径/.harness/engine/cli.py'`。
-
-这些都由你自己加，harness 不改你的环境变量。agent 的说明里写的仍是完整命令。
+第 1 步没做好时，`harness` 本身运行不了。这时用完整路径运行一次，看它怎么说：macOS/Linux 是 `.harness/bin/harness doctor`，Windows 是 `.harness\bin\harness.cmd doctor`。
 
 ## 3. 选 Level
 
@@ -81,7 +73,7 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 `repos_root` 下每个带 `.git` 的子文件夹就是一个目标仓库，名字是文件夹名。检查：
 
 ```bash
-<cli> target list
+harness target list
 ```
 
 更多写法见 [配置与定制](03-configure.md)。
@@ -96,7 +88,7 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 4. 你在编辑器里看计划。同意就在**自己的终端**运行：
 
    ```bash
-   <cli> task approve-plan
+   harness task approve-plan
    ```
 
    输入屏幕上的确认码。要改计划，直接告诉 agent，改完再批准。
@@ -105,7 +97,7 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 7. agent 运行 `task promote --dry-run`，给你 `PROMOTE-PLAN.diff` 的链接。你在编辑器里看差异，同意就运行：
 
    ```bash
-   <cli> task approve-promote
+   harness task approve-promote
    ```
 
 8. 你说“批准了”，agent 运行 `task promote`：在每个目标仓库从 main 新建分支 `feature/<任务名>`，把文件写进去，**不提交**。
@@ -120,14 +112,14 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 3. orchestrator 自己建请求、取文件、写计划。它停下来给你 `plan.md` 的链接。你在编辑器里看，同意就在**自己的终端**运行：
 
    ```bash
-   <cli> request approve-plan --request <请求 id>
+   harness request approve-plan --request <请求 id>
    ```
 
 4. 你说“批准了”，orchestrator 派发 builder 和 reviewer。每一步的命令和判断见技能 [harness-orchestration](../.github/skills/harness-orchestration/SKILL.md)。
 5. reviewer 通过后，orchestrator 运行 `promote --dry-run`，给你 `promote-plan.diff` 的链接。你在编辑器里看差异，同意就运行它给出的命令：
 
    ```bash
-   <cli> request approve-promote --request <请求 id>
+   harness request approve-promote --request <请求 id>
    ```
 
    输入屏幕上提示的确认码。
@@ -138,9 +130,9 @@ Windows：把 `.harness\bin` 加进用户 PATH（系统设置里的“环境变�
 ## 常见情况
 
 - **工具调用被拒绝**：理由里写了原因和下一步。agent 会照做或停下来告诉你。
-- **agent 要运行 git 写命令**：被拒绝，理由里有整条命令和验证码。你在自己的终端运行 `<cli> approve-command`，输入验证码，agent 再运行同一条命令（只放行一次）。
+- **agent 要运行 git 写命令**：被拒绝，理由里有整条命令和验证码。你在自己的终端运行 `harness approve-command`，输入验证码，agent 再运行同一条命令（只放行一次）。
 - **agent 想直接改目标仓库的文件**：被拒绝。目标仓库只有 promote 能写。L2 用任务模式，L3 用请求。
-- **promote 中途出错**：进入 `partial`，信息里列出已写好、出错、没动的仓库。你在自己的终端运行 `<cli> request recover`（L2 任务是 `<cli> task recover`），再让 agent 重新 `--dry-run`。
+- **promote 中途出错**：进入 `partial`，信息里列出已写好、出错、没动的仓库。你在自己的终端运行 `harness request recover`（L2 任务是 `harness task recover`），再让 agent 重新 `--dry-run`。
 - **任务很大，要做很多天或跨多个 session**：输入 `/generic-goal-driven` 建目标，之后每个新 session 输入 `/generic-goal-driven 继续`。日常任务不要用。提示见 [07-prompts.md](07-prompts.md)。
-- **看用量和拒绝次数**：`<cli> stats`。
-- **要改 harness 自己，或查 harness 为什么出错**：在 agent 下拉里选 admin，照它给的命令在终端运行 `<cli> admin on`。用完运行 `<cli> admin off`。见 [02-features.md](02-features.md) 的“admin”一节。
+- **看用量和拒绝次数**：`harness stats`。
+- **要改 harness 自己，或查 harness 为什么出错**：在 agent 下拉里选 admin，照它给的命令在终端运行 `harness admin on`。用完运行 `harness admin off`。见 [02-features.md](02-features.md) 的“admin”一节。

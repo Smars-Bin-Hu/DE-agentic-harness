@@ -79,7 +79,7 @@ Level 切换后一直有效，直到你再切。L3 不用标记：在 agent 下�
 
 - 不想复核就去掉 `[verify]`。
 - 分支名默认是 `feature/<任务名>`，任务名里的 `-` 会变成 `_`。要别的，加一句：`分支名用 feature/<名字>`（字母、数字、下划线）。
-- 两次批准都在你自己的终端：`<cli> task approve-plan`、`<cli> task approve-promote`。批准完回对话说“批准了”。
+- 两次批准都在你自己的终端：`harness task approve-plan`、`harness task approve-promote`。批准完回对话说“批准了”。
 - 只要成果、不回写仓库：把第 3 步改成“做完 task diff，然后 task close”。
 
 接着昨天的任务做（新对话）：
@@ -124,7 +124,7 @@ DEV/ 里的成果已经写好。不要改文件。
 
 说明：
 
-- 两次批准都在你自己的终端：`<cli> request approve-plan --request <id>`、`<cli> request approve-promote --request <id>`。请求 id 在 agent 的回复里，也可以用 `<cli> request list` 看。
+- 两次批准都在你自己的终端：`harness request approve-plan --request <id>`、`harness request approve-promote --request <id>`。请求 id 在 agent 的回复里，也可以用 `harness request list` 看。
 - 用了几轮、每轮的交接、被拒绝的调用，都在结束时的报告里。
 
 ## 长任务：目标驱动
@@ -165,5 +165,3 @@ DEV/ 里的成果已经写好。不要改文件。
 | 需求清楚的开发，要改目标仓库 | L2 任务模式 |
 | 跨多个仓库或 domain，改动大，想要独立的 reviewer 把关 | L3 |
 | 改 harness 自己（hook、策略、engine、agent、skill），读报告，查 harness 出错的根因 | admin agent，先在终端 `admin on` |
-
-`<cli>` 是 `python .harness/engine/cli.py`（Windows）或 `python3 .harness/engine/cli.py`（macOS/Linux）。

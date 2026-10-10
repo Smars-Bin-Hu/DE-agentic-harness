@@ -1,6 +1,9 @@
 {
   "schema_version": 1,
   "version": "1.0.0",
+  "released": "2026-10-04",
+  "copyright": "Smars Hu",
+  "contributors": ["Claude Code"],
   "engine": {
     "files": [
       ".harness/engine/hook.py",
@@ -12,6 +15,10 @@
       ".harness/engine/adapters/tool_kinds.json",
       ".github/hooks/harness.json",
       ".harness/policies/cli.json",
+      ".harness/policies/user.json",
+      ".harness/bin/harness",
+      ".harness/bin/harness.cmd",
+      ".github/skills/harness-repo-initialize/",
       ".harness/eval/fixtures/hooks/vscode/",
       ".harness/tests/test_breaker.py",
       ".harness/tests/test_docs.py"

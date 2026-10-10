@@ -215,7 +215,7 @@ def run(root: Path, scenario: Dict[str, Any], surface: str, session_id: str, req
         surface, session_id = picked
     rows = session_rows(root, surface, session_id)
     if not rows:
-        raise ValueError(f"会话 `{session_id}` 在 {surface} 下没有日志。检查 id（`cli.py stats` 能列出日志在不在），或日志是否被清理。")
+        raise ValueError(f"会话 `{session_id}` 在 {surface} 下没有日志。检查 id（`harness stats` 能列出日志在不在），或日志是否被清理。")
     results = check_calls(rows, expect.get("calls", [])) + check_order(rows, expect.get("order", []))
     found_request: Optional[str] = None
     if "request" in expect:
