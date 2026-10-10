@@ -118,7 +118,7 @@ promote 计划（dry-run）→ 你在编辑器里看差异，在终端批准 →
    │
 agent：task start ─ 读需求和知识库 ─ 写 PLAN.md，停下
    │
-你在编辑器里看计划 → 在终端批准（没批准只能写 PLAN.md）
+你在编辑器里看计划 → 在终端批准（没批准不能写 DEV/）
    │
 agent：task fetch 取文件到 DEV/ ─ 在 DEV/ 里改 ─（你写了 [verify]）verifier 读差异复核
    │

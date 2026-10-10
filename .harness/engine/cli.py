@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from core import output  # noqa: E402
 from core.paths import repo_root  # noqa: E402
 from core.registry import harness_version  # noqa: E402
 import doctor  # noqa: E402
@@ -61,11 +62,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def safe_streams() -> None:
-    """A character the terminal encoding cannot show (a Chinese text on a Windows pipe) must not kill the command."""
+    """A character the terminal encoding cannot show (a Chinese text on a Windows pipe) must not kill the command.
+
+    It is printed as \\uXXXX. `output.encoding: utf-8` in the cli policy prints UTF-8 instead, for a reader that decodes UTF-8.
+    """
+    encoding = output.configured_encoding()
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(errors="backslashreplace")
-        except (AttributeError, ValueError):
+            if encoding:
+                stream.reconfigure(encoding=encoding, errors="backslashreplace")
+            else:
+                stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError, LookupError):
             pass
 
 

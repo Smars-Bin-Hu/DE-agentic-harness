@@ -44,6 +44,55 @@ class DoctorTests(unittest.TestCase):
             check=False,
         )
 
+    def doctor_as(self, encoding: str) -> bytes:
+        """doctor with stdout in `encoding`, as a Windows pipe has it. The bytes, not decoded."""
+        return subprocess.run(
+            [sys.executable, str(CLI), "doctor"],
+            capture_output=True,
+            env={**os.environ, "HARNESS_ROOT": str(self.root), "PYTHONIOENCODING": encoding},
+            check=False,
+        ).stdout
+
+    def test_it_says_how_chinese_is_printed_here(self) -> None:
+        """ISSUE-20261005-03: on a pipe that cannot show Chinese the CLI prints \\uXXXX; doctor shows what UTF-8 would look like."""
+        fine = self.doctor().stdout
+        self.assertIn("输出编码：stdout=utf-8", fine)
+        self.assertIn("output.encoding=auto", fine)
+        self.assertIn("中文样例：成果已写入（这一行能读", fine)
+        self.assertNotIn("UTF-8 样例", fine)
+        narrow = self.doctor_as("cp1252")
+        self.assertIn(b"[WARN]  \\u8f93\\u51fa\\u7f16\\u7801", narrow)  # 输出编码, escaped: what the company machine showed
+        self.assertIn(b"stdout=cp1252", narrow)
+        sample = [line for line in narrow.splitlines() if line.startswith(b"[INFO]")]
+        self.assertEqual(len(sample), 1)
+        self.assertIn("UTF-8 样例：中文样例：成果已写入", sample[0].decode("utf-8"))  # raw UTF-8 bytes, whatever the stream is
+        self.assertIn("cli.override.json", sample[0].decode("utf-8"))
+        self.assertTrue(narrow.rstrip().endswith(b'{"errors": 0}'))
+
+    def test_the_switch_prints_utf8_whatever_the_terminal_says(self) -> None:
+        (self.root / ".harness" / "policies" / "cli.override.json").write_text('{"output": {"encoding": "utf-8"}}', encoding="utf-8")
+        text = self.doctor_as("cp1252").decode("utf-8")
+        self.assertIn("输出编码：stdout=utf-8", text)
+        self.assertIn("output.encoding=utf-8", text)
+        self.assertNotIn("\\u", text)
+        refused = subprocess.run(
+            [sys.executable, str(CLI), "task", "status"], capture_output=True, check=False,
+            env={**os.environ, "HARNESS_ROOT": str(self.root), "PYTHONIOENCODING": "cp1252"},
+        )
+        self.assertIn("没有进行中的任务", refused.stderr.decode("utf-8"))  # stderr follows the switch too
+
+    def test_a_wrong_or_broken_output_setting_is_reported_and_printing_goes_on(self) -> None:
+        override = self.root / ".harness" / "policies" / "cli.override.json"
+        override.write_text('{"output": {"encoding": "gbk"}}', encoding="utf-8")
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("output.encoding 是 `gbk`", result.stdout)
+        self.assertIn("output.encoding=auto", result.stdout)
+        override.write_text("{not json", encoding="utf-8")
+        result = self.doctor()
+        self.assertIn("[ERROR]", result.stdout)
+        self.assertEqual(self.version().stdout.strip(), "harness 1.0.0")  # the CLI still prints
+
     def edit_json(self, relative: str, change) -> None:
         path = self.root / relative
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -387,8 +436,8 @@ class LayoutTests(unittest.TestCase):
     def test_engine_code_uses_only_the_standard_library(self) -> None:
         local = {"core", "adapters", "modules", "doctor", "hook", "cli"}
         stdlib = {
-            "__future__", "argparse", "ast", "contextlib", "copy", "dataclasses", "datetime", "difflib", "hashlib", "importlib",
-            "json", "math", "os", "pathlib", "posixpath", "random", "re", "shutil", "stat", "string", "subprocess", "sys", "tempfile", "time",
+            "__future__", "argparse", "ast", "contextlib", "copy", "ctypes", "dataclasses", "datetime", "difflib", "hashlib", "importlib",
+            "json", "locale", "math", "os", "pathlib", "posixpath", "random", "re", "shutil", "stat", "string", "subprocess", "sys", "tempfile", "time",
             "traceback", "typing", "urllib", "uuid",
         }
         for path in sorted(ENGINE.rglob("*.py")):

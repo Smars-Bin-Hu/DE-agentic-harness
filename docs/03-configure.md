@@ -101,4 +101,6 @@ harness 面向的目标仓库，是**庞大的、有合规要求的数据工程�
 
 ## 路径太长（Windows）
 
+CLI 输出里的中文显示成 `\uXXXX`：运行 `doctor`，看“输出编码”那几行。最后有一行“UTF-8 样例”。那一行能读，就新建 `.harness/policies/cli.override.json`，写 `{"output": {"encoding": "utf-8"}}`。那一行是乱码，就不要改。
+
 请求目录加仓库路径会让文件路径很长，Windows 默认上限 260 个字符。把 harness 放在短路径、不同步的位置（例如 `C:\h`），不要放在 OneDrive 下。`doctor` 会对过长的路径给 WARN。

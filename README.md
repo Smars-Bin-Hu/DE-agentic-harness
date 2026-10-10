@@ -88,7 +88,7 @@ harness 之外：目标仓库（企业的代码仓库）
 | [.github/agents/](.github/agents/) | 自定义智能体：orchestrator、admin（用户可选）、builder、reviewer、verifier。admin 用来二开和排查 harness，要先在终端开 admin 模式 |
 | [.github/hooks/harness.json](.github/hooks/harness.json) | 唯一的 hook 配置，所有事件进同一个入口 |
 | [.harness/registry.json](.harness/registry.json) | 模块注册表：开关、订阅的事件、文件清单 |
-| [.harness/policies/](.harness/policies/) | 策略：task-levels、gate、orchestration、observe、agents、target。覆盖写在同名 `.override.json`，规则见 [配置与定制](docs/03-configure.md) |
+| [.harness/policies/](.harness/policies/) | 策略：task-levels、gate、orchestration、observe、agents、target、cli。覆盖写在同名 `.override.json`，规则见 [配置与定制](docs/03-configure.md) |
 | [.harness/contracts/](.harness/contracts/) | L3 交接格式：request、manifest、handoff 的 schema 和 assignment 模板 |
 | [.harness/engine/](.harness/engine/) | [hook.py](.harness/engine/hook.py)（hook 入口）、[cli.py](.harness/engine/cli.py)（命令入口）、modules/（task_level、gate、request、observe、evalcheck）、adapters/（运行时差异） |
 | [.harness/bin/](.harness/bin/) | 给人用的短命令：`harness`（macOS/Linux）、`harness.cmd`（Windows） |

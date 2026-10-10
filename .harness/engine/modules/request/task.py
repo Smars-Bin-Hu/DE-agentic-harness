@@ -1,12 +1,14 @@
 """The L2 task (M7): one agent, a task folder, and the same two approvals as an L3 request.
 
   task start          the session enters task mode for `.workspace/current_tasks/<task>`; DEV/ and the state are made
-  task approve-plan   the person approves PLAN.md (terminal only); until then the gate lets the agent write only PLAN.md
+  task approve-plan   the person approves PLAN.md (terminal only); until then the gate keeps DEV/ closed. Results that
+                      do not go back to a repository (an RCA, a design) are written at the top of the task folder and need no plan
   task fetch          a file of a target repository as its base branch has it, copied to DEV/<repo>/<path>; the same
                       bytes are kept under .task/base/ so a diff needs no look into the repository
   task delete         a fetched file is to be deleted in the repository
   task diff           what DEV/ changes against the fetched versions, written to CHANGES.diff
-  task promote        like the L3 promote: checked for every repository, approved by the person, written to a new branch
+  task promote        like the L3 promote: checked for every repository, approved by the person, written to a new branch.
+                      A file directly in DEV/ (not under a repository name) is not written back; the plan lists it
   task close          the session leaves task mode; the report is written
 
 There is no sandbox, no handoff and no second agent. The state is `<task>/.task/task.json`; only this file writes it.
@@ -40,6 +42,7 @@ HINTS = {
     "set_branch": "用 `task set-branch --branch feature/<名字>` 设一个。",
     "rename_branch": "换一个分支名（`task set-branch`），或先处理掉那个分支。",
     "drop": "把它从 DEV/ 里拿掉。",
+    "stray": "要回写：放到 DEV/<仓库名>/<路径> 下。不回写：用终端命令把它移到任务目录根下（DEV/ 之外），再重新 --dry-run。",
 }
 
 
@@ -216,14 +219,18 @@ def next_step(root: Path, task: str, data: Dict[str, Any]) -> str:
     plan = f"{task}/{tasks.PLAN_NAME}"
     if not tasks.plan_digest(root, task):
         return (
-            f"读 REQ/、REF/ 和知识库，把计划写到 {plan}（要改哪些文件、怎么改、怎么验收）。写完就停：给用户 [PLAN.md]({plan}) 的链接，"
-            f"请用户在自己的终端运行 `{cli_command()} task approve-plan`。批准前只能写 PLAN.md。"
+            f"读 REQ/、REF/ 和知识库。要改目标仓库：把计划写到 {plan}（要改哪些文件、怎么改、怎么验收），写完就停，给用户 [PLAN.md]({plan}) 的链接，"
+            f"请用户在自己的终端运行 `{cli_command()} task approve-plan`；批准前不能写 {task}/{tasks.DEV_NAME}/。"
+            f"不改目标仓库的成果（RCA、设计、笔记）不需要计划，直接写在 {task}/ 根下。"
         )
     if not tasks.plan_approved(root, task, data):
-        return f"计划还没有经用户批准（或批准之后改过）。给用户 [PLAN.md]({plan}) 的链接，请用户在自己的终端运行 `{cli_command()} task approve-plan`。"
-    text = f"计划已批准。只在 {task}/{tasks.DEV_NAME}/ 下写文件。"
+        return (
+            f"计划还没有经用户批准（或批准之后改过）。给用户 [PLAN.md]({plan}) 的链接，请用户在自己的终端运行 `{cli_command()} task approve-plan`。"
+            f"批准前不能写 {task}/{tasks.DEV_NAME}/；不回写的成果可以先写在 {task}/ 根下。"
+        )
+    text = f"计划已批准。要回写到目标仓库的成果写在 {task}/{tasks.DEV_NAME}/<仓库名>/<路径> 下；不回写的成果（RCA、设计、一次性脚本）写在 {task}/ 根下。"
     if data.get("target_mode"):
-        text += "目标仓库的文件用 `task fetch <仓库名>/<路径>` 取进来再改；做完 `task diff`，再 `task promote --dry-run`。"
+        text += "要改仓库里已有的文件，先用 `task fetch <仓库名>/<路径>` 取进来；做完 `task diff`，再 `task promote --dry-run`。"
     return text + "全部做完后 `task close`。"
 
 
@@ -501,19 +508,28 @@ def header(task: str, data: Dict[str, Any]) -> str:
 def make_plan(root: Path, task: str, data: Dict[str, Any]) -> Dict[str, Any]:
     if not data.get("target_mode"):
         raise CommandError("没有配置目标仓库，没有地方可回写。成果就在 DEV/ 下，做完 `task close`。")
-    items: List[Dict[str, Any]] = [{"key": key, "source": path, "sha256": store.sha256_file(path), "delete": False} for key, path in dev_files(root, task)]
+    found = dev_files(root, task)
+    loose = [key for key, _path in found if "/" not in key]  # directly in DEV/: under no repository, so it is not written back
+    items: List[Dict[str, Any]] = [{"key": key, "source": path, "sha256": store.sha256_file(path), "delete": False} for key, path in found if "/" in key]
     clash = [item["key"] for item in items if item["key"] in data["deletes"]]
     if clash:
         raise CommandError(f"`{clash[0]}` 已经声明删除，但 DEV/ 里又有这个文件。二选一：删掉 DEV/ 里的文件，或 `task fetch {clash[0]}` 取消删除。")
     items += [{"key": key, "source": None, "sha256": "", "delete": True} for key in data["deletes"]]
     if not items:
-        raise CommandError("DEV/ 里没有成果文件，没有东西可回写。")
+        raise CommandError(
+            "DEV/ 里没有要回写的成果，没有东西可回写。"
+            + (f"直接放在 DEV/ 根目录的文件不回写（{'、'.join(loose)}）；要回写的放到 DEV/<仓库名>/<路径> 下。" if loose else "")
+        )
     branch = data.get("branch", "")
     repos, files = promote_target.plan_files(root, items, data["target_files"], branch, HINTS)
-    return {
+    result: Dict[str, Any] = {
         "task": task, "round": data["round"], "branch": branch, "repos": repos, "files": files,
         "plan_sha256": promote_target.plan_digest(branch, repos, files),
     }
+    if loose:
+        result["not_promoted"] = loose
+        result["not_promoted_note"] = "这些文件直接放在 DEV/ 根目录，不属于任何目标仓库，不会回写。要回写，放到 DEV/<仓库名>/<路径> 下。"
+    return result
 
 
 def write_review(root: Path, task: str, data: Dict[str, Any], result: Dict[str, Any]) -> str:
@@ -589,6 +605,8 @@ def approve_promote(
     if any(item["action"] == "delete" for item in result["files"]):
         lines.append("  注意：标着 delete 的文件会被删除。")
     lines += [f"  {item['action']:9} {item['path']}  (+{item['added']} -{item['removed']})" for item in result["files"]]
+    if result.get("not_promoted"):
+        lines.append("  不回写（直接放在 DEV/ 根目录，不属于任何仓库）：" + "、".join(result["not_promoted"]))
     lines.append(f"完整差异在这个文件里，先在编辑器里打开看：{review}")
     approval.say(out, *lines)
     typed("确认回写", result["plan_sha256"], "没有批准。什么都没有写。", reader)

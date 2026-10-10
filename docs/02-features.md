@@ -25,7 +25,7 @@ gate 是一个 hook 模块，在每次工具调用前检查。它只管写，不
 | --- | --- |
 | guardrail 文件 | `.github/hooks/`、`.harness/engine/`、`.harness/policies/`、`.harness/bin/`、`.harness/registry.json`、`.harness/runtime/`、`.vscode/settings.json`。所有 Level 都不能改，也不能被 override 删掉。只有 admin 模式的会话例外（见下面“admin”一节） |
 | L3 越界写 | L3 的编辑类工具只能写当前请求目录 |
-| L2 任务越界写 | 任务模式下，你批准计划之前只能写 `PLAN.md`，之后只能写任务的 `DEV/` |
+| L2 任务越界写 | 任务模式下只能写任务目录。`DEV/` 要等你批准计划；`REQ/`、`REF/` 不能写 |
 | 目标仓库的工作区 | 任何 Level 都不能直接改目标仓库里的文件，只有 promote 能写 |
 | CLI 专用文件 | `request.json`、`handoff.json`、`manifest.json`、`knowledge-brief.md`、报告，只能用命令改 |
 | `.git` | 任何 Level 都不能写 `.git` 文件夹（含 Windows 的别名写法），也不能写目标仓库的 `refused_paths` |
@@ -61,10 +61,10 @@ admin 模式的会话能改 engine 和策略，所以它的底线不是硬的：
 日常开发用它。你在提示里指定任务目录 `.workspace/current_tasks/<任务>`，并要 agent 产出或修改文件时，agent 运行 `task start` 进入任务模式。没有指定任务目录的 L2（问答、RCA、出方案）不受影响。
 
 - **计划要你批准**：agent 把计划写到 `<任务>/PLAN.md` 就停下，给你文件的链接。你在编辑器里看，在终端运行 `task approve-plan`，输入确认码。确认码绑定这份计划，计划改了要重新批准。
-- **只写 `DEV/`**：批准之前，编辑类工具只能写 `PLAN.md`；批准之后只能写 `<任务>/DEV/`。
+- **只写任务目录**：成果分两种。要回写到目标仓库的放 `<任务>/DEV/<仓库>/<路径>`，你批准计划之后才能写。不回写的（RCA、设计、一次性脚本）放任务目录根下，不用批准，promote 不看它。`REQ/`、`REF/` 是你的材料，agent 不能写。
 - **取文件**：`task fetch <仓库>/<路径>` 从本地 main 读文件（不动工作区），放到 `DEV/<仓库>/<路径>`，路径和仓库里一样。几 MB 的大文件按字节原样复制。
 - **差异**：`task diff` 把成果和取文件时的版本对比，写成 `CHANGES.diff`。verifier 读差异，不读全文。
-- **回写要你批准**：`task promote --dry-run` 把完整差异写成 `PROMOTE-PLAN.diff`，你在编辑器里看，在终端运行 `task approve-promote`。检查、新分支（默认 `feature/<任务名>`，任务名里的 `-` 变成 `_`）、不提交、出错恢复，都和 L3 的 promote 一样。
+- **回写要你批准**：`task promote --dry-run` 把完整差异写成 `PROMOTE-PLAN.diff`，你在编辑器里看，在终端运行 `task approve-promote`。检查、新分支（默认 `feature/<任务名>`，任务名里的 `-` 变成 `_`）、不提交、出错恢复，都和 L3 的 promote 一样。直接放在 `DEV/` 根目录的文件不属于任何仓库，不回写，计划和批准屏幕里会列出来。
 - **删除和改名**：`task delete <仓库>/<路径>` 声明删除（文件要先取过）。改名是新文件加删除旧文件。
 - **多轮**：接着做沿用原来的批准。回写过之后再 `task start`，开新的一轮：上一轮的成果移到 `DEV_r<轮数>/`，计划移到 `PLAN_r<轮数>.md`，要新计划、新批准。
 - **报告**：`task close` 写 `.workspace/reports/task-<任务名>.md`：计划全文、两次批准的时间、取了哪些文件、改动的增删行数、verifier 结论、被拒绝的调用。

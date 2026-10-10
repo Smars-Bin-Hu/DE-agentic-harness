@@ -47,6 +47,18 @@ Level 切换后一直有效，直到你再切。L3 不用标记：在 agent 下�
 
 想要独立复核结论，在末尾加 `[verify]`。
 
+## L2 任务模式：RCA、设计、方案（成果存成文件，不改仓库）
+
+想把结果留成文件、以后接着用时，带上任务目录。不需要计划和批准。
+
+```text
+/l2 <要分析的现象或要出的方案>。
+任务目录：.workspace/current_tasks/<任务名>。需求在 REQ/<文件名>，参考在 REF/。
+范围：<仓库名>/<目录或文件>。
+知识库：knowledge-base/，先读 knowledge-base/README.md，再按索引读 <domain 名> 相关的文件。
+不改目标仓库。把结果写到任务目录根下的 <RCA.md / DESIGN.md>。
+```
+
 ## L2 任务模式：开发（日常主力）
 
 先在 `.workspace/current_tasks/<任务名>/REQ/` 放好需求，参考代码放 `REF/`。
@@ -149,6 +161,7 @@ DEV/ 里的成果已经写好。不要改文件。
 | --- | --- |
 | 查一个东西，解释一段代码 | L1 |
 | RCA、读知识库、出方案，不改文件 | L2，不带任务目录 |
+| RCA、设计、方案，要存成文件，不改目标仓库 | L2 任务模式，成果写在任务目录根下 |
 | 需求清楚的开发，要改目标仓库 | L2 任务模式 |
 | 跨多个仓库或 domain，改动大，想要独立的 reviewer 把关 | L3 |
 | 改 harness 自己（hook、策略、engine、agent、skill），读报告，查 harness 出错的根因 | admin agent，先在终端 `admin on` |

@@ -69,7 +69,8 @@ def check_write(event: HookEvent, ctx: Context, compiled: Compiled) -> Optional[
 
 
 def check_task_write(event: HookEvent, ctx: Context) -> Optional[Decision]:
-    """Task L2 (M7-4): before the person approves PLAN.md only PLAN.md is written; after it, only files under DEV/."""
+    """A task (M7-4, M9-0): the agent writes inside the task folder only. DEV/ holds what goes back to a target repository
+    and opens once the person approved PLAN.md; the rest of the folder needs no approval. REQ/ and REF/ are the person's."""
     task = ctx.state.get("active_task")
     if not task or ctx.level == 3:
         return None
@@ -77,16 +78,19 @@ def check_task_write(event: HookEvent, ctx: Context) -> Optional[Decision]:
     if data is None or data.get("status") != "open":
         return None  # a task that is gone or closed binds nobody
     approved = tasks.plan_approved(ctx.root, task, data)
-    plan, dev = f"{task}/{tasks.PLAN_NAME}", f"{task}/{tasks.DEV_NAME}"
+    dev = f"{task}/{tasks.DEV_NAME}"
     for raw in event.paths:
         for relative in repo_paths.repo_relative(raw, ctx.root, event.cwd):
             shown = relative if relative is not None else raw
-            if relative is not None and relative.lower() == plan.lower():
+            if relative is None or not _within(relative, task) or relative.lower() in (task.lower(), dev.lower()):
+                return Decision(permission="deny", reason=rules.task_outside(shown, task), facts={"kind": "task-scope"})
+            if _within(relative, dev):
+                if not approved:
+                    return Decision(permission="deny", reason=rules.task_plan_first(shown, task), facts={"kind": "task-plan"})
                 continue
-            if not approved:
-                return Decision(permission="deny", reason=rules.task_plan_first(shown, task), facts={"kind": "task-plan"})
-            if relative is None or not _within(relative, dev) or relative.lower() == dev.lower():
-                return Decision(permission="deny", reason=rules.task_outside_dev(shown, task), facts={"kind": "task-scope"})
+            top = relative[len(task) :].strip("/").split("/", 1)[0]
+            if top.lower() in tasks.PERSON_DIRS:
+                return Decision(permission="deny", reason=rules.task_person_files(shown, task), facts={"kind": "task-scope"})
     return None
 
 

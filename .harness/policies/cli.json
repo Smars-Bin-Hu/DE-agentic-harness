@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "How the CLI prints. output.encoding: `auto` leaves the encoding to Python and the terminal (a character it cannot show is printed as \\uXXXX, never an error); `utf-8` always prints UTF-8. Set `utf-8` in cli.override.json when Chinese text shows as \\uXXXX; `doctor` prints a sample line of each so you can see which one reads right.",
+  "output": { "encoding": "auto" }
+}

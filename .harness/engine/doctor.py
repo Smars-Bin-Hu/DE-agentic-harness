@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
-from core import config, targets
+from core import config, output, targets
 from core.paths import cli_command, policies_dir, python_command
 from core.registry import load_registry
 from core.state import TRACKED_EVENTS
@@ -164,6 +164,47 @@ def check_logs(report: Report, root: Path, registry: Dict[str, Any]) -> None:
         report.warn(f"有 {count} 个会话日志（超过 {limit}）。不用的可以删：{cli_command()} logs prune --days 30")
     if (base / "hook-calls.jsonl").exists():
         report.warn("还有旧的 .harness/runtime/logs/hook-calls.jsonl。现在每个会话一个文件，这个旧文件不再写入，可以删除")
+
+
+def check_output(report: Report, root: Path) -> bool:
+    """How the CLI prints Chinese here. Returns True when the raw UTF-8 sample line should be printed too."""
+    try:
+        raw = config.load_policy(root, output.POLICY_NAME)["output"]["encoding"]
+    except Exception as error:
+        report.error(f"cli.json 不能读取或缺 output.encoding：{error}")
+        return False
+    if raw not in output.CHOICES:
+        report.error(f"cli.json 的 output.encoding 是 `{raw}`，只能是 {'、'.join(output.CHOICES)}。现在按 auto 处理")
+    facts = output.facts()
+    pages = facts["code_pages"]
+    where = "终端" if facts["terminal"] else "管道或重定向"
+    shown = f"输出编码：stdout={facts['stdout_encoding']}（{where}），系统默认={facts['preferred']}"
+    if pages:
+        shown += f"，代码页 输出={pages['console_output']} ANSI={pages['ansi']}"
+    shown += f"；output.encoding={output.setting(root)}"
+    if output.shows(output.SAMPLE, facts["stdout_encoding"]):
+        report.ok(shown)
+        report.ok(f"  {output.SAMPLE}（这一行能读，中文输出就正常）")
+        return False
+    report.warn(shown + "。这个编码写不出中文，CLI 的中文会显示成 \\uXXXX")
+    return True
+
+
+def print_utf8_sample() -> None:
+    """One line as raw UTF-8 bytes, whatever the stream encoding is: it shows what `output.encoding: utf-8` would look like here.
+
+    The advice is in that line too: a person who can read it is a person for whom the switch works.
+    """
+    text = (
+        f"[INFO]  UTF-8 样例：{output.SAMPLE}。这一行能读，就新建 .harness/policies/cli.override.json，"
+        '写 {"output": {"encoding": "utf-8"}}，CLI 的中文就不再是 \\uXXXX；这一行是乱码，就不要改。\n'
+    )
+    try:
+        sys.stdout.flush()
+        sys.stdout.buffer.write(text.encode("utf-8"))
+        sys.stdout.buffer.flush()
+    except Exception:  # noqa: BLE001 - a sample line must not fail doctor
+        pass
 
 
 def check_overrides(report: Report, root: Path) -> None:
@@ -420,11 +461,14 @@ def run(root: Path) -> int:
     check_agents(report, root)
     check_logs(report, root, registry)
     check_overrides(report, root)
+    sample = check_output(report, root)
     check_targets(report, root)
     check_location(report, root)
     check_knowledge_base(report, root)
     for name, entry in registry["modules"].items():
         check_module(report, root, name, entry)
     print("\n".join(report.lines))
+    if sample:
+        print_utf8_sample()
     print(json.dumps({"errors": report.errors}))
     return 1 if report.errors else 0

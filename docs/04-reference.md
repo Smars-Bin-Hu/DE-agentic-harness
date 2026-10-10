@@ -37,7 +37,7 @@
 | `task delete` | 声明删除一个取过的文件 |
 | `task diff` | 列出 `DEV/` 的改动，差异全文写到 `CHANGES.diff` |
 | `task set-branch` | 改 feature 分支名。格式是 `feature/` 加字母、数字、下划线（最长 60 个字符），不能有 `-`、`.`、`/`。默认取任务目录名，其中不合格的字符变成 `_`（`my-task` 变成 `feature/my_task`）；任务开新一轮时加 `_r2`、`_r3` |
-| `task promote` | 把 `DEV/` 回写到各目标仓库的新分支；`--dry-run` 只列计划，差异写到 `PROMOTE-PLAN.diff` |
+| `task promote` | 把 `DEV/<仓库>/` 下的文件回写到各目标仓库的新分支；`--dry-run` 只列计划，差异写到 `PROMOTE-PLAN.diff`。直接放在 `DEV/` 根目录的文件不回写 |
 | `task close` | 退出任务模式，写报告 |
 
 ### agent 在 L3 里用
@@ -93,6 +93,7 @@
 | observe.json | `max_text_chars` | 日志里每段文字的最大长度 |
 | observe.json | `capture.enabled` | 保存 hook 的原始输入输出 |
 | observe.json | `warn_session_files` | 会话日志文件数超过它时 `doctor` 提醒 |
+| cli.json | `output.encoding` | CLI 输出的编码。`auto`（默认）跟着终端；`utf-8` 一律输出 UTF-8 |
 | agents.json | `series` | 模型系列 |
 | agents.json | `different_series` | 必须用不同系列的角色组 |
 | agents.json | `any_series` | 回退列表可以跨系列的 agent（admin） |

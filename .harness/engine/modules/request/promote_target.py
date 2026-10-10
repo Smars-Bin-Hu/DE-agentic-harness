@@ -155,7 +155,7 @@ def plan_files(
     files: List[Dict[str, Any]] = []
     for name in sorted(by_repo):
         if name not in found.repos or not by_repo[name][0]["relative"]:
-            problems.append(f"成果的第一段 `{name}` 不是已配置的目标仓库（已知：{'、'.join(found.names()) or '没有'}）。")
+            problems.append(f"成果的第一段 `{name}` 不是已配置的目标仓库（已知：{'、'.join(found.names()) or '没有'}）。" + hints.get("stray", ""))
             continue
         repo = found.repos[name]
         timeout = found.timeout

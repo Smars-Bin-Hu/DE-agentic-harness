@@ -11,6 +11,7 @@
       ".harness/engine/adapters/copilot_cli.py",
       ".harness/engine/adapters/tool_kinds.json",
       ".github/hooks/harness.json",
+      ".harness/policies/cli.json",
       ".harness/eval/fixtures/hooks/vscode/",
       ".harness/tests/test_breaker.py",
       ".harness/tests/test_docs.py"
