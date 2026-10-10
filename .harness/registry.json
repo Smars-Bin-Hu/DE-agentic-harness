@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": "1.0.0",
-  "released": "2026-10-04",
+  "version": "1.0.2",
+  "released": "2026-10-10",
   "copyright": "Smars Hu",
   "contributors": ["Claude Code"],
   "engine": {

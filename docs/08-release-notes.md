@@ -16,23 +16,54 @@
 
 ### 新增
 
-- 任务目录里可以放不回写的成果。RCA、设计、笔记、一次性脚本写在任务目录根下，例如 `<任务>/RCA.md`，不需要计划和批准。
-- `cli.json` 策略和 `output.encoding` 开关。CLI 的中文显示成 `\uXXXX` 时，在 `cli.override.json` 里设成 `utf-8`。
-- `doctor` 多了“输出编码”几行：现在用什么编码、能不能显示中文。显示不了时，另打一行 UTF-8 样例，帮你判断开关该不该开。
+暂无。
+
+### 变更
+
+暂无。
+
+### 退役
+
+暂无。
+
+## 1.0.2（2026-10-10）
+
+上手体验：短命令、版本图案、用户名字、初始化技能。
+
+### 新增
+
 - 技能 `/harness-repo-initialize`：带你做第一次配置。短命令、用户名字、目标仓库、知识库、公司技能，最后用 `doctor` 检查。
 - `harness --version` 显示图案、版本、发布日期、作者。脚本里用 `harness --version --short`，只输出一行。
 - `user.json` 策略和 `harness user` 命令：你的名字。agent 在要署名的地方用。写在 `user.override.json`，没写就用 `git config user.name`。
 - `doctor` 检查短命令在不在 PATH 里，以及用户名字。
+- Windows 上 PATH 只用改一次：往 PATH 里加一个固定的文件夹（例如 `C:\Users\<你>\bin`），把 `harness.cmd` 拷一份进去。以后升级放在哪都行，不用再改 PATH（公司电脑不用再找 helpdesk）。拷贝在仓库之外运行时读环境变量 `HARNESS_HOME`。`doctor` 认得这种拷贝，拷贝过期时给 `[WARN]`。
+
+### 变更
+
+- **短命令 `harness` 变成必须配置。** 文档、agent 收到的规则、拒绝理由里的命令都写成 `harness <命令>`，不再写 `python .harness/engine/cli.py <命令>`。升级后先把 `.harness/bin` 加进 PATH（见 [快速开始](01-quickstart.md) 第 1 步），否则 `doctor` 报错，agent 的命令会失败。
+- `harness` 像 git 一样，操作当前目录所在的那一份仓库。电脑上有两份 harness 时不会再操作错。不在任何 harness 仓库里时，才用启动脚本自己所在的那一份。
+- `harness --version` 以前输出一行，现在输出图案。脚本要一行的，改用 `harness --version --short`。
+- agent 用短命令运行 `harness level set`、`harness logs prune` 现在也会被拦。以前只拦长命令的写法。
+
+### 退役
+
+暂无。
+
+## 1.0.1（2026-10-10）
+
+补丁：任务目录的写入范围、`DEV/` 根目录的文件、CLI 中文显示。
+
+### 新增
+
+- 任务目录里可以放不回写的成果。RCA、设计、笔记、一次性脚本写在任务目录根下，例如 `<任务>/RCA.md`，不需要计划和批准。
+- `cli.json` 策略和 `output.encoding` 开关。CLI 的中文显示成 `\uXXXX` 时，在 `cli.override.json` 里设成 `utf-8`。
+- `doctor` 多了“输出编码”几行：现在用什么编码、能不能显示中文。显示不了时，另打一行 UTF-8 样例，帮你判断开关该不该开。
 
 ### 变更
 
 - L2 任务模式的写入范围变了。以前：批准计划前只能写 `PLAN.md`，批准后只能写 `DEV/`。现在：任务目录里都能写，只有 `DEV/` 要等计划批准。`REQ/`、`REF/` 不能写。任务目录之外仍然不能写。
 - 直接放在 `DEV/` 根目录的文件不再挡住 `task promote`。它们不回写，计划和批准屏幕里会列出来。`DEV/<名字>/` 的名字不是已配置的仓库时仍然拒绝，防止仓库名写错。
 - 写入被拒绝时，理由不再一律提 `task fetch`。只有直接改目标仓库的文件时才提。
-- **短命令 `harness` 变成必须配置。** 文档、agent 收到的规则、拒绝理由里的命令都写成 `harness <命令>`，不再写 `python .harness/engine/cli.py <命令>`。升级后先把 `.harness/bin` 加进 PATH（见 [快速开始](01-quickstart.md) 第 1 步），否则 `doctor` 报错，agent 的命令会失败。
-- `harness` 像 git 一样，操作当前目录所在的那一份仓库。电脑上有两份 harness 时不会再操作错。不在任何 harness 仓库里时，才用启动脚本自己所在的那一份。
-- `harness --version` 以前输出一行，现在输出图案。脚本要一行的，改用 `harness --version --short`。
-- agent 用短命令运行 `harness level set`、`harness logs prune` 现在也会被拦。以前只拦长命令的写法。
 
 ### 退役
 
