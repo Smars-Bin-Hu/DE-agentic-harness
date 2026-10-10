@@ -37,11 +37,23 @@ class DoctorTests(unittest.TestCase):
         self.addCleanup(self._temporary.cleanup)
         self.root = Path(self._temporary.name)
         copy_repo(self.root)
+        # Isolate the git user.name lookup from whatever is (or is not) set on the machine
+        # running the tests: without this, test_instructions_with_a_broad_apply_to_are_loaded
+        # flips on a machine that has no global git user.name configured.
+        self._git_global_config = self.root / "git-global-config"
+        self._git_global_config.write_text("[user]\n\tname = Test User\n", encoding="utf-8")
 
     def env(self, **extra: str) -> dict:
         """The environment of a machine that is set up: the launcher of this copy is in PATH."""
         path = str(self.root / ".harness" / "bin") + os.pathsep + os.environ.get("PATH", "")
-        return {**os.environ, "HARNESS_ROOT": str(self.root), "PATH": path, **extra}
+        return {
+            **os.environ,
+            "HARNESS_ROOT": str(self.root),
+            "PATH": path,
+            "GIT_CONFIG_GLOBAL": str(self._git_global_config),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            **extra,
+        }
 
     def doctor(self, **extra: str) -> subprocess.CompletedProcess:
         return subprocess.run(
